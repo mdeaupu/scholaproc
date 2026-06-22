@@ -16,6 +16,9 @@
         "rap2hpoutre/fast-excel": "^5.9",
         "robsontenorio/mary": "^2.8",
         "simplesoftwareio/simple-qrcode": "^4.2",
+        "spatie/laravel-activitylog": "^4.12",
+        "spatie/laravel-backup": "^10.3",
+        "spatie/laravel-medialibrary": "^11.23",
         "spatie/laravel-permission": "^8.0"
     },
     "require-dev": {

@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\DashboardController;
+use App\Livewire\Dashboard\CvDashboard;
+use App\Livewire\Dashboard\OwnerDashboard;
+use App\Livewire\Dashboard\SchoolDashboard;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
@@ -29,17 +31,17 @@ Route::middleware('auth')->group(function () {
     })->name('dashboard');
 
     Route::middleware('can:owner-only')->prefix('owner')->group(function () {
-        Route::get('/dashboard', [DashboardController::class, 'ownerDashboard'])->name('dashboard.owner');
+        Route::get('/dashboard', OwnerDashboard::class)->name('dashboard.owner');
         Route::put('/user/{user}/reset-password', [AuthController::class, 'resetPassword'])
             ->name('auth.reset-password');
     });
 
     Route::middleware('can:admin-cv-only')->prefix('cv')->group(function () {
-        Route::get('/dashboard', [DashboardController::class, 'adminCvDashboard'])->name('dashboard.cv');
+        Route::get('/dashboard', CvDashboard::class)->name('dashboard.cv');
     });
 
     Route::middleware('can:admin-school-only')->prefix('school')->group(function () {
-        Route::get('/dashboard', [DashboardController::class, 'adminSchoolDashboard'])->name('dashboard.school');
+        Route::get('/dashboard', SchoolDashboard::class)->name('dashboard.school');
     });
 
     Route::view('profile', 'profile')->name('profile');

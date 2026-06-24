@@ -63,4 +63,45 @@ class User extends Authenticatable
     {
         return $this->hasMany(ProcurementRequestHistory::class);
     }
+
+    // --- AUTHORIZATION METHODS (Business Rules di Model) ---
+    public function isOwner(): bool
+    {
+        return $this->role === 'owner';
+    }
+    public function isAdminCv(): bool
+    {
+        return $this->role === 'admin_cv';
+    }
+    public function isAdminSchool(): bool
+    {
+        return $this->role === 'admin_school';
+    }
+
+    public function canManageSchools(): bool
+    {
+        return $this->isOwner();
+    }
+    public function canManageSuppliers(): bool
+    {
+        return $this->isOwner();
+    }
+    public function canProcessProcurement(): bool
+    {
+        return $this->isAdminCv();
+    }
+
+    // --- QUERY SCOPES ---
+    public function scopeOwner(Builder $query): Builder
+    {
+        return $query->where('role', 'owner');
+    }
+    public function scopeAdminCv(Builder $query): Builder
+    {
+        return $query->where('role', 'admin_cv');
+    }
+    public function scopeAdminSchool(Builder $query): Builder
+    {
+        return $query->where('role', 'admin_school');
+    }
 }

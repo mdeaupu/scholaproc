@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -9,7 +10,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class School extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, HasFactory;
 
     protected $fillable = [
         'npsn',
@@ -34,5 +35,19 @@ class School extends Model
     public function procurementRequests(): HasMany
     {
         return $this->hasMany(ProcurementRequest::class);
+    }
+
+    public function activeRequestsCount(): int
+    {
+        return $this->procurementRequests()
+            ->whereNotIn('status', ['completed', 'rejected'])
+            ->count();
+    }
+
+    public function completedRequestsCount(): int
+    {
+        return $this->procurementRequests()
+            ->completed()
+            ->count();
     }
 }

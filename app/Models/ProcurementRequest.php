@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -12,7 +13,7 @@ use Illuminate\Support\Str;
 
 class ProcurementRequest extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, HasFactory;
 
     protected $fillable = [
         'uuid',
@@ -93,5 +94,39 @@ class ProcurementRequest extends Model
     public function notifications(): HasMany
     {
         return $this->hasMany(Notification::class);
+    }
+
+    public function scopeSubmitted(Builder $query): Builder
+    {
+        return $query->where('status', 'submitted');
+    }
+
+    public function scopeVerified(Builder $query): Builder
+    {
+        return $query->where('status', 'verified');
+    }
+
+    public function scopeCompleted(Builder $query): Builder
+    {
+        return $query->where('status', 'completed');
+    }
+
+    public function scopeRejected(Builder $query): Builder
+    {
+        return $query->where('status', 'rejected');
+    }
+
+    public static function getTotalEstimatedAmount(): float
+    {
+        return (float) DB::table('procurement_request_items')
+            ->selectRaw('SUM(quantity * estimated_price) as total')
+            ->value('total') ?? 0;
+    }
+
+    public static function getTotalOfficialAmount(): float
+    {
+        return (float) DB::table('procurement_request_items')
+            ->selectRaw('SUM(quantity * official_price) as total')
+            ->value('total') ?? 0;
     }
 }

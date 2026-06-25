@@ -1,9 +1,11 @@
 <?php
 
-use App\Http\Controllers\AuthController;
+use App\Http\Controllers\Auth\AuthController;
 use App\Livewire\Dashboard\CvDashboard;
 use App\Livewire\Dashboard\OwnerDashboard;
 use App\Livewire\Dashboard\SchoolDashboard;
+use App\Livewire\School\SchoolForm;
+use App\Livewire\School\SchoolIndex;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
@@ -32,6 +34,9 @@ Route::middleware('auth')->group(function () {
 
     Route::middleware('can:owner-only')->prefix('owner')->group(function () {
         Route::get('/dashboard', OwnerDashboard::class)->name('dashboard.owner');
+        Route::get('/schools', SchoolIndex::class)->name('schools.index');
+        Route::get('/schools/create', SchoolForm::class)->name('schools.create');
+        Route::get('/schools/{school}/edit', SchoolForm::class)->name('schools.edit');
         Route::put('/user/{user}/reset-password', [AuthController::class, 'resetPassword'])
             ->name('auth.reset-password');
     });

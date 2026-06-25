@@ -50,4 +50,32 @@ class School extends Model
             ->completed()
             ->count();
     }
+
+    public function activate(): bool
+    {
+        return $this->update(['status' => 'active']);
+    }
+
+    public function suspend(): bool
+    {
+        return $this->update(['status' => 'suspended']);
+    }
+
+    public function isActive(): bool
+    {
+        return $this->status === 'active';
+    }
+
+    public function totalRequests(): int
+    {
+        return $this->procurementRequests()->count();
+    }
+
+    public function totalProcurementValue(): float
+    {
+        return (float) $this->procurementRequests()
+            ->join('procurement_request_items', 'procurement_requests.id', '=', 'procurement_request_items.procurement_request_id')
+            ->where('procurement_requests.status', 'completed')
+            ->sum('procurement_request_items.official_price') ?? 0.00;
+    }
 }

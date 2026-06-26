@@ -13,7 +13,7 @@ return new class extends Migration {
         Schema::create('supplier_legal_documents', function (Blueprint $table) {
             $table->id();
             $table->foreignId('supplier_id')->constrained()->cascadeOnDelete();
-            $table->enum('document_type', ['izin_usaha', 'akta_pendirian', 'akta_perubahan']);
+            $table->string('document_type', 50);
             $table->string('document_number', 100)->nullable();
             $table->date('document_date')->nullable();
             $table->string('notary_name')->nullable();

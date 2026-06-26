@@ -6,6 +6,9 @@ use App\Livewire\Dashboard\OwnerDashboard;
 use App\Livewire\Dashboard\SchoolDashboard;
 use App\Livewire\School\SchoolForm;
 use App\Livewire\School\SchoolIndex;
+use App\Livewire\Supplier\LegalDocumentForm;
+use App\Livewire\Supplier\SupplierForm;
+use App\Livewire\Supplier\SupplierIndex;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
@@ -37,12 +40,22 @@ Route::middleware('auth')->group(function () {
         Route::get('/schools', SchoolIndex::class)->name('schools.index');
         Route::get('/schools/create', SchoolForm::class)->name('schools.create');
         Route::get('/schools/{school}/edit', SchoolForm::class)->name('schools.edit');
+        Route::get('/suppliers', SupplierIndex::class)->name('owner.suppliers.index');
+        Route::get('/suppliers/create', SupplierForm::class)->name('owner.suppliers.create');
+        Route::get('/suppliers/{supplier}/edit', SupplierForm::class)->name('owner.suppliers.edit');
+        Route::get('/suppliers/{supplier}/legal-documents/create', LegalDocumentForm::class)->name('owner.suppliers.legal-documents.create');
+        Route::get('/suppliers/{supplier}/legal-documents/{document}/edit', LegalDocumentForm::class)->name('owner.suppliers.legal-documents.edit');
         Route::put('/user/{user}/reset-password', [AuthController::class, 'resetPassword'])
             ->name('auth.reset-password');
     });
 
     Route::middleware('can:admin-cv-only')->prefix('cv')->group(function () {
         Route::get('/dashboard', CvDashboard::class)->name('dashboard.cv');
+        Route::get('/suppliers', SupplierIndex::class)->name('cv.suppliers.index');
+        Route::get('/suppliers/create', SupplierForm::class)->name('cv.suppliers.create');
+        Route::get('/suppliers/{supplier}/edit', SupplierForm::class)->name('cv.suppliers.edit');
+        Route::get('/suppliers/{supplier}/legal-documents/create', LegalDocumentForm::class)->name('cv.suppliers.legal-documents.create');
+        Route::get('/suppliers/{supplier}/legal-documents/{document}/edit', LegalDocumentForm::class)->name('cv.suppliers.legal-documents.edit');
     });
 
     Route::middleware('can:admin-school-only')->prefix('school')->group(function () {

@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
+    <link rel="icon" type="image/png" href="https://www.keuangan-msa.com/assets/global/images/msa-bulat.png">
+
     <title>{{ config('app.name', 'Laravel') }}</title>
 
     <!-- Fonts -->
@@ -34,8 +36,7 @@
         <x-slot:brand>
             <div class="flex items-center gap-2.5">
                 <x-application-logo class="w-6 h-6 object-contain" />
-                <span
-                    class="font-bold text-md tracking-tight text-[#0046FF]">{{ config('app.name', 'Scholaproc') }}</span>
+                <span class="font-bold text-md tracking-tight text-[#0046FF]">{{ config('app.name', 'Laravel') }}</span>
             </div>
         </x-slot:brand>
         <x-slot:actions>
@@ -52,7 +53,7 @@
                 <a href="{{ route('dashboard') }}" wire:navigate class="flex items-center gap-3">
                     <x-application-logo class="w-6 h-6 object-contain" />
                     <span class="font-black text-lg tracking-tight text-black hover:text-[#0046FF] transition-colors">
-                        {{ config('app.name', 'Scholaproc') }}
+                        {{ config('app.name', 'Laravel') }}
                     </span>
                 </a>
                 <label for="main-drawer"

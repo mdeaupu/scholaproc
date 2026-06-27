@@ -34,6 +34,18 @@
                                 ['id' => 'suspended', 'name' => 'Ditangguhkan'],
                             ]" />
                     </div>
+                    <div class="mt-6 pt-4 border-t border-gray-100">
+                        <div class="text-sm font-semibold mb-4 text-[#0046FF] flex items-center gap-2">
+                            <x-mary-icon name="o-user-circle" class="w-5 h-5" />
+                            Kredensial Akun Admin Sekolah
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <x-mary-input label="Password Admin" wire:model="password" type="password" icon="o-key"
+                                :hint="$isEdit
+                                    ? 'Kosongkan jika tidak ingin mengubah password.'
+                                    : 'Minimal 8 karakter. Username default menggunakan NPSN.'" />
+                        </div>
+                    </div>
                 </x-mary-card>
             </div>
             <div class="lg:col-span-1">

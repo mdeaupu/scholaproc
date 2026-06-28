@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthController;
+use App\Livewire\Admin\AdminIndex;
 use App\Livewire\Dashboard\CvDashboard;
 use App\Livewire\Dashboard\OwnerDashboard;
 use App\Livewire\Dashboard\SchoolDashboard;
@@ -37,6 +38,7 @@ Route::middleware('auth')->group(function () {
 
     Route::middleware('can:owner-only')->prefix('owner')->group(function () {
         Route::get('/dashboard', OwnerDashboard::class)->name('dashboard.owner');
+        Route::get('/admins', AdminIndex::class)->name('admins.index');
         Route::get('/schools', SchoolIndex::class)->name('schools.index');
         Route::get('/schools/create', SchoolForm::class)->name('schools.create');
         Route::get('/schools/{school}/edit', SchoolForm::class)->name('schools.edit');

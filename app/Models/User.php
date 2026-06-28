@@ -8,14 +8,16 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, HasRoles;
+    use HasFactory, Notifiable, HasRoles, SoftDeletes;
 
     /**
      * The attributes that are mass assignable.
@@ -29,6 +31,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'status',
     ];
 
     /**
@@ -64,7 +67,6 @@ class User extends Authenticatable
         return $this->hasMany(ProcurementRequestHistory::class);
     }
 
-    // --- AUTHORIZATION METHODS (Business Rules di Model) ---
     public function isOwner(): bool
     {
         return $this->role === 'owner';
@@ -91,7 +93,6 @@ class User extends Authenticatable
         return $this->isAdminCv();
     }
 
-    // --- QUERY SCOPES ---
     public function scopeOwner(Builder $query): Builder
     {
         return $query->where('role', 'owner');
@@ -103,5 +104,66 @@ class User extends Authenticatable
     public function scopeAdminSchool(Builder $query): Builder
     {
         return $query->where('role', 'admin_school');
+    }
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('status', 'active');
+    }
+    public function scopeInactive(Builder $query): Builder
+    {
+        return $query->where('status', 'suspended');
+    }
+
+    public static function createAdminCv(array $data): self
+    {
+        return self::create([
+            'username' => $data['username'],
+            'name' => $data['name'],
+            'email' => empty($data['email']) ? null : $data['email'],
+            'password' => Hash::make($data['password']),
+            'role' => 'admin_cv',
+            'status' => 'active',
+            'school_id' => null,
+        ]);
+    }
+
+    public function updateAdminCv(array $data): void
+    {
+        $updateData = [
+            'username' => $data['username'],
+            'name' => $data['name'],
+            'email' => $data['email'] ?? null,
+        ];
+
+        if (!empty($data['password'])) {
+            $updateData['password'] = Hash::make($data['password']);
+        }
+
+        $this->update($updateData);
+    }
+
+    public function activate(): void
+    {
+        $this->update(['status' => 'active']);
+    }
+
+    public function deactivate(): void
+    {
+        $this->update(['status' => 'suspended']);
+    }
+
+    public function isActive(): bool
+    {
+        return $this->status === 'active';
+    }
+
+    public function resetPassword(string $newPassword = 'Password123!'): void
+    {
+        $this->update(['password' => Hash::make($newPassword)]);
+    }
+
+    public function changePassword(string $newPassword): void
+    {
+        $this->update(['password' => Hash::make($newPassword)]);
     }
 }

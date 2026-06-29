@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ProcurementRequestHistory extends Model
 {
     public $timestamps = false;
+    public const UPDATED_AT = null;
 
     protected $fillable = [
         'procurement_request_id',
@@ -16,6 +17,8 @@ class ProcurementRequestHistory extends Model
         'notes',
         'created_at',
     ];
+
+    protected $guarded = ['id'];
 
     protected static function booted()
     {
@@ -32,5 +35,10 @@ class ProcurementRequestHistory extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 }

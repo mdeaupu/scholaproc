@@ -5,6 +5,9 @@ use App\Livewire\Admin\AdminIndex;
 use App\Livewire\Dashboard\CvDashboard;
 use App\Livewire\Dashboard\OwnerDashboard;
 use App\Livewire\Dashboard\SchoolDashboard;
+use App\Livewire\Procurement\ProcurementProcessPanel;
+use App\Livewire\Procurement\ProcurementRequestForm;
+use App\Livewire\Procurement\ProcurementRequestList;
 use App\Livewire\School\SchoolForm;
 use App\Livewire\School\SchoolIndex;
 use App\Livewire\Supplier\LegalDocumentForm;
@@ -62,6 +65,15 @@ Route::middleware('auth')->group(function () {
 
     Route::middleware('can:admin-school-only')->prefix('school')->group(function () {
         Route::get('/dashboard', SchoolDashboard::class)->name('dashboard.school');
+    });
+
+    Route::prefix('procurement-requests')->name('procurement.')->group(function () {
+        Route::get('/', ProcurementRequestList::class)->name('index');
+        Route::middleware('can:admin-school-only')->group(function () {
+            Route::get('/create', ProcurementRequestForm::class)->name('create');
+            Route::get('/{id}/edit', ProcurementRequestForm::class)->name('edit');
+        });
+        Route::get('/{procurementRequest}', ProcurementProcessPanel::class)->name('show');
     });
 
     Route::view('profile', 'profile')->name('profile');

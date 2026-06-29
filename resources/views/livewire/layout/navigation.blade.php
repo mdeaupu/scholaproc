@@ -30,7 +30,6 @@ new class extends Component {
                 ->take(2)
                 ->join('')
             : 'US';
-
         $dashboardRoute = 'dashboard';
         if ($user) {
             if ($user->isOwner()) {
@@ -63,23 +62,21 @@ new class extends Component {
         @endif
         <x-mary-menu-item title="Dashboard" icon="o-squares-2x2" link="{{ route($dashboardRoute) }}" :active="request()->routeIs('dashboard*')"
             wire:navigate class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-
         @if ($user && $user->isOwner())
             <x-mary-menu-sub title="Master Data" icon="o-circle-stack" :open="request()->routeIs('admins.*', 'schools.*', '*suppliers.index')">
                 <x-mary-menu-item title="Manajemen Admin" icon="o-users" link="{{ route('admins.index') }}"
                     :active="request()->routeIs('admins.*')" wire:navigate
                     class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-
                 <x-mary-menu-item title="Manajemen Sekolah" icon="o-academic-cap" link="{{ route('schools.index') }}"
                     :active="request()->routeIs('schools.*')" wire:navigate
                     class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-
                 <x-mary-menu-item title="Manajemen Supplier" icon="o-building-office-2"
                     link="{{ route('owner.suppliers.index') }}" :active="request()->routeIs('owner.suppliers.*')" wire:navigate
                     class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-
             </x-mary-menu-sub>
         @endif
+        <x-mary-menu-item title="Data Pengadaan" icon="o-shopping-cart" link="{{ route('procurement.index') }}"
+            :active="request()->routeIs('procurement.*')" wire:navigate class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
         <div class="my-2 border-t border-gray-200"></div>
         <x-mary-menu-sub title="Pengaturan" icon="o-cog-6-tooth" class="text-sm font-medium text-black"
             :open="request()->routeIs('profile*')">

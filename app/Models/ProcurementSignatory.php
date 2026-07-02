@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ProcurementSignatory extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'procurement_request_id',
         'role',
@@ -18,6 +21,14 @@ class ProcurementSignatory extends Model
     public function procurementRequest(): BelongsTo
     {
         return $this->belongsTo(ProcurementRequest::class);
+    }
+
+    public function formattedIdentity(): string
+    {
+        if (empty($this->nip)) {
+            return $this->name;
+        }
+        return "{$this->name} (NIP. {$this->nip})";
     }
 
 }

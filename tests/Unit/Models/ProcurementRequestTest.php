@@ -137,6 +137,8 @@ test('reject records reason in history', function () {
 test('uses official subtotal when official price is set', function () {
     $procurement = ProcurementRequest::factory()->create([
         'status' => ProcurementRequest::STATUS_DRAFT,
+        'is_taxable' => true,
+        'ppn_rate' => 11,
     ]);
 
     ProcurementRequestItem::factory()->create([
@@ -188,4 +190,84 @@ test('throws exception when verifying non-submitted request', function () {
 
     expect(fn() => $procurement->verify($user))
         ->toThrow(Exception::class, 'Hanya pengajuan berstatus submitted yang dapat diverifikasi.');
+});
+
+test('hasSupplier mengembalikan nilai boolean yang tepat', function () {
+    $procurement = ProcurementRequest::factory()->create([
+        'supplier_id' => null,
+    ]);
+    expect($procurement->hasSupplier())->toBeFalse();
+
+    $supplier = Supplier::factory()->create();
+    $procurement->update(['supplier_id' => $supplier->id]);
+
+    expect($procurement->refresh()->hasSupplier())->toBeTrue();
+});
+
+test('hasOfficialPrices mengecek apakah semua item memiliki harga resmi', function () {
+    $procurement = ProcurementRequest::factory()->create();
+
+    ProcurementRequestItem::factory()->create([
+        'procurement_request_id' => $procurement->id,
+        'official_price' => null,
+    ]);
+    expect($procurement->hasOfficialPrices())->toBeFalse();
+
+    $procurement->items()->update(['official_price' => 150000]);
+    expect($procurement->refresh()->hasOfficialPrices())->toBeTrue();
+});
+
+test('hasSignatories mengecek ketersediaan penandatangan', function () {
+    $procurement = ProcurementRequest::factory()->create();
+    expect($procurement->hasSignatories())->toBeFalse();
+
+    $procurement->signatories()->create(['name' => 'Kepsek', 'role' => 'headmaster']);
+    $procurement->signatories()->create(['name' => 'Pemeriksa', 'role' => 'inspector']);
+    $procurement->signatories()->create(['name' => 'Bendahara', 'role' => 'treasurer']);
+
+    expect($procurement->refresh()->hasSignatories())->toBeTrue();
+});
+
+test('isReadyForDocumentGeneration tervalidasi jika semua syarat terpenuhi', function () {
+    $procurement = ProcurementRequest::factory()->create(['supplier_id' => null]);
+
+    $item = ProcurementRequestItem::factory()->create([
+        'procurement_request_id' => $procurement->id,
+        'official_price' => null
+    ]);
+
+    expect($procurement->isReadyForDocumentGeneration())->toBeFalse();
+
+    $supplier = Supplier::factory()->create();
+    $procurement->update(['supplier_id' => $supplier->id]);
+
+    $item->update(['official_price' => 50000]);
+
+    $procurement->signatories()->create(['name' => 'Kepsek', 'role' => 'headmaster']);
+    $procurement->signatories()->create(['name' => 'Pemeriksa', 'role' => 'inspector']);
+    $procurement->signatories()->create(['name' => 'Bendahara', 'role' => 'treasurer']);
+
+    expect($procurement->refresh()->isReadyForDocumentGeneration())->toBeTrue();
+});
+
+test('generateOfficialDocuments membuat dokumen terkait', function () {
+    $procurement = ProcurementRequest::factory()->create([
+        'status' => ProcurementRequest::STATUS_SUPPLIER_ASSIGNED,
+    ]);
+
+    $supplier = Supplier::factory()->create();
+    $procurement->update(['supplier_id' => $supplier->id]);
+
+    ProcurementRequestItem::factory()->create([
+        'procurement_request_id' => $procurement->id,
+        'official_price' => 150000
+    ]);
+
+    $procurement->signatories()->create(['name' => 'Kepsek', 'role' => 'headmaster']);
+    $procurement->signatories()->create(['name' => 'Pemeriksa', 'role' => 'inspector']);
+    $procurement->signatories()->create(['name' => 'Bendahara', 'role' => 'treasurer']);
+
+    $procurement->generateOfficialDocuments();
+
+    expect($procurement->documents()->count())->toEqual(8);
 });

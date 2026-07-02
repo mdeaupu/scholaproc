@@ -319,4 +319,54 @@ class ProcurementRequest extends Model
             ->selectRaw('SUM(quantity * official_price) as total')
             ->value('total') ?? 0;
     }
+
+    public function hasSupplier(): bool
+    {
+        return !empty($this->supplier_id);
+    }
+
+    public function hasSignatories(): bool
+    {
+        $requiredRoles = ['headmaster', 'inspector', 'treasurer'];
+        $existingRoles = $this->signatories()->pluck('role')->toArray();
+
+        foreach ($requiredRoles as $role) {
+            if (!in_array($role, $existingRoles)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public function hasOfficialPrices(): bool
+    {
+        return $this->items()->whereNull('official_price')
+            ->orWhere('official_price', '<=', 0)
+            ->count() === 0;
+    }
+
+    public function isReadyForDocumentGeneration(): bool
+    {
+        return $this->hasSupplier() && $this->hasSignatories() && $this->hasOfficialPrices();
+    }
+
+    public function generateOfficialDocuments(): void
+    {
+        if (!$this->isReadyForDocumentGeneration()) {
+            throw new Exception("Gagal generate. Mohon lengkapi data supplier, penandatangan, dan harga resmi terlebih dahulu.");
+        }
+
+        $documentTypes = ['cover', 'planning', 'negotiation', 'purchase_order', 'inspection', 'bast', 'invoice', 'receipt'];
+
+        $sequenceNumber = str_pad($this->id, 3, '0', STR_PAD_LEFT);
+
+        DB::transaction(function () use ($documentTypes, $sequenceNumber) {
+            foreach ($documentTypes as $type) {
+                $doc = $this->documents()->firstOrNew(['document_type' => $type]);
+                $doc->document_number = $doc->generateNumber($sequenceNumber);
+                $doc->document_date = now()->toDateString();
+                $doc->save();
+            }
+        });
+    }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\DocumentGenerationService;
 use Exception;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -368,5 +369,57 @@ class ProcurementRequest extends Model
                 $doc->save();
             }
         });
+    }
+
+    public function generateCover(): GeneratedDocument
+    {
+        return app(DocumentGenerationService::class)->generateCover($this);
+    }
+
+    public function generatePlanning(): GeneratedDocument
+    {
+        return app(DocumentGenerationService::class)->generatePlanning($this);
+    }
+
+    public function generateNegotiation(): GeneratedDocument
+    {
+        return app(DocumentGenerationService::class)->generateNegotiation($this);
+    }
+
+    public function generatePurchaseOrder(): GeneratedDocument
+    {
+        return app(DocumentGenerationService::class)->generatePurchaseOrder($this);
+    }
+
+    public function generateInspection(): GeneratedDocument
+    {
+        return app(DocumentGenerationService::class)->generateInspection($this);
+    }
+
+    public function generateBast(): GeneratedDocument
+    {
+        return app(DocumentGenerationService::class)->generateBast($this);
+    }
+
+    public function generateInvoice(): GeneratedDocument
+    {
+        return app(DocumentGenerationService::class)->generateInvoice($this);
+    }
+
+    public function generateReceipt(): GeneratedDocument
+    {
+        return app(DocumentGenerationService::class)->generateReceipt($this);
+    }
+
+    public function generateAllDocuments(): void
+    {
+        $this->generateCover();
+        $this->generatePlanning();
+        $this->generateNegotiation();
+        $this->generatePurchaseOrder();
+        $this->generateInspection();
+        $this->generateBast();
+        $this->generateInvoice();
+        $this->generateReceipt();
     }
 }

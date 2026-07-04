@@ -42,7 +42,7 @@ class ProcurementProcessPanel extends Component
 
     public function mount(ProcurementRequest $procurementRequest)
     {
-        $procurementRequest->load(['items', 'histories.createdBy', 'school', 'supplier']);
+        $procurementRequest->load(['items', 'histories.createdBy', 'school', 'supplier', 'documents', 'generatedDocuments']);
         $this->procurementRequest = $procurementRequest;
         $this->items = $procurementRequest->items;
 

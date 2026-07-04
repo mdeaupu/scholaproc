@@ -123,34 +123,11 @@
                     <div class="flex gap-3 relative">
                         <div
                             class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold z-10 
-                            {{ $procurementRequest->hasSupplier() ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-600' }}">
-                            @if ($procurementRequest->hasSupplier())
-                                ✓
-                            @else
-                                1
-                            @endif
-                        </div>
-                        <div class="flex-1 bg-gray-50 rounded-lg p-2.5 border border-gray-100">
-                            <div class="flex items-center justify-between">
-                                <span class="text-xs font-semibold text-black">Penunjukan Supplier</span>
-                                @if ($procurementRequest->canAssignSupplier() && (auth()->user()->isOwner() || auth()->user()->isAdminCv()))
-                                    <x-mary-button label="Pilih" icon="o-truck" @click="$wire.supplierModal=true"
-                                        class="btn-xs bg-white text-[#0046FF] border-[#0046FF] hover:bg-[#0046FF]/10" />
-                                @endif
-                            </div>
-                            <p class="text-[11px] text-gray-500 mt-0.5">
-                                {{ $procurementRequest->hasSupplier() ? $procurementRequest->supplier->company_name : 'Belum ditunjuk.' }}
-                            </p>
-                        </div>
-                    </div>
-                    <div class="flex gap-3 relative">
-                        <div
-                            class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold z-10 
                             {{ $procurementRequest->is_taxable || $procurementRequest->ppn_rate > 0 ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-600' }}">
                             @if ($procurementRequest->is_taxable || $procurementRequest->ppn_rate > 0)
                                 ✓
                             @else
-                                2
+                                1
                             @endif
                         </div>
                         <div class="flex-1 bg-gray-50 rounded-lg p-2.5 border border-gray-100">
@@ -167,6 +144,30 @@
                             </p>
                         </div>
                     </div>
+                    <div class="flex gap-3 relative">
+                        <div
+                            class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold z-10 
+                            {{ $procurementRequest->hasSupplier() ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-600' }}">
+                            @if ($procurementRequest->hasSupplier())
+                                ✓
+                            @else
+                                2
+                            @endif
+                        </div>
+                        <div class="flex-1 bg-gray-50 rounded-lg p-2.5 border border-gray-100">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-semibold text-black">Penunjukan Supplier</span>
+                                @if ($procurementRequest->canAssignSupplier() && (auth()->user()->isOwner() || auth()->user()->isAdminCv()))
+                                    <x-mary-button label="Pilih" icon="o-truck" @click="$wire.supplierModal=true"
+                                        class="btn-xs bg-white text-[#0046FF] border-[#0046FF] hover:bg-[#0046FF]/10" />
+                                @endif
+                            </div>
+                            <p class="text-[11px] text-gray-500 mt-0.5">
+                                {{ $procurementRequest->hasSupplier() ? $procurementRequest->supplier->company_name : 'Belum ditunjuk.' }}
+                            </p>
+                        </div>
+                    </div>
+
                     <div class="flex gap-3 relative">
                         <div
                             class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold z-10 
@@ -297,6 +298,70 @@
             </div>
         </div>
     </div>
+    @if ($procurementRequest->documents()->exists())
+        <div class="rounded-xl border border-gray-200 bg-white shadow-sm mt-6">
+            <div
+                class="p-5 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h3 class="font-bold text-lg text-black">Cetak Dokumen Resmi (M8)</h3>
+                    <p class="text-sm text-gray-500">Unduh dokumen yang telah dirender otomatis oleh sistem.</p>
+                </div>
+                <x-mary-button label="Generate Semua" icon="o-document-duplicate"
+                    link="{{ route('documents.generate', ['procurement' => $procurementRequest->id, 'type' => 'all']) }}"
+                    class="btn-sm bg-[#0046FF] hover:bg-[#0046FF]/90 text-white border-none" external />
+            </div>
+
+            <div class="p-5 grid grid-cols-2 lg:grid-cols-4 gap-4">
+                @php
+                    $docTypes = [
+                        'cover' => 'Cover',
+                        'planning' => 'Perencanaan',
+                        'negotiation' => 'Negosiasi',
+                        'purchase_order' => 'SPK',
+                        'inspection' => 'Pemeriksaan',
+                        'bast' => 'BAST',
+                        'invoice' => 'Invoice',
+                        'receipt' => 'Kuitansi',
+                    ];
+                @endphp
+
+                @foreach ($docTypes as $type => $label)
+                    @php
+                        // Cek apakah dokumen spesifik ini sudah pernah di-generate
+                        $doc = $procurementRequest->generatedDocuments->where('document_type', $type)->first();
+                    @endphp
+                    <div
+                        class="p-4 border rounded-xl flex flex-col items-center justify-between text-center {{ $doc ? 'border-emerald-200 bg-emerald-50/30' : 'border-gray-200 bg-gray-50' }}">
+                        <span class="font-bold text-sm text-black mb-3">{{ $label }}</span>
+
+                        @if ($doc)
+                            <div class="flex gap-2 w-full">
+                                <x-mary-button icon="o-arrow-down-tray"
+                                    link="{{ route('documents.download', $doc->download_token) }}"
+                                    class="btn-xs bg-emerald-500 hover:bg-emerald-600 text-white border-none flex-1"
+                                    tooltip="Download PDF" no-wire-navigate />
+
+                                <form action="{{ route('documents.regenerate', $doc->id) }}" method="POST"
+                                    class="flex">
+                                    @csrf
+                                    <x-mary-button icon="o-arrow-path" type="submit"
+                                        class="btn-xs btn-outline border-gray-300 text-gray-600 hover:text-[#0046FF] hover:border-[#0046FF]"
+                                        tooltip="Generate Ulang" />
+                                </form>
+                            </div>
+                            <span class="text-[9px] text-gray-400 mt-2">Diperbarui:
+                                {{ $doc->created_at?->format('d/m H:i') ?? '-' }}</span>
+                        @else
+                            <x-mary-button label="Generate" icon="o-cog"
+                                link="{{ route('documents.generate', ['procurement' => $procurementRequest->id, 'type' => $type]) }}"
+                                class="btn-xs w-full bg-white border-[#0046FF] text-[#0046FF] hover:bg-[#0046FF]/10"
+                                no-wire-navigate />
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
     <x-mary-modal wire:model="taxModal" title="Atur Komponen Pajak Global" class="backdrop-blur text-black"
         title-class="text-[#0046FF]">
         <x-mary-form wire:submit="setTaxes">

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\DocumentController;
 use App\Livewire\Admin\AdminIndex;
 use App\Livewire\Dashboard\CvDashboard;
 use App\Livewire\Dashboard\OwnerDashboard;
@@ -76,6 +77,11 @@ Route::middleware('auth')->group(function () {
         Route::get('/{procurementRequest}', ProcurementProcessPanel::class)->name('show');
     });
 
+    Route::prefix('documents')->name('documents.')->group(function () {
+        Route::get('/generate/{procurement}/{type}', [DocumentController::class, 'generate'])->name('generate');
+        Route::get('/download/{document:download_token}', [DocumentController::class, 'download'])->name('download');
+        Route::post('/regenerate/{document}', [DocumentController::class, 'regenerate'])->name('regenerate');
+    });
     Route::view('profile', 'profile')->name('profile');
 });
 

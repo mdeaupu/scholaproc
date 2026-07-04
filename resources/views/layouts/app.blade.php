@@ -65,6 +65,25 @@
         </x-slot:sidebar>
         <x-slot:content class="p-6 lg:p-8 bg-white">
             <x-mary-toast />
+            @if (session('success'))
+                <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 4000)" x-transition
+                    class="toast toast-top toast-end z-50">
+                    <div class="alert alert-success shadow-lg">
+                        <span>{{ session('success') }}</span>
+                        <button @click="show = false" class="btn btn-ghost btn-xs">✕</button>
+                    </div>
+                </div>
+            @endif
+
+            @if (session('error'))
+                <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 4000)" x-transition
+                    class="toast toast-top toast-end z-50">
+                    <div class="alert alert-error shadow-lg">
+                        <span>{{ session('error') }}</span>
+                        <button @click="show = false" class="btn btn-ghost btn-xs">✕</button>
+                    </div>
+                </div>
+            @endif
             @if (isset($header))
                 <div class="mb-6 pb-5 border-b border-[#0046FF]/20">
                     <h1 class="text-2xl font-bold tracking-tight text-black">

@@ -23,8 +23,10 @@ return new class extends Migration {
             $table->string('director_nik', 16);
             $table->string('director_npwp', 30)->nullable();
             $table->string('director_phone', 20)->nullable();
+            $table->text('director_address')->nullable();
             $table->string('commissioner_name')->nullable();
             $table->string('commissioner_nik', 16)->nullable();
+            $table->text('commissioner_address')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });

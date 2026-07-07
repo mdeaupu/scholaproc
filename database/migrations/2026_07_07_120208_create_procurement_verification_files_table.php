@@ -10,13 +10,15 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        Schema::create('generated_documents', function (Blueprint $table) {
+        Schema::create('procurement_verification_files', function (Blueprint $table) {
             $table->id();
             $table->foreignId('procurement_request_id')->constrained('procurement_requests')->cascadeOnDelete();
-            $table->string('document_type', 30);
+            $table->string('file_type', 30)->index();
             $table->string('file_path');
-            $table->string('download_token', 64)->unique()->nullable();
-            $table->timestamp('generated_at')->useCurrent();
+            $table->foreignId('uploaded_by')->constrained('users');
+            $table->text('notes')->nullable();
+            $table->timestamp('uploaded_at')->nullable();
+            $table->index('procurement_request_id');
         });
     }
 
@@ -25,6 +27,6 @@ return new class extends Migration {
      */
     public function down(): void
     {
-        Schema::dropIfExists('generated_documents');
+        Schema::dropIfExists('procurement_verification_files');
     }
 };

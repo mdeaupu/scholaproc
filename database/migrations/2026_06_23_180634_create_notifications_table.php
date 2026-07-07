@@ -12,11 +12,11 @@ return new class extends Migration {
     {
         Schema::create('notifications', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('procurement_request_id')->nullable()->constrained();
-            $table->enum('channel', ['whatsapp', 'email'])->index();
+            $table->foreignId('procurement_request_id')->nullable()->constrained('procurement_requests')->nullOnDelete();
+            $table->string('channel', 20)->index();
             $table->string('recipient');
             $table->text('message_content')->nullable();
-            $table->enum('status', ['pending', 'sent', 'failed'])->default('pending')->index();
+            $table->string('status', 20)->default('pending')->index();
             $table->text('error_message')->nullable();
             $table->timestamp('sent_at')->nullable();
             $table->timestamps();

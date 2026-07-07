@@ -10,13 +10,17 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        Schema::create('school_settings', function (Blueprint $table) {
+        Schema::create('budget_years', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('school_id')->unique()->constrained('schools')->cascadeOnDelete();
-            $table->string('kop_pusat');
-            $table->string('kop_provinsi');
-            $table->string('kop_sub_wilayah')->nullable();
+            $table->string('name', 20)->unique();
+            $table->date('start_date');
+            $table->date('end_date');
+            $table->boolean('is_active')->default(false)->index();
             $table->timestamps();
+            $table->unique([
+                'start_date',
+                'end_date'
+            ]);
         });
     }
 
@@ -25,6 +29,6 @@ return new class extends Migration {
      */
     public function down(): void
     {
-        Schema::dropIfExists('school_settings');
+        Schema::dropIfExists('budget_years');
     }
 };

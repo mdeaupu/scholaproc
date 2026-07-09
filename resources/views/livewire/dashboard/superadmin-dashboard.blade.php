@@ -53,12 +53,12 @@
                 </div>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="bg-gradient-to-r from-gray-50 to-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <div class="bg-linear-to-r from-gray-50 to-white p-6 rounded-lg shadow-sm border border-gray-200">
                     <p class="text-sm text-gray-500 font-medium mb-1">Total Nilai Estimasi (Kebutuhan Sekolah)</p>
                     <p class="text-3xl font-extrabold text-gray-800">Rp
                         {{ number_format($grandTotalEstimated, 0, ',', '.') }}</p>
                 </div>
-                <div class="bg-gradient-to-r from-indigo-50 to-white p-6 rounded-lg shadow-sm border border-indigo-200">
+                <div class="bg-linear-to-r from-indigo-50 to-white p-6 rounded-lg shadow-sm border border-indigo-200">
                     <p class="text-sm text-indigo-500 font-medium mb-1">Total Nilai Resmi (Disepakati CV)</p>
                     <p class="text-3xl font-extrabold text-indigo-700">Rp
                         {{ number_format($grandTotalOfficial, 0, ',', '.') }}</p>

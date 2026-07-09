@@ -2,21 +2,25 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ProcurementRequestItem extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'procurement_request_id',
         'line_number',
         'item_name',
         'specification',
-        'unit',
+        'unit_id',
         'quantity',
         'estimated_price',
         'official_price',
         'is_pph',
+        'negotiation_status',
     ];
 
     protected function casts(): array
@@ -33,5 +37,10 @@ class ProcurementRequestItem extends Model
     public function procurementRequest(): BelongsTo
     {
         return $this->belongsTo(ProcurementRequest::class);
+    }
+
+    public function unit(): BelongsTo
+    {
+        return $this->belongsTo(ItemUnit::class, 'unit_id');
     }
 }

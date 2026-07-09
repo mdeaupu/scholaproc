@@ -2,6 +2,9 @@
 
 namespace Database\Factories;
 
+use App\Models\BudgetYear;
+use App\Models\FundingSource;
+use App\Models\PackageCategory;
 use App\Models\ProcurementRequest;
 use App\Models\School;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -21,11 +24,11 @@ class ProcurementRequestFactory extends Factory
     {
         return [
             'school_id' => School::factory(),
-            'package_category_id' => 1,
-            'budget_year_id' => 1,
-            'funding_source_id' => 1,
+            'package_category_id' => PackageCategory::first() ?? PackageCategory::factory(),
+            'budget_year_id' => BudgetYear::first() ?? BudgetYear::factory(),
+            'funding_source_id' => FundingSource::first() ?? FundingSource::factory(),
             'uuid' => Str::uuid()->toString(),
-            'status' => 'pending',
+            'status' => 'draft',
             'created_at' => now(),
             'updated_at' => now(),
         ];

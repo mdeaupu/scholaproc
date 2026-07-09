@@ -1,9 +1,9 @@
 <?php
 
 use App\Http\Controllers\AuthController;
-use App\Livewire\Dashboard\CvDashboard;
-use App\Livewire\Dashboard\OwnerDashboard;
+use App\Livewire\Dashboard\AdminDashboard;
 use App\Livewire\Dashboard\SchoolDashboard;
+use App\Livewire\Dashboard\SuperAdminDashboard;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
@@ -31,17 +31,17 @@ Route::middleware('auth')->group(function () {
     })->name('dashboard');
 
     Route::middleware('role:superadmin')->prefix('superadmin')->group(function () {
-        Route::view('/dashboard', 'livewire.dashboard.superadmin')->name('dashboard.superadmin');
+        Route::get('/dashboard', SuperAdminDashboard::class)->name('dashboard.superadmin');
         Route::put('/user/{user}/reset-password', [AuthController::class, 'resetPassword'])
             ->name('auth.reset-password');
     });
 
     Route::middleware('role:admin')->prefix('admin')->group(function () {
-        Route::view('/dashboard', 'livewire.dashboard.admin')->name('dashboard.admin');
+        Route::get('/dashboard', AdminDashboard::class)->name('dashboard.admin');
     });
 
     Route::middleware('role:school')->prefix('school')->group(function () {
-        Route::view('/dashboard', 'livewire.dashboard.school')->name('dashboard.school');
+        Route::get('/dashboard', SchoolDashboard::class)->name('dashboard.school');
     });
 
     Route::view('profile', 'profile')->name('profile');

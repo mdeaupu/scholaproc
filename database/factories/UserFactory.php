@@ -26,38 +26,11 @@ class UserFactory extends Factory
     {
         return [
             'name' => fake()->name(),
-            'email' => fake()->unique()->safeEmail(),
-            'email_verified_at' => now(),
             'username' => fake()->unique()->userName(),
-            'role' => 'admin_school',
+            'password' => Hash::make('password'),
+            'role' => fake()->randomElement(['superadmin', 'admin', 'school']),
             'school_id' => null,
-            'password' => static::$password ??= Hash::make('password'),
-            'remember_token' => Str::random(10),
+            'status' => 'active',
         ];
-    }
-
-    /**
-     * Indicate that the model's email address should be unverified.
-     */
-
-    public function unverified(): static
-    {
-        return $this->state(fn(array $attributes) => [
-            'email_verified_at' => null,
-        ]);
-    }
-
-    public function owner(): static
-    {
-        return $this->state(fn(array $attributes) => [
-            'role' => 'owner',
-        ]);
-    }
-
-    public function adminCv(): static
-    {
-        return $this->state(fn(array $attributes) => [
-            'role' => 'admin_cv',
-        ]);
     }
 }

@@ -28,6 +28,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'status',
         'role',
     ];
 
@@ -54,6 +55,7 @@ class User extends Authenticatable
         ];
     }
 
+
     public function school(): BelongsTo
     {
         return $this->belongsTo(School::class);
@@ -64,44 +66,70 @@ class User extends Authenticatable
         return $this->hasMany(ProcurementRequestHistory::class);
     }
 
-    // --- AUTHORIZATION METHODS (Business Rules di Model) ---
-    public function isOwner(): bool
+    public function negotiations(): HasMany
     {
-        return $this->role === 'owner';
+        return $this->hasMany(ProcurementNegotiation::class);
     }
-    public function isAdminCv(): bool
+
+
+    public function isSuperAdmin(): bool
     {
-        return $this->role === 'admin_cv';
+        return $this->role === 'superadmin';
     }
-    public function isAdminSchool(): bool
+
+    public function isAdmin(): bool
     {
-        return $this->role === 'admin_school';
+        return $this->role === 'admin';
+    }
+
+    public function isSchool(): bool
+    {
+        return $this->role === 'school';
     }
 
     public function canManageSchools(): bool
     {
-        return $this->isOwner();
-    }
-    public function canManageSuppliers(): bool
-    {
-        return $this->isOwner();
-    }
-    public function canProcessProcurement(): bool
-    {
-        return $this->isAdminCv();
+        return $this->isSuperAdmin();
     }
 
-    // --- QUERY SCOPES ---
-    public function scopeOwner(Builder $query): Builder
+    public function canManageSuppliers(): bool
     {
-        return $query->where('role', 'owner');
+        return $this->isSuperAdmin();
     }
-    public function scopeAdminCv(Builder $query): Builder
+
+    public function canProcessProcurement(): bool
     {
-        return $query->where('role', 'admin_cv');
+        return $this->isAdmin();
     }
-    public function scopeAdminSchool(Builder $query): Builder
+
+    public function canDecideNegotiation(ProcurementRequest $request): bool
     {
-        return $query->where('role', 'admin_school');
+        return $this->isSchool() && $this->school_id === $request->school_id;
+    }
+
+    public function canVerifyReceipt(ProcurementRequest $request): bool
+    {
+        return $this->isSchool() && $this->school_id === $request->school_id;
+    }
+
+
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('status', 'active');
+    }
+
+    public function scopeSuperAdmin(Builder $query): Builder
+    {
+        return $query->where('role', 'superadmin');
+    }
+
+    public function scopeAdmin(Builder $query): Builder
+    {
+        return $query->where('role', 'admin');
+    }
+
+    public function scopeSchool(Builder $query): Builder
+    {
+        return $query->where('role', 'school');
     }
 }

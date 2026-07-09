@@ -18,27 +18,27 @@ Route::middleware('auth')->group(function () {
         /** @var User $user */
         $user = auth()->user();
 
-        if ($user->isOwner()) {
-            return redirect()->route('dashboard.owner');
+        if ($user->isSuperAdmin()) {
+            return redirect()->route('dashboard.superadmin');
         }
-        if ($user->isAdminCv()) {
-            return redirect()->route('dashboard.cv');
+        if ($user->isAdmin()) {
+            return redirect()->route('dashboard.admin');
         }
         return redirect()->route('dashboard.school');
     })->name('dashboard');
 
-    Route::middleware('can:owner-only')->prefix('owner')->group(function () {
-        Route::view('/dashboard', 'dashboard.owner')->name('dashboard.owner');
+    Route::middleware('role:superadmin')->prefix('superadmin')->group(function () {
+        Route::view('/dashboard', 'livewire.dashboard.superadmin')->name('dashboard.superadmin');
         Route::put('/user/{user}/reset-password', [AuthController::class, 'resetPassword'])
             ->name('auth.reset-password');
     });
 
-    Route::middleware('can:admin-cv-only')->prefix('cv')->group(function () {
-        Route::view('/dashboard', 'dashboard.cv')->name('dashboard.cv');
+    Route::middleware('role:admin')->prefix('admin')->group(function () {
+        Route::view('/dashboard', 'livewire.dashboard.admin')->name('dashboard.admin');
     });
 
-    Route::middleware('can:admin-school-only')->prefix('school')->group(function () {
-        Route::view('/dashboard', 'dashboard.school')->name('dashboard.school');
+    Route::middleware('role:school')->prefix('school')->group(function () {
+        Route::view('/dashboard', 'livewire.dashboard.school')->name('dashboard.school');
     });
 
     Route::view('profile', 'profile')->name('profile');

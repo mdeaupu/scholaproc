@@ -22,13 +22,13 @@ new #[Layout('layouts.guest')] class extends Component {
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
-        if ($user->isOwner()) {
-            $this->redirect(route('dashboard.owner', absolute: false), navigate: true);
+        if ($user->isSuperAdmin()) {
+            $this->redirect(route('dashboard.superadmin', absolute: false), navigate: true);
             return;
         }
 
-        if ($user->isAdminCv()) {
-            $this->redirect(route('dashboard.cv', absolute: false), navigate: true);
+        if ($user->isAdmin()) {
+            $this->redirect(route('dashboard.admin', absolute: false), navigate: true);
             return;
         }
 

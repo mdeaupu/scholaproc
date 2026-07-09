@@ -2,13 +2,13 @@
 
 namespace Database\Factories;
 
-use App\Models\School;
+use App\Models\BudgetYear;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends Factory<School>
+ * @extends Factory<BudgetYear>
  */
-class SchoolFactory extends Factory
+class BudgetYearFactory extends Factory
 {
     /**
      * Define the model's default state.
@@ -18,10 +18,9 @@ class SchoolFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => $this->faker->company() . ' School',
-            'address' => $this->faker->address(),
-            'npsn' => $this->faker->unique()->numerify('##########'),
-            'phone_number' => $this->faker->phoneNumber(),
+            'name' => (string) now()->year,
+            'start_date' => now()->startOfYear(),
+            'end_date' => now()->endOfYear(),
             'created_at' => now(),
             'updated_at' => now(),
         ];

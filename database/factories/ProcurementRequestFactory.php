@@ -20,18 +20,14 @@ class ProcurementRequestFactory extends Factory
     public function definition(): array
     {
         return [
-            'uuid' => (string) Str::uuid(),
             'school_id' => School::factory(),
-            'status' => fake()->randomElement(['submitted', 'verified', 'completed', 'rejected']),
-            'package_category' => fake()->randomElement(['Alat Tulis Kantor', 'Sarana Prasarana', 'Elektronik Kelas']),
-            'budget_year' => 2026,
-            'funding_source' => 'Dana BOS Reguler',
-            'start_date' => now()->addDays(2),
-            'end_date' => now()->addMonths(1),
-            'work_duration_text' => '30 Hari Kerja',
-            'is_taxable' => true,
-            'ppn_rate' => 11.00,
-            'requested_at' => now(),
+            'package_category_id' => 1,
+            'budget_year_id' => 1,
+            'funding_source_id' => 1,
+            'uuid' => Str::uuid()->toString(),
+            'status' => 'pending',
+            'created_at' => now(),
+            'updated_at' => now(),
         ];
     }
 }

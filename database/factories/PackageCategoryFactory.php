@@ -2,13 +2,13 @@
 
 namespace Database\Factories;
 
-use App\Models\School;
+use App\Models\PackageCategory;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends Factory<School>
+ * @extends Factory<PackageCategory>
  */
-class SchoolFactory extends Factory
+class PackageCategoryFactory extends Factory
 {
     /**
      * Define the model's default state.
@@ -18,10 +18,7 @@ class SchoolFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => $this->faker->company() . ' School',
-            'address' => $this->faker->address(),
-            'npsn' => $this->faker->unique()->numerify('##########'),
-            'phone_number' => $this->faker->phoneNumber(),
+            'name' => $this->faker->word(),
             'created_at' => now(),
             'updated_at' => now(),
         ];

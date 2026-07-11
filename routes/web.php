@@ -1,8 +1,8 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthController;
-use App\Livewire\Dashboard\CvDashboard;
-use App\Livewire\Dashboard\OwnerDashboard;
+use App\Livewire\Dashboard\SuperAdminDashboard;
+use App\Livewire\Dashboard\AdminDashboard;
 use App\Livewire\Dashboard\SchoolDashboard;
 use App\Livewire\School\SchoolForm;
 use App\Livewire\School\SchoolIndex;
@@ -23,17 +23,17 @@ Route::middleware('auth')->group(function () {
         /** @var User $user */
         $user = auth()->user();
 
-        if ($user->isOwner()) {
-            return redirect()->route('dashboard.owner');
+        if ($user->isSuperAdmin()) {
+            return redirect()->route('dashboard.superadmin');
         }
-        if ($user->isAdminCv()) {
-            return redirect()->route('dashboard.cv');
+        if ($user->isAdmin()) {
+            return redirect()->route('dashboard.admin');
         }
         return redirect()->route('dashboard.school');
     })->name('dashboard');
 
-    Route::middleware('can:owner-only')->prefix('owner')->group(function () {
-        Route::get('/dashboard', OwnerDashboard::class)->name('dashboard.owner');
+    Route::middleware('role:superadmin')->prefix('owner')->group(function () {
+        Route::get('/dashboard', SuperAdminDashboard::class)->name('dashboard.superadmin');
         Route::get('/schools', SchoolIndex::class)->name('schools.index');
         Route::get('/schools/create', SchoolForm::class)->name('schools.create');
         Route::get('/schools/{school}/edit', SchoolForm::class)->name('schools.edit');
@@ -41,11 +41,11 @@ Route::middleware('auth')->group(function () {
             ->name('auth.reset-password');
     });
 
-    Route::middleware('can:admin-cv-only')->prefix('cv')->group(function () {
-        Route::get('/dashboard', CvDashboard::class)->name('dashboard.cv');
+    Route::middleware('role:admin')->prefix('admin')->group(function () {
+        Route::get('/dashboard', AdminDashboard::class)->name('dashboard.admin');
     });
 
-    Route::middleware('can:admin-school-only')->prefix('school')->group(function () {
+    Route::middleware('role:school')->prefix('school')->group(function () {
         Route::get('/dashboard', SchoolDashboard::class)->name('dashboard.school');
     });
 

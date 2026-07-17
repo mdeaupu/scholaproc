@@ -33,10 +33,10 @@ new class extends Component {
 
         $dashboardRoute = 'dashboard';
         if ($user) {
-            if ($user->isOwner()) {
-                $dashboardRoute = 'dashboard.owner';
-            } elseif (method_exists($user, 'isAdminCv') && $user->isAdminCv()) {
-                $dashboardRoute = 'dashboard.cv';
+            if ($user->isSuperAdmin()) {
+                $dashboardRoute = 'dashboard.superadmin';
+            } elseif (method_exists($user, 'isAdmin') && $user->isAdmin()) {
+                $dashboardRoute = 'dashboard.admin';
             } else {
                 $dashboardRoute = 'dashboard.school';
             }
@@ -64,15 +64,15 @@ new class extends Component {
         <x-mary-menu-item title="Dashboard" icon="o-squares-2x2" link="{{ route($dashboardRoute) }}" :active="request()->routeIs('dashboard*')"
             wire:navigate class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
 
-        @if ($user && $user->isOwner())
+        @if ($user && $user->isSuperAdmin())
             <x-mary-menu-item title="Manajemen Sekolah" icon="o-academic-cap" link="{{ route('schools.index') }}"
                 :active="request()->routeIs('schools.*')" wire:navigate
                 class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
         @endif
-        @if ($user && ($user->isOwner() || (method_exists($user, 'isAdminCv') && $user->isAdminCv())))
+        @if ($user && ($user->isSuperAdmin() || (method_exists($user, 'isAdminCv') && $user->isAdmin())))
             @php
-                $supplierRouteName = $user->isOwner() ? 'owner.suppliers.index' : 'cv.suppliers.index';
-                $supplierCreateRouteName = $user->isOwner() ? 'owner.suppliers.create' : 'cv.suppliers.create';
+                $supplierRouteName = $user->isSuperAdmin() ? 'owner.suppliers.index' : 'cv.suppliers.index';
+                $supplierCreateRouteName = $user->isSuperAdmin() ? 'owner.suppliers.create' : 'cv.suppliers.create';
             @endphp
             <x-mary-menu-item title="Manajemen Supplier" icon="o-list-bullet" link="{{ route($supplierRouteName) }}"
                 :active="request()->routeIs('*suppliers.index')" wire:navigate

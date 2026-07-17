@@ -4,10 +4,10 @@ use App\Models\School;
 use App\Models\SchoolSetting;
 use App\Models\User;
 use App\Models\ProcurementRequest;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-uses(TestCase::class, \Illuminate\Foundation\Testing\RefreshDatabase::class);
+uses(TestCase::class, RefreshDatabase::class);
 
 test('sekolah memiliki relasi satu ke pengaturan sekolah (SchoolSetting)', function () {
     $school = School::factory()->create();
@@ -17,12 +17,16 @@ test('sekolah memiliki relasi satu ke pengaturan sekolah (SchoolSetting)', funct
         ->and($school->setting->id)->toBe($setting->id);
 });
 
-test('sekolah memiliki relasi banyak ke pengguna (User)', function () {
+test('sekolah memiliki relasi satu ke akun pengguna (User)', function () {
     $school = School::factory()->create();
-    User::factory()->count(3)->create(['school_id' => $school->id]);
 
-    expect($school->users)->toHaveCount(3)
-        ->and($school->users->first())->toBeInstanceOf(User::class);
+    $user = User::factory()->create([
+        'school_id' => $school->id,
+        'role' => 'school'
+    ]);
+
+    expect($school->account)->toBeInstanceOf(User::class)
+        ->and($school->account->id)->toBe($user->id);
 });
 
 test('sekolah memiliki relasi banyak ke permohonan pengadaan', function () {
@@ -56,47 +60,16 @@ test('menghitung total seluruh permohonan pengadaan dengan benar', function () {
 test('menghitung akumulasi nilai nominal pengadaan resmi (completed) dengan benar', function () {
     $school = School::factory()->create();
 
-    $completedRequest = ProcurementRequest::factory()->create([
+    ProcurementRequest::factory()->create([
         'school_id' => $school->id,
-        'status' => 'completed'
+        'status' => 'completed',
+        'grand_total' => 5000000.00
     ]);
 
-    DB::table('procurement_request_items')->insert([
-        [
-            'procurement_request_id' => $completedRequest->id,
-            'item_name' => 'Laptop Asus Core i5',
-            'specification' => 'RAM 8GB, SSD 512GB',
-            'unit' => 'unit',
-            'quantity' => 1,
-            'estimated_price' => 3000000.00,
-            'official_price' => 3000000.00
-        ],
-        [
-            'procurement_request_id' => $completedRequest->id,
-            'item_name' => 'Printer Epson L3210',
-            'specification' => 'Print, Scan, Copy',
-            'unit' => 'unit',
-            'quantity' => 1,
-            'estimated_price' => 2000000.00,
-            'official_price' => 2000000.00
-        ],
-    ]);
-
-    $rejectedRequest = ProcurementRequest::factory()->create([
+    ProcurementRequest::factory()->create([
         'school_id' => $school->id,
-        'status' => 'rejected'
-    ]);
-
-    DB::table('procurement_request_items')->insert([
-        [
-            'procurement_request_id' => $rejectedRequest->id,
-            'item_name' => 'Proyektor BenQ',
-            'specification' => '3000 Lumens SVGA',
-            'unit' => 'unit',
-            'quantity' => 1,
-            'estimated_price' => 4000000.00,
-            'official_price' => 4000000.00
-        ]
+        'status' => 'rejected',
+        'grand_total' => 4000000.00
     ]);
 
     expect($school->totalProcurementValue())->toBe(5000000.00);

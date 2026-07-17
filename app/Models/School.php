@@ -27,14 +27,18 @@ class School extends Model
         return $this->hasOne(SchoolSetting::class);
     }
 
-    public function users(): HasMany
+    public function account(): HasOne
     {
-        return $this->hasMany(User::class);
+        return $this->hasOne(User::class)->where('role', 'school');
     }
-
     public function procurementRequests(): HasMany
     {
         return $this->hasMany(ProcurementRequest::class);
+    }
+
+    public function documentNumberSequences(): HasMany
+    {
+        return $this->hasMany(DocumentNumberSequence::class);
     }
 
     public function activeRequestsCount(): int
@@ -47,7 +51,7 @@ class School extends Model
     public function completedRequestsCount(): int
     {
         return $this->procurementRequests()
-            ->completed()
+            ->where('status', 'completed')
             ->count();
     }
 
@@ -70,12 +74,10 @@ class School extends Model
     {
         return $this->procurementRequests()->count();
     }
-
     public function totalProcurementValue(): float
     {
         return (float) $this->procurementRequests()
-            ->join('procurement_request_items', 'procurement_requests.id', '=', 'procurement_request_items.procurement_request_id')
-            ->where('procurement_requests.status', 'completed')
-            ->sum('procurement_request_items.official_price') ?? 0.00;
+            ->where('status', 'completed')
+            ->sum('grand_total') ?? 0.00;
     }
 }

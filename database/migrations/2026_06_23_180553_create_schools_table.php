@@ -18,7 +18,7 @@ return new class extends Migration {
             $table->string('postal_code', 10)->nullable();
             $table->string('phone_number', 20);
             $table->string('email')->nullable();
-            $table->enum('status', ['active', 'suspended'])->default('active');
+            $table->string('status', 20)->default('active')->index();
             $table->timestamps();
             $table->softDeletes();
 

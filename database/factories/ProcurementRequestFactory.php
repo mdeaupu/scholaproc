@@ -2,6 +2,9 @@
 
 namespace Database\Factories;
 
+use App\Models\BudgetYear;
+use App\Models\FundingSource;
+use App\Models\PackageCategory;
 use App\Models\ProcurementRequest;
 use App\Models\School;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -20,18 +23,14 @@ class ProcurementRequestFactory extends Factory
     public function definition(): array
     {
         return [
-            'uuid' => (string) Str::uuid(),
             'school_id' => School::factory(),
-            'status' => fake()->randomElement(['submitted', 'verified', 'completed', 'rejected']),
-            'package_category' => fake()->randomElement(['Alat Tulis Kantor', 'Sarana Prasarana', 'Elektronik Kelas']),
-            'budget_year' => 2026,
-            'funding_source' => 'Dana BOS Reguler',
-            'start_date' => now()->addDays(2),
-            'end_date' => now()->addMonths(1),
-            'work_duration_text' => '30 Hari Kerja',
-            'is_taxable' => true,
-            'ppn_rate' => 11.00,
-            'requested_at' => now(),
+            'package_category_id' => PackageCategory::first() ?? PackageCategory::factory(),
+            'budget_year_id' => BudgetYear::first() ?? BudgetYear::factory(),
+            'funding_source_id' => FundingSource::first() ?? FundingSource::factory(),
+            'uuid' => Str::uuid()->toString(),
+            'status' => 'draft',
+            'created_at' => now(),
+            'updated_at' => now(),
         ];
     }
 }

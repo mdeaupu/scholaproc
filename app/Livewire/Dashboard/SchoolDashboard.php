@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Dashboard;
 
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
@@ -9,7 +10,7 @@ class SchoolDashboard extends Component
 {
     public function render()
     {
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = Auth::user();
         $school = $user->school;
 

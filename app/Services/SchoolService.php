@@ -27,12 +27,16 @@ class SchoolService
                 'kop_sub_wilayah' => $data['kop_sub_wilayah'] ?? null,
             ]);
 
-            $school->users()->create([
+            $account = $school->account()->create([
                 'name' => 'Admin ' . $school->name,
                 'username' => $data['npsn'],
+                'email' => $school->email,
                 'password' => Hash::make($data['password']),
-                'role' => 'admin_school',
+                'role' => 'school',
+                'status' => $school->status,
             ]);
+
+            $account->assignRole('school');
 
             return $school;
         });
@@ -60,30 +64,53 @@ class SchoolService
                 ]
             );
 
-            $admin = $school->admin;
+            $account = $school->account;
 
-            if ($admin) {
-                $adminData = [];
+            if ($account) {
+                $accountData = [
+                    'name' => 'Admin ' . $school->name,
+                    'username' => $data['npsn'],
+                    'email' => $data['email'] ?? null,
+                    'status' => $data['status'],
+                    'role' => 'school',
+                ];
 
-                if ($admin->username !== $data['npsn']) {
-                    $adminData['username'] = $data['npsn'];
+                if ($account->username !== $data['npsn']) {
+                    $accountData['username'] = $data['npsn'];
+                }
+
+                if ($account->email !== $data['email']) {
+                    $accountData['email'] = $data['email'] ?? null;
                 }
 
                 if (!empty($data['password'])) {
-                    $adminData['password'] = Hash::make($data['password']);
+                    $accountData['password'] = Hash::make($data['password']);
                 }
 
-                if (!empty($adminData)) {
-                    $admin->update($adminData);
+                if ($account->status !== $data['status']) {
+                    $accountData['status'] = $data['status'];
                 }
+
+                if (!empty($accountData)) {
+                    $account->update($accountData);
+                }
+
+                $account->syncRoles(['school']);
+
             } else {
+                $password = !empty($data['password']) ? $data['password'] : $data['npsn'];
+
                 if (!empty($data['password'])) {
-                    $school->users()->create([
+                    $account = $school->account()->create([
                         'name' => 'Admin ' . $school->name,
                         'username' => $data['npsn'],
-                        'password' => Hash::make($data['password']),
-                        'role' => 'admin_school',
+                        'email' => $school->email,
+                        'password' => Hash::make($password),
+                        'role' => 'school',
+                        'status' => $school->status,
                     ]);
+
+                    $account->assignRole('school');
                 }
             }
 

@@ -8,9 +8,7 @@ new class extends Component {
     public bool $logoutModal = false;
 
     #[On('profile-updated')]
-    public function updateSidebar()
-    {
-    }
+    public function updateSidebar() {}
 
     /**
      * Log the current user out of the application.
@@ -26,21 +24,26 @@ new class extends Component {
 <div>
     @php
         $user = auth()->user();
-        $initials = $user ? collect(explode(' ', $user->name))->map(fn($n) => mb_substr($n, 0, 1))->take(2)->join('') : 'US';
+        $initials = $user
+            ? collect(explode(' ', $user->name))
+                ->map(fn($n) => mb_substr($n, 0, 1))
+                ->take(2)
+                ->join('')
+            : 'US';
 
         $dashboardRoute = 'dashboard';
         if ($user) {
-            if ($user->isOwner()) {
-                $dashboardRoute = 'dashboard.owner';
-            } elseif (method_exists($user, 'isAdminCv') && $user->isAdminCv()) {
-                $dashboardRoute = 'dashboard.cv';
+            if ($user->isSuperAdmin()) {
+                $dashboardRoute = 'dashboard.superadmin';
+            } elseif (method_exists($user, 'isAdmin') && $user->isAdmin()) {
+                $dashboardRoute = 'dashboard.admin';
             } else {
                 $dashboardRoute = 'dashboard.school';
             }
         }
     @endphp
     <x-mary-menu class="px-3 py-3 gap-1">
-        @if($user)
+        @if ($user)
             <x-mary-list-item :item="$user" value="name" no-separator no-hover
                 class="border-b border-gray-200 pb-4 mb-3 -mx-1 text-black">
                 <x-slot:avatar>
@@ -58,11 +61,10 @@ new class extends Component {
                 </x-slot:actions>
             </x-mary-list-item>
         @endif
-        <x-mary-menu-item title="Dashboard" icon="o-squares-2x2" link="{{ route($dashboardRoute) }}"
-            :active="request()->routeIs('dashboard*')" wire:navigate
-            class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+        <x-mary-menu-item title="Dashboard" icon="o-squares-2x2" link="{{ route($dashboardRoute) }}" :active="request()->routeIs('dashboard*')"
+            wire:navigate class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
 
-        @if($user && $user->isOwner())
+        @if ($user && $user->isSuperAdmin())
             <x-mary-menu-item title="Manajemen Sekolah" icon="o-academic-cap" link="{{ route('schools.index') }}"
                 :active="request()->routeIs('schools.*')" wire:navigate
                 class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
@@ -70,9 +72,8 @@ new class extends Component {
         <div class="my-2 border-t border-gray-200"></div>
         <x-mary-menu-sub title="Pengaturan" icon="o-cog-6-tooth" class="text-sm font-medium text-black"
             :open="request()->routeIs('profile*')">
-            <x-mary-menu-item title="Profil Saya" icon="o-user" link="{{ route('profile') }}"
-                :active="request()->routeIs('profile*')" wire:navigate
-                class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+            <x-mary-menu-item title="Profil Saya" icon="o-user" link="{{ route('profile') }}" :active="request()->routeIs('profile*')"
+                wire:navigate class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
         </x-mary-menu-sub>
     </x-mary-menu>
     <template x-teleport="body">

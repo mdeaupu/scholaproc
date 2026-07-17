@@ -32,7 +32,7 @@ Route::middleware('auth')->group(function () {
         return redirect()->route('dashboard.school');
     })->name('dashboard');
 
-    Route::middleware('role:superadmin')->prefix('owner')->group(function () {
+    Route::middleware('role:superadmin')->prefix('superadmin')->group(function () {
         Route::get('/dashboard', SuperAdminDashboard::class)->name('dashboard.superadmin');
         Route::get('/schools', SchoolIndex::class)->name('schools.index');
         Route::get('/schools/create', SchoolForm::class)->name('schools.create');

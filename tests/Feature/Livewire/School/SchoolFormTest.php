@@ -4,10 +4,17 @@ use App\Models\School;
 use App\Models\SchoolSetting;
 use App\Models\User;
 use App\Livewire\School\SchoolForm;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+use Spatie\Permission\Models\Role;
 use function Pest\Laravel\{actingAs};
 
-uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
+uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
+    Role::firstOrCreate(['name' => 'school', 'guard_name' => 'web']);
+});
 
 test('owner dapat mendaftarkan sekolah baru sekaligus data kop surat dan admin otomatis', function () {
     $owner = User::factory()->create(['role' => 'owner']);
@@ -43,12 +50,12 @@ test('owner dapat mendaftarkan sekolah baru sekaligus data kop surat dan admin o
 
     $this->assertDatabaseHas('users', [
         'school_id' => $school->id,
-        'role' => 'admin_school',
+        'role' => 'school',
         'username' => '12345678',
         'name' => 'Admin SMA Bina Bangsa'
     ]);
 
-    $admin = User::where('school_id', $school->id)->where('role', 'admin_school')->first();
+    $admin = User::where('school_id', $school->id)->where('role', 'school')->first();
     expect(Hash::check('secret123', $admin->password))->toBeTrue();
 });
 
@@ -101,7 +108,7 @@ test('owner dapat mengubah informasi sekolah dan kop surat yang sudah ada', func
 
     $admin = User::factory()->create([
         'school_id' => $school->id,
-        'role' => 'admin_school',
+        'role' => 'school',
         'username' => '87654321',
         'password' => Hash::make('oldpassword')
     ]);
@@ -134,7 +141,7 @@ test('update password mengubah password admin', function () {
 
     $admin = User::factory()->create([
         'school_id' => $school->id,
-        'role' => 'admin_school',
+        'role' => 'school',
         'username' => '22222222',
         'password' => Hash::make('oldpass')
     ]);
@@ -167,7 +174,7 @@ test('update tanpa password mempertahankan password lama', function () {
 
     $admin = User::factory()->create([
         'school_id' => $school->id,
-        'role' => 'admin_school',
+        'role' => 'school',
         'username' => '33333333',
         'password' => Hash::make('oldpass')
     ]);
@@ -213,7 +220,7 @@ test('update sekolah yang tidak memiliki admin akan membuat admin jika password 
         ->call('save')
         ->assertRedirect(route('schools.index'));
 
-    $admin = $school->fresh()->admin;
+    $admin = $school->fresh()->account;
     expect($admin)->not->toBeNull()
         ->and($admin->username)->toBe('44444444')
         ->and(Hash::check('newadmin123', $admin->password))->toBeTrue();
@@ -229,7 +236,7 @@ test('update sekolah tanpa admin dan password kosong tidak membuat admin', funct
 
     SchoolSetting::factory()->create(['school_id' => $school->id]);
 
-    expect($school->admin)->toBeNull();
+    expect($school->account)->toBeNull();
 
     actingAs($owner);
 
@@ -244,7 +251,7 @@ test('update sekolah tanpa admin dan password kosong tidak membuat admin', funct
         ->call('save')
         ->assertRedirect(route('schools.index'));
 
-    expect($school->fresh()->admin)->toBeNull();
+    expect($school->fresh()->account)->toBeNull();
 });
 
 test('setiap sekolah hanya memiliki satu admin', function () {
@@ -255,11 +262,11 @@ test('setiap sekolah hanya memiliki satu admin', function () {
 
     User::factory()->create([
         'school_id' => $school->id,
-        'role' => 'admin_school',
+        'role' => 'school',
         'username' => '66666666'
     ]);
 
-    $adminCount = User::where('school_id', $school->id)->where('role', 'admin_school')->count();
+    $adminCount = User::where('school_id', $school->id)->where('role', 'school')->count();
     expect($adminCount)->toBe(1);
 
     actingAs($owner);
@@ -273,6 +280,6 @@ test('setiap sekolah hanya memiliki satu admin', function () {
         ->set('password', '')
         ->call('save');
 
-    $adminCountAfter = User::where('school_id', $school->id)->where('role', 'admin_school')->count();
+    $adminCountAfter = User::where('school_id', $school->id)->where('role', 'school')->count();
     expect($adminCountAfter)->toBe(1);
 });

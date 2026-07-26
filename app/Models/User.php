@@ -90,6 +90,32 @@ class User extends Authenticatable
         return $this->role === 'school';
     }
 
+    public function isActive(): bool
+    {
+        return $this->status === 'active';
+    }
+
+    public function isSuspended(): bool
+    {
+        return $this->status === 'suspended';
+    }
+
+    public function activate(): void
+    {
+        $this->update(['status' => 'active']);
+    }
+
+    public function deactivate(): void
+    {
+        $this->update(['status' => 'suspended']);
+    }
+
+    public function resetPassword(string $newPassword): void
+    {
+        $this->update(['password' => $newPassword]);
+    }
+
+
     public function canManageSchools(): bool
     {
         return $this->isSuperAdmin();

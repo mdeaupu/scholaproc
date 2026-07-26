@@ -65,14 +65,17 @@ new class extends Component {
             wire:navigate class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
 
         @if ($user && $user->isSuperAdmin())
+            <x-mary-menu-item title="Manajemen Admin" icon="o-users" link="{{ route('admins.index') }}"
+                :active="request()->routeIs('admins.*')" wire:navigate
+                class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
             <x-mary-menu-item title="Manajemen Sekolah" icon="o-academic-cap" link="{{ route('schools.index') }}"
                 :active="request()->routeIs('schools.*')" wire:navigate
                 class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
         @endif
-        @if ($user && ($user->isSuperAdmin() || (method_exists($user, 'isAdminCv') && $user->isAdmin())))
+        @if ($user && ($user->isSuperAdmin() || (method_exists($user, 'isAdmin') && $user->isAdmin())))
             @php
-                $supplierRouteName = $user->isSuperAdmin() ? 'owner.suppliers.index' : 'cv.suppliers.index';
-                $supplierCreateRouteName = $user->isSuperAdmin() ? 'owner.suppliers.create' : 'cv.suppliers.create';
+                $supplierRouteName = $user->isSuperAdmin() ? 'suppliers.index' : 'suppliers.index';
+                $supplierCreateRouteName = $user->isSuperAdmin() ? 'suppliers.create' : 'suppliers.create';
             @endphp
             <x-mary-menu-item title="Manajemen Supplier" icon="o-list-bullet" link="{{ route($supplierRouteName) }}"
                 :active="request()->routeIs('*suppliers.index')" wire:navigate

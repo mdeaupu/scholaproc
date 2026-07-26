@@ -4,7 +4,7 @@
         separator>
         <x-slot:actions>
             @php
-                $backRoute = auth()->user()->isOwner() ? 'owner.suppliers.index' : 'cv.suppliers.index';
+                $backRoute = auth()->user()->isSuperAdmin() ? 'owner.suppliers.index' : 'cv.suppliers.index';
             @endphp
             <x-mary-button label="Kembali" link="{{ route($backRoute) }}" icon="o-arrow-left"
                 class="btn-ghost btn-sm text-black hover:text-[#0046FF]" wire:navigate />
@@ -21,12 +21,6 @@
                             placeholder="Nama narahubung" icon="o-user-circle" required />
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                        <x-mary-input label="Nama Direktur" wire:model="director_name"
-                            placeholder="Nama lengkap sesuai akta" icon="o-user" required />
-                        <x-mary-input label="NIK Direktur" wire:model="director_nik" placeholder="16 digit NIK KTP"
-                            icon="o-identification" required />
-                    </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                         <x-mary-input label="NPWP Perusahaan" wire:model="npwp" placeholder="Nomor NPWP resmi"
                             icon="o-document-text" required />
                         <x-mary-input label="NIB (Nomor Induk Berusaha)" wire:model="nib" placeholder="Nomor NIB resmi"
@@ -36,11 +30,41 @@
                         <x-mary-input label="No. Telepon / WhatsApp" wire:model="phone" placeholder="0812-xxxx-xxxx"
                             icon="o-phone" required />
                         <x-mary-input label="Email Perusahaan" wire:model="email" type="email"
-                            placeholder="info@perusahaan.com" icon="o-envelope" required />
+                            placeholder="info@perusahaan.com" icon="o-envelope" />
                     </div>
                     <div class="mt-4">
                         <x-mary-textarea label="Alamat Lengkap Perusahaan" wire:model="address"
                             placeholder="Jalan, RT/RW, Kecamatan, Kabupaten..." rows="3" required />
+                    </div>
+                </x-mary-card>
+                <x-mary-card title="Data Direktur" shadow separator class="border-t-4 border-[#0046FF]">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <x-mary-input label="Nama Direktur" wire:model="director_name"
+                            placeholder="Nama lengkap sesuai akta" icon="o-user" required />
+                        <x-mary-input label="NIK Direktur" wire:model="director_nik" placeholder="16 digit NIK KTP"
+                            icon="o-identification" required />
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                        <x-mary-input label="NPWP Direktur (Opsional)" wire:model="director_npwp"
+                            placeholder="NPWP Pribadi" icon="o-document-text" />
+                        <x-mary-input label="No. Telepon Direktur (Opsional)" wire:model="director_phone"
+                            placeholder="0812-xxxx-xxxx" icon="o-phone" />
+                    </div>
+                    <div class="mt-4">
+                        <x-mary-textarea label="Alamat Direktur (Opsional)" wire:model="director_address"
+                            placeholder="Alamat lengkap direktur..." rows="2" />
+                    </div>
+                </x-mary-card>
+                <x-mary-card title="Data Komisaris (Opsional)" shadow separator class="border-t-4 border-[#0046FF]">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <x-mary-input label="Nama Komisaris" wire:model="commissioner_name"
+                            placeholder="Nama lengkap komisaris" icon="o-user" />
+                        <x-mary-input label="NIK Komisaris" wire:model="commissioner_nik" placeholder="16 digit NIK KTP"
+                            icon="o-identification" />
+                    </div>
+                    <div class="mt-4">
+                        <x-mary-textarea label="Alamat Komisaris" wire:model="commissioner_address"
+                            placeholder="Alamat lengkap komisaris..." rows="2" />
                     </div>
                 </x-mary-card>
             </div>
@@ -68,7 +92,7 @@
         </div>
         <div class="flex justify-end gap-3 pt-2">
             @php
-                $cancelRoute = auth()->user()->isOwner() ? 'owner.suppliers.index' : 'cv.suppliers.index';
+                $cancelRoute = auth()->user()->isSuperAdmin() ? 'owner.suppliers.index' : 'cv.suppliers.index';
             @endphp
             <x-mary-button label="Batal" link="{{ route($cancelRoute) }}" class="btn-ghost btn-sm text-black"
                 wire:navigate />

@@ -12,12 +12,13 @@ return new class extends Migration {
     {
         Schema::create('procurement_signatories', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('procurement_request_id')->constrained()->cascadeOnDelete();
-            $table->enum('role', ['headmaster', 'inspector', 'treasurer', 'finance', 'other']);
+            $table->foreignId('procurement_request_id')->constrained('procurement_requests')->cascadeOnDelete();
+            $table->string('role', 30);
             $table->string('name');
             $table->string('nip', 20)->nullable();
             $table->string('title', 100)->nullable();
             $table->timestamps();
+            $table->index('procurement_request_id');
         });
     }
 

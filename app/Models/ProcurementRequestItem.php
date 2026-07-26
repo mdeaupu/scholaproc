@@ -15,11 +15,12 @@ class ProcurementRequestItem extends Model
         'line_number',
         'item_name',
         'specification',
-        'unit',
+        'unit_id',
         'quantity',
         'estimated_price',
         'official_price',
         'is_pph',
+        'negotiation_status',
     ];
 
     protected function casts(): array
@@ -36,5 +37,10 @@ class ProcurementRequestItem extends Model
     public function procurementRequest(): BelongsTo
     {
         return $this->belongsTo(ProcurementRequest::class);
+    }
+
+    public function unit(): BelongsTo
+    {
+        return $this->belongsTo(ItemUnit::class, 'unit_id');
     }
 }

@@ -33,7 +33,7 @@ class SupplierIndex extends Component
 
     public function render()
     {
-        if (!auth()->user()->isOwner() && !auth()->user()->isAdminCv()) {
+        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isAdmin()) {
             abort(403, 'Akses ditolak. Hanya Owner dan Admin CV yang dapat melihat halaman ini.');
         }
 

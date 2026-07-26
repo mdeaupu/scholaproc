@@ -12,7 +12,7 @@ return new class extends Migration {
     {
         Schema::create('supplier_legal_documents', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('supplier_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('supplier_id')->constrained('suppliers')->cascadeOnDelete();
             $table->string('document_type', 50);
             $table->string('document_number', 100)->nullable();
             $table->date('document_date')->nullable();

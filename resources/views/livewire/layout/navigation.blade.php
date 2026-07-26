@@ -33,10 +33,10 @@ new class extends Component {
 
         $dashboardRoute = 'dashboard';
         if ($user) {
-            if ($user->isOwner()) {
-                $dashboardRoute = 'dashboard.owner';
-            } elseif (method_exists($user, 'isAdminCv') && $user->isAdminCv()) {
-                $dashboardRoute = 'dashboard.cv';
+            if ($user->isSuperAdmin()) {
+                $dashboardRoute = 'dashboard.superadmin';
+            } elseif (method_exists($user, 'isAdmin') && $user->isAdmin()) {
+                $dashboardRoute = 'dashboard.admin';
             } else {
                 $dashboardRoute = 'dashboard.school';
             }
@@ -64,21 +64,19 @@ new class extends Component {
         <x-mary-menu-item title="Dashboard" icon="o-squares-2x2" link="{{ route($dashboardRoute) }}" :active="request()->routeIs('dashboard*')"
             wire:navigate class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
 
-        @if ($user && $user->isOwner())
-            <x-mary-menu-sub title="Master Data" icon="o-circle-stack" :open="request()->routeIs('admins.*', 'schools.*', '*suppliers.index')">
-                <x-mary-menu-item title="Manajemen Admin" icon="o-users" link="{{ route('admins.index') }}"
-                    :active="request()->routeIs('admins.*')" wire:navigate
-                    class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-
-                <x-mary-menu-item title="Manajemen Sekolah" icon="o-academic-cap" link="{{ route('schools.index') }}"
-                    :active="request()->routeIs('schools.*')" wire:navigate
-                    class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-
-                <x-mary-menu-item title="Manajemen Supplier" icon="o-building-office-2"
-                    link="{{ route('owner.suppliers.index') }}" :active="request()->routeIs('owner.suppliers.*')" wire:navigate
-                    class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-
-            </x-mary-menu-sub>
+        @if ($user && $user->isSuperAdmin())
+            <x-mary-menu-item title="Manajemen Sekolah" icon="o-academic-cap" link="{{ route('schools.index') }}"
+                :active="request()->routeIs('schools.*')" wire:navigate
+                class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+        @endif
+        @if ($user && ($user->isSuperAdmin() || (method_exists($user, 'isAdminCv') && $user->isAdmin())))
+            @php
+                $supplierRouteName = $user->isSuperAdmin() ? 'owner.suppliers.index' : 'cv.suppliers.index';
+                $supplierCreateRouteName = $user->isSuperAdmin() ? 'owner.suppliers.create' : 'cv.suppliers.create';
+            @endphp
+            <x-mary-menu-item title="Manajemen Supplier" icon="o-list-bullet" link="{{ route($supplierRouteName) }}"
+                :active="request()->routeIs('*suppliers.index')" wire:navigate
+                class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
         @endif
         <div class="my-2 border-t border-gray-200"></div>
         <x-mary-menu-sub title="Pengaturan" icon="o-cog-6-tooth" class="text-sm font-medium text-black"

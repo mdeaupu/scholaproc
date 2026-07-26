@@ -30,6 +30,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'status',
         'role',
         'status',
     ];
@@ -57,6 +58,7 @@ class User extends Authenticatable
         ];
     }
 
+
     public function school(): BelongsTo
     {
         return $this->belongsTo(School::class);
@@ -67,103 +69,70 @@ class User extends Authenticatable
         return $this->hasMany(ProcurementRequestHistory::class);
     }
 
-    public function isOwner(): bool
+    public function negotiations(): HasMany
     {
-        return $this->role === 'owner';
+        return $this->hasMany(ProcurementNegotiation::class);
     }
-    public function isAdminCv(): bool
+
+
+    public function isSuperAdmin(): bool
     {
-        return $this->role === 'admin_cv';
+        return $this->role === 'superadmin';
     }
-    public function isAdminSchool(): bool
+
+    public function isAdmin(): bool
     {
-        return $this->role === 'admin_school';
+        return $this->role === 'admin';
+    }
+
+    public function isSchool(): bool
+    {
+        return $this->role === 'school';
     }
 
     public function canManageSchools(): bool
     {
-        return $this->isOwner();
-    }
-    public function canManageSuppliers(): bool
-    {
-        return $this->isOwner();
-    }
-    public function canProcessProcurement(): bool
-    {
-        return $this->isAdminCv();
+        return $this->isSuperAdmin();
     }
 
-    public function scopeOwner(Builder $query): Builder
+    public function canManageSuppliers(): bool
     {
-        return $query->where('role', 'owner');
+        return $this->isSuperAdmin();
     }
-    public function scopeAdminCv(Builder $query): Builder
+
+    public function canProcessProcurement(): bool
     {
-        return $query->where('role', 'admin_cv');
+        return $this->isAdmin();
     }
-    public function scopeAdminSchool(Builder $query): Builder
+
+    public function canDecideNegotiation(ProcurementRequest $request): bool
     {
-        return $query->where('role', 'admin_school');
+        return $this->isSchool() && $this->school_id === $request->school_id;
     }
+
+    public function canVerifyReceipt(ProcurementRequest $request): bool
+    {
+        return $this->isSchool() && $this->school_id === $request->school_id;
+    }
+
+
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('status', 'active');
     }
-    public function scopeInactive(Builder $query): Builder
+
+    public function scopeSuperAdmin(Builder $query): Builder
     {
-        return $query->where('status', 'suspended');
+        return $query->where('role', 'superadmin');
     }
 
-    public static function createAdminCv(array $data): self
+    public function scopeAdmin(Builder $query): Builder
     {
-        return self::create([
-            'username' => $data['username'],
-            'name' => $data['name'],
-            'email' => empty($data['email']) ? null : $data['email'],
-            'password' => Hash::make($data['password']),
-            'role' => 'admin_cv',
-            'status' => 'active',
-            'school_id' => null,
-        ]);
+        return $query->where('role', 'admin');
     }
 
-    public function updateAdminCv(array $data): void
+    public function scopeSchool(Builder $query): Builder
     {
-        $updateData = [
-            'username' => $data['username'],
-            'name' => $data['name'],
-            'email' => $data['email'] ?? null,
-        ];
-
-        if (!empty($data['password'])) {
-            $updateData['password'] = Hash::make($data['password']);
-        }
-
-        $this->update($updateData);
-    }
-
-    public function activate(): void
-    {
-        $this->update(['status' => 'active']);
-    }
-
-    public function deactivate(): void
-    {
-        $this->update(['status' => 'suspended']);
-    }
-
-    public function isActive(): bool
-    {
-        return $this->status === 'active';
-    }
-
-    public function resetPassword(string $newPassword = 'Password123!'): void
-    {
-        $this->update(['password' => Hash::make($newPassword)]);
-    }
-
-    public function changePassword(string $newPassword): void
-    {
-        $this->update(['password' => Hash::make($newPassword)]);
+        return $query->where('role', 'school');
     }
 }

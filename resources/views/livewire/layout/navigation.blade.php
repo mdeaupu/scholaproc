@@ -80,6 +80,22 @@ new class extends Component {
             <x-mary-menu-item title="Manajemen Supplier" icon="o-list-bullet" link="{{ route($supplierRouteName) }}"
                 :active="request()->routeIs('*suppliers.index')" wire:navigate
                 class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+            <!-- IMPLEMENTASI M6: Menu Master Data -->
+            <x-mary-menu-sub title="Master Data" icon="o-circle-stack" class="text-sm font-medium text-black"
+                :open="request()->routeIs('master.*')">
+                <x-mary-menu-item title="Kategori Paket" icon="o-tag" link="{{ route('master.package-categories') }}"
+                    :active="request()->routeIs('master.package-categories')" wire:navigate
+                    class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+                <x-mary-menu-item title="Sumber Dana" icon="o-banknotes" link="{{ route('master.funding-sources') }}"
+                    :active="request()->routeIs('master.funding-sources')" wire:navigate
+                    class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+                <x-mary-menu-item title="Tahun Anggaran" icon="o-calendar-days"
+                    link="{{ route('master.budget-years') }}" :active="request()->routeIs('master.budget-years')" wire:navigate
+                    class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+                <x-mary-menu-item title="Satuan Barang" icon="o-scale" link="{{ route('master.item-units') }}"
+                    :active="request()->routeIs('master.item-units')" wire:navigate
+                    class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+            </x-mary-menu-sub>
         @endif
         <div class="my-2 border-t border-gray-200"></div>
         <x-mary-menu-sub title="Pengaturan" icon="o-cog-6-tooth" class="text-sm font-medium text-black"

@@ -5,6 +5,10 @@ use App\Livewire\Admin\AdminIndex;
 use App\Livewire\Dashboard\SuperAdminDashboard;
 use App\Livewire\Dashboard\AdminDashboard;
 use App\Livewire\Dashboard\SchoolDashboard;
+use App\Livewire\Master\BudgetYearIndex;
+use App\Livewire\Master\FundingSourceIndex;
+use App\Livewire\Master\ItemUnitIndex;
+use App\Livewire\Master\PackageCategoryIndex;
 use App\Livewire\School\SchoolForm;
 use App\Livewire\School\SchoolIndex;
 use App\Livewire\Supplier\LegalDocumentForm;
@@ -62,6 +66,13 @@ Route::middleware('auth')->group(function () {
 
     Route::middleware('role:school')->prefix('school')->group(function () {
         Route::get('/dashboard', SchoolDashboard::class)->name('dashboard.school');
+    });
+
+    Route::prefix('master')->name('master.')->group(function () {
+        Route::get('/package-categories', PackageCategoryIndex::class)->name('package-categories');
+        Route::get('/budget-years', BudgetYearIndex::class)->name('budget-years');
+        Route::get('/funding-sources', FundingSourceIndex::class)->name('funding-sources');
+        Route::get('/item-units', ItemUnitIndex::class)->name('item-units');
     });
 
     Route::view('profile', 'profile')->name('profile');

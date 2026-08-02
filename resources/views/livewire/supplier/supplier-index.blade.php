@@ -3,7 +3,7 @@
         subtitle="Daftar penyedia barang dan jasa terdaftar sebagai mitra pengadaan." separator>
         <x-slot:actions>
             <x-mary-button label="Tambah Supplier"
-                link="{{ auth()->user()->isSuperAdmin() ? route('owner.suppliers.create') : route('cv.suppliers.create') }}"
+                link="{{ auth()->user()->isSuperAdmin() ? route('superadmin.suppliers.create') : route('admin.suppliers.create') }}"
                 icon="o-plus" class="bg-[#0046FF] hover:bg-[#0046FF]/90 text-white border-none" wire:navigate />
         </x-slot:actions>
     </x-mary-header>
@@ -25,12 +25,12 @@
             @scope('actions', $supplier)
                 <div class="flex items-center gap-1">
                     <x-mary-button icon="o-document-plus"
-                        link="{{ auth()->user()->isSuperAdmin() ? route('owner.suppliers.legal-documents.create', $supplier->id) : route('cv.suppliers.legal.create', $supplier->id) }}"
+                        link="{{ auth()->user()->isSuperAdmin() ? route('superadmin.suppliers.legal-documents.create', $supplier->id) : route('admin.suppliers.legal-documents.create', $supplier->id) }}"
                         class="btn-sm btn-circle btn-ghost text-emerald-600" tooltip="Tambah Dokumen Legal" wire:navigate />
                     <x-mary-button icon="o-eye" wire:click="show({{ $supplier->id }})"
                         class="btn-sm btn-circle btn-ghost text-[#0046FF]" tooltip="Detail" />
                     <x-mary-button icon="o-pencil-square"
-                        link="{{ auth()->user()->isSuperAdmin() ? route('owner.suppliers.edit', $supplier->id) : route('cv.suppliers.edit', $supplier->id) }}"
+                        link="{{ auth()->user()->isSuperAdmin() ? route('superadmin.suppliers.edit', $supplier->id) : route('admin.suppliers.edit', $supplier->id) }}"
                         class="btn-sm btn-circle btn-ghost text-black" tooltip="Edit" wire:navigate />
                     <x-mary-button icon="o-trash"
                         wire:click="confirmDestroy({{ $supplier->id }}, '{{ addslashes($supplier->company_name) }}')"
@@ -75,7 +75,6 @@
                             <p class="text-xs text-gray-500 mt-1">NPWP: {{ $selectedSupplier->director_npwp }}</p>
                         @endif
                     </div>
-
                     @if ($selectedSupplier->commissioner_name)
                         <div>
                             <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Nama Komisaris</p>
@@ -147,7 +146,7 @@
                                 </td>
                                 <td class="text-right">
                                     <x-mary-button icon="o-pencil"
-                                        link="{{ auth()->user()->isSuperAdmin() ? route('owner.suppliers.legal-documents.edit', [$selectedSupplier->id, $doc->id]) : route('cv.suppliers.legal.edit', [$selectedSupplier->id, $doc->id]) }}"
+                                        link="{{ auth()->user()->isSuperAdmin() ? route('superadmin.suppliers.legal-documents.edit', [$selectedSupplier->id, $doc->id]) : route('admin.suppliers.legal-documents.edit', [$selectedSupplier->id, $doc->id]) }}"
                                         class="btn-xs btn-circle btn-ghost text-[#0046FF]" tooltip="Edit Dokumen"
                                         wire:navigate />
                                 </td>

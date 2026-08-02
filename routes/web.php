@@ -40,22 +40,21 @@ Route::middleware('auth')->group(function () {
         Route::get('/schools', SchoolIndex::class)->name('schools.index');
         Route::get('/schools/create', SchoolForm::class)->name('schools.create');
         Route::get('/schools/{school}/edit', SchoolForm::class)->name('schools.edit');
-        Route::get('/suppliers', SupplierIndex::class)->name('owner.suppliers.index');
-        Route::get('/suppliers/create', SupplierForm::class)->name('owner.suppliers.create');
-        Route::get('/suppliers/{supplier}/edit', SupplierForm::class)->name('owner.suppliers.edit');
-        Route::get('/suppliers/{supplier}/legal-documents/create', LegalDocumentForm::class)->name('owner.suppliers.legal-documents.create');
-        Route::get('/suppliers/{supplier}/legal-documents/{document}/edit', LegalDocumentForm::class)->name('owner.suppliers.legal-documents.edit');
-        Route::put('/user/{user}/reset-password', [AuthController::class, 'resetPassword'])
-            ->name('auth.reset-password');
+        Route::get('/suppliers', SupplierIndex::class)->name('superadmin.suppliers.index');
+        Route::get('/suppliers/create', SupplierForm::class)->name('superadmin.suppliers.create');
+        Route::get('/suppliers/{supplier}/edit', SupplierForm::class)->name('superadmin.suppliers.edit');
+        Route::get('/suppliers/{supplier}/legal-documents/create', LegalDocumentForm::class)->name('superadmin.suppliers.legal-documents.create');
+        Route::get('/suppliers/{supplier}/legal-documents/{document}/edit', LegalDocumentForm::class)->name('superadmin.suppliers.legal-documents.edit');
+        Route::put('/user/{user}/reset-password', [AuthController::class, 'resetPassword'])->name('auth.reset-password');
     });
 
-    Route::middleware('role:admin')->prefix('cv')->group(function () {
-        Route::get('/dashboard', AdminDashboard::class)->name('dashboard.cv');
-        Route::get('/suppliers', SupplierIndex::class)->name('cv.suppliers.index');
-        Route::get('/suppliers/create', SupplierForm::class)->name('cv.suppliers.create');
-        Route::get('/suppliers/{supplier}/edit', SupplierForm::class)->name('cv.suppliers.edit');
-        Route::get('/suppliers/{supplier}/legal-documents/create', LegalDocumentForm::class)->name('cv.suppliers.legal-documents.create');
-        Route::get('/suppliers/{supplier}/legal-documents/{document}/edit', LegalDocumentForm::class)->name('cv.suppliers.legal-documents.edit');
+    Route::middleware('role:admin')->prefix('admin')->group(function () {
+        Route::get('/dashboard', AdminDashboard::class)->name('dashboard.admin');
+        Route::get('/suppliers', SupplierIndex::class)->name('admin.suppliers.index');
+        Route::get('/suppliers/create', SupplierForm::class)->name('admin.suppliers.create');
+        Route::get('/suppliers/{supplier}/edit', SupplierForm::class)->name('admin.suppliers.edit');
+        Route::get('/suppliers/{supplier}/legal-documents/create', LegalDocumentForm::class)->name('admin.suppliers.legal-documents.create');
+        Route::get('/suppliers/{supplier}/legal-documents/{document}/edit', LegalDocumentForm::class)->name('admin.suppliers.legal-documents.edit');
     });
 
     Route::middleware('role:school')->prefix('school')->group(function () {

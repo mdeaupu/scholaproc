@@ -4,7 +4,7 @@
         separator>
         <x-slot:actions>
             @php
-                $backRoute = auth()->user()->isSuperAdmin() ? 'owner.suppliers.index' : 'cv.suppliers.index';
+                $backRoute = auth()->user()->isSuperAdmin() ? 'superadmin.suppliers.index' : 'admin.suppliers.index';
             @endphp
             <x-mary-button label="Kembali" link="{{ route($backRoute) }}" icon="o-arrow-left"
                 class="btn-ghost btn-sm text-black hover:text-[#0046FF]" wire:navigate />
@@ -62,7 +62,7 @@
         </div>
         <div class="flex justify-end gap-3 pt-2">
             @php
-                $cancelRoute = auth()->user()->isSuperAdmin() ? 'owner.suppliers.index' : 'cv.suppliers.index';
+                $cancelRoute = auth()->user()->isSuperAdmin() ? 'superadmin.suppliers.index' : 'admin.suppliers.index';
             @endphp
             <x-mary-button label="Batal" link="{{ route($cancelRoute) }}" class="btn-ghost btn-sm text-black"
                 wire:navigate />

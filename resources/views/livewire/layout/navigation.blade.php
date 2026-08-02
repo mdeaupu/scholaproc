@@ -63,20 +63,36 @@ new class extends Component {
         @endif
         <x-mary-menu-item title="Dashboard" icon="o-squares-2x2" link="{{ route($dashboardRoute) }}" :active="request()->routeIs('dashboard*')"
             wire:navigate class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-
         @if ($user && $user->isSuperAdmin())
+            <x-mary-menu-item title="Manajemen Admin" icon="o-users" link="{{ route('admins.index') }}"
+                :active="request()->routeIs('admins.*')" wire:navigate
+                class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
             <x-mary-menu-item title="Manajemen Sekolah" icon="o-academic-cap" link="{{ route('schools.index') }}"
                 :active="request()->routeIs('schools.*')" wire:navigate
                 class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
         @endif
-        @if ($user && ($user->isSuperAdmin() || (method_exists($user, 'isAdminCv') && $user->isAdmin())))
+        @if ($user && ($user->isSuperAdmin() || (method_exists($user, 'isAdmin') && $user->isAdmin())))
             @php
-                $supplierRouteName = $user->isSuperAdmin() ? 'owner.suppliers.index' : 'cv.suppliers.index';
-                $supplierCreateRouteName = $user->isSuperAdmin() ? 'owner.suppliers.create' : 'cv.suppliers.create';
+                $supplierRouteName = $user->isSuperAdmin() ? 'superadmin.suppliers.index' : 'admin.suppliers.index';
             @endphp
             <x-mary-menu-item title="Manajemen Supplier" icon="o-list-bullet" link="{{ route($supplierRouteName) }}"
                 :active="request()->routeIs('*suppliers.index')" wire:navigate
                 class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+            <x-mary-menu-sub title="Master Data" icon="o-circle-stack" class="text-sm font-medium text-black"
+                :open="request()->routeIs('master.*')">
+                <x-mary-menu-item title="Kategori Paket" icon="o-tag" link="{{ route('master.package-categories') }}"
+                    :active="request()->routeIs('master.package-categories')" wire:navigate
+                    class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+                <x-mary-menu-item title="Sumber Dana" icon="o-banknotes" link="{{ route('master.funding-sources') }}"
+                    :active="request()->routeIs('master.funding-sources')" wire:navigate
+                    class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+                <x-mary-menu-item title="Tahun Anggaran" icon="o-calendar-days"
+                    link="{{ route('master.budget-years') }}" :active="request()->routeIs('master.budget-years')" wire:navigate
+                    class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+                <x-mary-menu-item title="Satuan Barang" icon="o-scale" link="{{ route('master.item-units') }}"
+                    :active="request()->routeIs('master.item-units')" wire:navigate
+                    class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+            </x-mary-menu-sub>
         @endif
         <div class="my-2 border-t border-gray-200"></div>
         <x-mary-menu-sub title="Pengaturan" icon="o-cog-6-tooth" class="text-sm font-medium text-black"

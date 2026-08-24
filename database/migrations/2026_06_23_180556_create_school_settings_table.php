@@ -12,7 +12,7 @@ return new class extends Migration {
     {
         Schema::create('school_settings', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('school_id')->unique()->constrained()->cascadeOnDelete();
+            $table->foreignId('school_id')->unique()->constrained('schools')->cascadeOnDelete();
             $table->string('kop_pusat');
             $table->string('kop_provinsi');
             $table->string('kop_sub_wilayah')->nullable();

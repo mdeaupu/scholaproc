@@ -32,10 +32,10 @@ new class extends Component {
             : 'US';
         $dashboardRoute = 'dashboard';
         if ($user) {
-            if ($user->isOwner()) {
-                $dashboardRoute = 'dashboard.owner';
-            } elseif (method_exists($user, 'isAdminCv') && $user->isAdminCv()) {
-                $dashboardRoute = 'dashboard.cv';
+            if ($user->isSuperAdmin()) {
+                $dashboardRoute = 'dashboard.superadmin';
+            } elseif (method_exists($user, 'isAdmin') && $user->isAdmin()) {
+                $dashboardRoute = 'dashboard.admin';
             } else {
                 $dashboardRoute = 'dashboard.school';
             }
@@ -62,14 +62,17 @@ new class extends Component {
         @endif
         <x-mary-menu-item title="Dashboard" icon="o-squares-2x2" link="{{ route($dashboardRoute) }}" :active="request()->routeIs('dashboard*')"
             wire:navigate class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+
         @if ($user && $user->isOwner())
             <x-mary-menu-sub title="Master Data" icon="o-circle-stack" :open="request()->routeIs('admins.*', 'schools.*', '*suppliers.index')">
                 <x-mary-menu-item title="Manajemen Admin" icon="o-users" link="{{ route('admins.index') }}"
                     :active="request()->routeIs('admins.*')" wire:navigate
                     class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+
                 <x-mary-menu-item title="Manajemen Sekolah" icon="o-academic-cap" link="{{ route('schools.index') }}"
                     :active="request()->routeIs('schools.*')" wire:navigate
                     class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+
                 <x-mary-menu-item title="Manajemen Supplier" icon="o-building-office-2"
                     link="{{ route('owner.suppliers.index') }}" :active="request()->routeIs('owner.suppliers.*')" wire:navigate
                     class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />

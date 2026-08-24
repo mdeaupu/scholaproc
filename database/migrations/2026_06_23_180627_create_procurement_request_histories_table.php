@@ -12,9 +12,9 @@ return new class extends Migration {
     {
         Schema::create('procurement_request_histories', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('procurement_request_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('user_id')->constrained();
-            $table->enum('status', ['draft', 'submitted', 'verified', 'supplier_assigned', 'items_prepared', 'completed', 'rejected']);
+            $table->foreignId('procurement_request_id')->constrained('procurement_requests')->cascadeOnDelete();
+            $table->foreignId('user_id')->constrained('users');
+            $table->string('status', 30);
             $table->text('notes')->nullable();
             $table->timestamp('created_at')->nullable();
         });

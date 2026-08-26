@@ -71,6 +71,9 @@
                         @scope('cell_estimated_price', $item)
                             Rp {{ number_format($item->estimated_price, 0, ',', '.') }}
                         @endscope
+                        @scope('cell_unit', $item)
+                            {{ $item->unit?->name ?? '-' }}
+                        @endscope
                         @scope('cell_subtotal', $item)
                             Rp {{ number_format($item->estimatedAmount(), 0, ',', '.') }}
                         @endscope
@@ -138,7 +141,7 @@
                                 class="bg-[#0046FF] hover:bg-[#0046FF]/90 text-white border-none w-full" />
                         @endif
                     @endcan
-                    @if (auth()->user()->isOwner() || auth()->user()->isAdminCv())
+                    @if (auth()->user()->isSuperAdmin() || auth()->user()->isAdmin())
                         @if ($procurementRequest->canVerify())
                             <x-mary-button label="Verifikasi" icon="o-check-circle" wire:click="verify"
                                 wire:loading.attr="disabled" spinner="verify"

@@ -119,7 +119,7 @@ class SupplierForm extends Component
 
     public function render()
     {
-        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isAdminCv()) {
+        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isAdmin()) {
             abort(403);
         }
 

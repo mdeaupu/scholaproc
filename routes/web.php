@@ -5,6 +5,13 @@ use App\Livewire\Admin\AdminIndex;
 use App\Livewire\Dashboard\SuperAdminDashboard;
 use App\Livewire\Dashboard\AdminDashboard;
 use App\Livewire\Dashboard\SchoolDashboard;
+use App\Livewire\Master\BudgetYearIndex;
+use App\Livewire\Master\FundingSourceIndex;
+use App\Livewire\Master\ItemUnitIndex;
+use App\Livewire\Master\PackageCategoryIndex;
+use App\Livewire\Procurement\ProcurementProcessPanel;
+use App\Livewire\Procurement\ProcurementRequestForm;
+use App\Livewire\Procurement\ProcurementRequestList;
 use App\Livewire\School\SchoolForm;
 use App\Livewire\School\SchoolIndex;
 use App\Livewire\Supplier\LegalDocumentForm;
@@ -52,7 +59,7 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::middleware('role:admin')->prefix('cv')->group(function () {
-        Route::get('/dashboard', AdminDashboard::class)->name('dashboard.cv');
+        Route::get('/dashboard', AdminDashboard::class)->name('dashboard.admin');
         Route::get('/suppliers', SupplierIndex::class)->name('suppliers.index');
         Route::get('/suppliers/create', SupplierForm::class)->name('suppliers.create');
         Route::get('/suppliers/{supplier}/edit', SupplierForm::class)->name('suppliers.edit');
@@ -62,6 +69,22 @@ Route::middleware('auth')->group(function () {
 
     Route::middleware('role:school')->prefix('school')->group(function () {
         Route::get('/dashboard', SchoolDashboard::class)->name('dashboard.school');
+    });
+
+    Route::middleware('role:superadmin|admin')->prefix('master')->name('master.')->group(function () {
+        Route::get('/package-categories', PackageCategoryIndex::class)->name('package-categories');
+        Route::get('/budget-years', BudgetYearIndex::class)->name('budget-years');
+        Route::get('/funding-sources', FundingSourceIndex::class)->name('funding-sources');
+        Route::get('/item-units', ItemUnitIndex::class)->name('item-units');
+    });
+
+    Route::prefix('procurement-requests')->name('procurement.')->group(function () {
+        Route::get('/', ProcurementRequestList::class)->name('index');
+        Route::middleware('can:admin-school-only')->group(function () {
+            Route::get('/create', ProcurementRequestForm::class)->name('create');
+            Route::get('/{id}/edit', ProcurementRequestForm::class)->name('edit');
+        });
+        Route::get('/{procurementRequest}', ProcurementProcessPanel::class)->name('show');
     });
 
     Route::view('profile', 'profile')->name('profile');

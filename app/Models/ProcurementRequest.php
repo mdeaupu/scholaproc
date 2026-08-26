@@ -16,6 +16,14 @@ class ProcurementRequest extends Model
 {
     use SoftDeletes, HasFactory;
 
+    public const STATUS_DRAFT = 'draft';
+    public const STATUS_SUBMITTED = 'submitted';
+    public const STATUS_VERIFIED = 'verified';
+    public const STATUS_SUPPLIER_ASSIGNED = 'supplier_assigned';
+    public const STATUS_ITEMS_PREPARED = 'items_prepared';
+    public const STATUS_COMPLETED = 'completed';
+    public const STATUS_REJECTED = 'rejected';
+
     protected $fillable = [
         'uuid',
         'school_id',
@@ -50,7 +58,7 @@ class ProcurementRequest extends Model
         });
     }
 
-    protected $guarded = ['id'];
+    protected $guarded = [];
 
     protected function casts(): array
     {
@@ -69,6 +77,8 @@ class ProcurementRequest extends Model
             'verified_at' => 'datetime',
         ];
     }
+
+    // ─── Relationships ──────────────────────────────────────────────
 
     public function school(): BelongsTo
     {
@@ -93,6 +103,11 @@ class ProcurementRequest extends Model
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
+    }
+
+    public function verifiedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'verified_by');
     }
 
     public function signatories(): HasMany
@@ -125,24 +140,61 @@ class ProcurementRequest extends Model
         return $this->hasMany(Notification::class);
     }
 
+    public function verificationFiles(): HasMany
+    {
+        return $this->hasMany(ProcurementVerificationFile::class);
+    }
+
+    // ─── Scopes ─────────────────────────────────────────────────────
+
+    public function scopeDraft(Builder $query): Builder
+    {
+        return $query->where('status', self::STATUS_DRAFT);
+    }
+
     public function scopeSubmitted(Builder $query): Builder
     {
-        return $query->where('status', 'submitted');
+        return $query->where('status', self::STATUS_SUBMITTED);
     }
 
     public function scopeVerified(Builder $query): Builder
     {
-        return $query->where('status', 'verified');
+        return $query->where('status', self::STATUS_VERIFIED);
+    }
+
+    public function scopeAssigned(Builder $query): Builder
+    {
+        return $query->where('status', self::STATUS_SUPPLIER_ASSIGNED);
+    }
+
+    public function scopePrepared(Builder $query): Builder
+    {
+        return $query->where('status', self::STATUS_ITEMS_PREPARED);
     }
 
     public function scopeCompleted(Builder $query): Builder
     {
-        return $query->where('status', 'completed');
+        return $query->where('status', self::STATUS_COMPLETED);
     }
 
     public function scopeRejected(Builder $query): Builder
     {
-        return $query->where('status', 'rejected');
+        return $query->where('status', self::STATUS_REJECTED);
+    }
+
+    public function scopeBySchool(Builder $query, $schoolId): Builder
+    {
+        return $query->where('school_id', $schoolId);
+    }
+
+    public function scopeBySupplier(Builder $query, $supplierId): Builder
+    {
+        return $query->where('supplier_id', $supplierId);
+    }
+
+    public function scopeByYear(Builder $query, $budgetYearId): Builder
+    {
+        return $query->where('budget_year_id', $budgetYearId);
     }
 
     public function scopeAwaitingNegotiation(Builder $query): Builder
@@ -152,6 +204,212 @@ class ProcurementRequest extends Model
         });
     }
 
+    // ─── State Machine ──────────────────────────────────────────────
+
+    public function canSubmit(): bool
+    {
+        return $this->status === self::STATUS_DRAFT && $this->items()->count() >= 1;
+    }
+
+    public function canVerify(): bool
+    {
+        return $this->status === self::STATUS_SUBMITTED;
+    }
+
+    public function canAssignSupplier(): bool
+    {
+        return $this->status === self::STATUS_VERIFIED;
+    }
+
+    public function canPrepareItems(): bool
+    {
+        return $this->status === self::STATUS_SUPPLIER_ASSIGNED;
+    }
+
+    public function canComplete(): bool
+    {
+        return $this->status === self::STATUS_ITEMS_PREPARED;
+    }
+
+    public function submit(User $user): void
+    {
+        if (!$this->canSubmit()) {
+            throw new Exception('Pengajuan tidak dapat di-submit. Pastikan status draft dan memiliki minimal 1 item.');
+        }
+
+        $this->update([
+            'status' => self::STATUS_SUBMITTED,
+            'requested_at' => now(),
+        ]);
+
+        $this->recordHistory($user, self::STATUS_SUBMITTED);
+    }
+
+    public function verify(User $user): void
+    {
+        if (!$this->canVerify()) {
+            throw new Exception('Hanya pengajuan berstatus submitted yang dapat diverifikasi.');
+        }
+
+        $this->update(['status' => self::STATUS_VERIFIED]);
+        $this->recordHistory($user, self::STATUS_VERIFIED);
+    }
+
+    public function reject(User $user, string $reason): void
+    {
+        if (!$this->canVerify()) {
+            throw new Exception('Hanya pengajuan berstatus submitted yang dapat ditolak.');
+        }
+
+        $this->update(['status' => self::STATUS_REJECTED]);
+        $this->recordHistory($user, self::STATUS_REJECTED, 'Ditolak: ' . $reason);
+    }
+
+    public function assignSupplier(Supplier $supplier, User $user): void
+    {
+        if (!$this->canAssignSupplier()) {
+            throw new Exception('Hanya pengajuan berstatus verified yang dapat ditentukan suppliernya.');
+        }
+
+        $this->update([
+            'status' => self::STATUS_SUPPLIER_ASSIGNED,
+            'supplier_id' => $supplier->id,
+        ]);
+
+        $this->recordHistory($user, self::STATUS_SUPPLIER_ASSIGNED);
+    }
+
+    public function markItemsPrepared(User $user): void
+    {
+        if (!$this->canPrepareItems()) {
+            throw new Exception('Hanya pengajuan berstatus supplier_assigned yang dapat ditandai siap.');
+        }
+
+        $this->update(['status' => self::STATUS_ITEMS_PREPARED]);
+        $this->recordHistory($user, self::STATUS_ITEMS_PREPARED);
+    }
+
+    public function complete(User $user): void
+    {
+        if (!$this->canComplete()) {
+            throw new Exception('Hanya pengajuan berstatus items_prepared yang dapat diselesaikan.');
+        }
+
+        $this->update(['status' => self::STATUS_COMPLETED]);
+        $this->recordHistory($user, self::STATUS_COMPLETED);
+    }
+
+    // ─── Audit Trail ────────────────────────────────────────────────
+
+    public function recordHistory(User $user, string $status, ?string $notes = null): void
+    {
+        $this->histories()->create([
+            'user_id' => $user->id,
+            'status' => $status,
+            'notes' => $notes,
+        ]);
+    }
+
+    // ─── Financial Calculations ─────────────────────────────────────
+
+    public function estimatedSubtotal(): float
+    {
+        return (float) $this->items()->sum(DB::raw('quantity * estimated_price'));
+    }
+
+    public function officialSubtotal(): float
+    {
+        return (float) $this->items()->sum(DB::raw(
+            'quantity * COALESCE(official_price, estimated_price)'
+        ));
+    }
+
+    public function baseSubtotal(): float
+    {
+        $officialTotal = $this->officialSubtotal();
+
+        if ($officialTotal > 0 && $this->items()->whereNotNull('official_price')->count() > 0) {
+            return $officialTotal;
+        }
+
+        return $this->estimatedSubtotal();
+    }
+
+    public function totalPpn(): float
+    {
+        if (!$this->is_taxable) {
+            return 0;
+        }
+
+        return round($this->baseSubtotal() * ($this->ppn_rate / 100), 2);
+    }
+
+    public function totalPph22(): float
+    {
+        $pphItems = $this->items()->where('is_pph', true);
+
+        if ($pphItems->count() === 0) {
+            return 0;
+        }
+
+        $pphBase = (float) $pphItems->sum(DB::raw('quantity * COALESCE(official_price, estimated_price)'));
+
+        return round($pphBase * ($this->pph_22_rate / 100), 2);
+    }
+
+    public function totalPph23(): float
+    {
+        $pphItems = $this->items()->where('is_pph', true);
+
+        if ($pphItems->count() === 0) {
+            return 0;
+        }
+
+        $pphBase = (float) $pphItems->sum(DB::raw('quantity * COALESCE(official_price, estimated_price)'));
+
+        return round($pphBase * ($this->pph_23_rate / 100), 2);
+    }
+
+    public function grandTotal(): float
+    {
+        return $this->baseSubtotal() + $this->totalPpn();
+    }
+
+    public function netTotal(): float
+    {
+        return $this->baseSubtotal() + $this->totalPpn() - $this->totalPph22() - $this->totalPph23();
+    }
+
+    // ─── Snapshot Lock ──────────────────────────────────────────────
+
+    public function isTotalsLocked(): bool
+    {
+        return $this->totals_locked_at !== null;
+    }
+
+    public function lockTotals(): void
+    {
+        $this->update([
+            'subtotal' => $this->baseSubtotal(),
+            'tax_amount' => $this->totalPpn() - $this->totalPph22() - $this->totalPph23(),
+            'grand_total' => $this->grandTotal(),
+            'totals_locked_at' => now(),
+        ]);
+    }
+
+    public function reopenTotals(User $user, string $reason): void
+    {
+        $this->update([
+            'totals_locked_at' => null,
+            'subtotal' => null,
+            'tax_amount' => null,
+            'grand_total' => null,
+        ]);
+
+        $this->recordHistory($user, $this->status, 'Revisi: ' . $reason);
+    }
+
+    // ─── Dashboard Statistics ───────────────────────────────────────
 
     public static function getTotalEstimatedAmount(): float
     {

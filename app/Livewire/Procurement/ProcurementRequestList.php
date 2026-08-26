@@ -3,6 +3,7 @@
 namespace App\Livewire\Procurement;
 
 use App\Models\ProcurementRequest;
+use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Mary\Traits\Toast;
@@ -16,7 +17,7 @@ class ProcurementRequestList extends Component
 
     public array $headers = [
         ['key' => 'school.name', 'label' => 'Sekolah'],
-        ['key' => 'package_category', 'label' => 'Kategori Paket'],
+        ['key' => 'packageCategory.name', 'label' => 'Kategori Paket'],
         ['key' => 'items_count', 'label' => 'Jumlah Jenis'],
         ['key' => 'total_budget', 'label' => 'Total Anggaran'],
         ['key' => 'status', 'label' => 'Status'],
@@ -48,12 +49,18 @@ class ProcurementRequestList extends Component
 
     public function delete($id)
     {
-        $procurement = ProcurementRequest::bySchool(auth()->user()->school_id)
+        $user = auth()->user();
+
+        if (!$user->isSchool()) {
+            $this->error('Hanya pengguna sekolah yang dapat menghapus draft pengajuan.');
+            return;
+        }
+
+        $procurement = ProcurementRequest::bySchool($user->school_id)
             ->where('status', 'draft')
             ->findOrFail($id);
 
         $procurement->items()->delete();
-
         $procurement->delete();
 
         $this->success('Draft pengajuan pengadaan berhasil dihapus.');
@@ -61,17 +68,19 @@ class ProcurementRequestList extends Component
 
     public function render()
     {
-        $requests = ProcurementRequest::with(['school', 'items'])
+        $requests = ProcurementRequest::with(['school', 'packageCategory'])
             ->withCount('items')
+            ->withSum('items as estimated_subtotal', DB::raw('quantity * estimated_price'))
             ->when(auth()->user()->can('admin-school-only'), function ($query) {
                 return $query->bySchool(auth()->user()->school_id);
             })
             ->when($this->search, function ($query) {
                 $query->where(function ($q) {
-                    $q->where('package_category', 'like', '%' . $this->search . '%')
-                        ->orWhereHas('school', function ($q2) {
-                            $q2->where('name', 'like', '%' . $this->search . '%');
-                        });
+                    $q->whereHas('packageCategory', function ($q2) {
+                        $q2->where('name', 'like', '%' . $this->search . '%');
+                    })->orWhereHas('school', function ($q2) {
+                        $q2->where('name', 'like', '%' . $this->search . '%');
+                    });
                 });
             })
             ->when($this->filterStatus, function ($query) {

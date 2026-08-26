@@ -1,12 +1,12 @@
 <div>
     <x-mary-header title="Pengajuan Pengadaan" subtitle="Daftar seluruh permohonan pengadaan barang/jasa" separator>
         <x-slot:actions>
-            @can('admin-school-only')
+            @if(auth()->user()->isSchool())
                 <x-mary-button icon="o-plus" class="bg-[#0046FF] hover:bg-[#0046FF]/90 text-white border-none"
                     link="{{ route('procurement.create') }}" wire:navigate>
                     Buat Pengajuan
                 </x-mary-button>
-            @endcan
+            @endif
         </x-slot:actions>
     </x-mary-header>
     <x-mary-card shadow class="mb-6">
@@ -31,7 +31,7 @@
             @endscope
             @scope('cell_total_budget', $procurement)
                 <span class="font-semibold text-[#0046FF]">Rp
-                    {{ number_format($procurement->estimatedSubtotal(), 0, ',', '.') }}</span>
+                    {{ number_format($procurement->estimated_subtotal ?? 0, 0, ',', '.') }}</span>
             @endscope
             @scope('cell_status', $procurement)
                 @php
@@ -48,7 +48,7 @@
                 <div class="flex gap-1 justify-end">
                     <x-mary-button icon="o-eye" link="{{ route('procurement.show', $procurement->id) }}"
                         class="btn-sm btn-ghost text-[#0046FF]" tooltip="Lihat Detail" wire:navigate />
-                    @if ($procurement->status === 'draft' && auth()->user()->can('admin-school-only'))
+                    @if ($procurement->status === 'draft' && auth()->user()->isSchool())
                         <x-mary-button icon="o-pencil-square" link="{{ route('procurement.edit', $procurement->id) }}"
                             class="btn-sm btn-ghost text-black" tooltip="Edit Pengajuan" wire:navigate />
                         <x-mary-button icon="o-trash" wire:click="delete({{ $procurement->id }})"

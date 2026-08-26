@@ -1,6 +1,10 @@
 <?php
 
 use App\Livewire\Procurement\ProcurementRequestForm;
+use App\Models\BudgetYear;
+use App\Models\FundingSource;
+use App\Models\ItemUnit;
+use App\Models\PackageCategory;
 use App\Models\ProcurementRequest;
 use App\Models\User;
 use App\Models\School;
@@ -37,20 +41,27 @@ test('can save a new draft procurement request', function () {
     $user = User::factory()->create(['school_id' => $school->id]);
     actingAs($user);
 
+    $category = PackageCategory::factory()->create(['name' => 'Alat Tulis Kantor', 'is_active' => true]);
+    $budgetYear = BudgetYear::factory()->create(['name' => '2025/2026', 'is_active' => true]);
+    $fundingSource = FundingSource::factory()->create(['name' => 'BOSP Reguler', 'is_active' => true]);
+    $unit = ItemUnit::factory()->create(['name' => 'Rim', 'is_active' => true]);
+
     Livewire::test(ProcurementRequestForm::class)
-        ->set('package_category', 'Alat Tulis Kantor')
-        ->set('budget_year', '2024')
-        ->set('funding_source', 'BOSP')
+        ->set('package_category_id', $category->id)
+        ->set('budget_year_id', $budgetYear->id)
+        ->set('funding_source_id', $fundingSource->id)
         ->set('items.0.item_name', 'Kertas HVS')
         ->set('items.0.quantity', 10)
-        ->set('items.0.unit', 'Rim')
+        ->set('items.0.unit_id', $unit->id)
         ->set('items.0.estimated_price', 50000)
         ->call('save')
         ->assertSessionHas('toast_success')
         ->assertRedirect();
 
     $this->assertDatabaseHas('procurement_requests', [
-        'package_category' => 'Alat Tulis Kantor',
+        'package_category_id' => $category->id,
+        'budget_year_id' => $budgetYear->id,
+        'funding_source_id' => $fundingSource->id,
         'status' => ProcurementRequest::STATUS_DRAFT,
         'school_id' => $school->id,
     ]);
@@ -59,6 +70,7 @@ test('can save a new draft procurement request', function () {
         'item_name' => 'Kertas HVS',
         'estimated_price' => 50000,
         'line_number' => 1,
+        'unit_id' => $unit->id,
     ]);
 });
 
@@ -83,14 +95,14 @@ test('fails validation when required fields are empty', function () {
     actingAs($user);
 
     Livewire::test(ProcurementRequestForm::class)
-        ->set('package_category', '')
-        ->set('budget_year', '')
-        ->set('funding_source', '')
+        ->set('package_category_id', '')
+        ->set('budget_year_id', '')
+        ->set('funding_source_id', '')
         ->call('save')
         ->assertHasErrors([
-            'package_category' => 'required',
-            'budget_year' => 'required',
-            'funding_source' => 'required',
+            'package_category_id' => 'required',
+            'budget_year_id' => 'required',
+            'funding_source_id' => 'required',
         ]);
 
     $this->assertDatabaseCount('procurement_requests', 0);

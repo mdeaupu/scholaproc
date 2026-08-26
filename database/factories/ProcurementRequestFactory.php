@@ -29,6 +29,10 @@ class ProcurementRequestFactory extends Factory
             'funding_source_id' => FundingSource::first() ?? FundingSource::factory(),
             'uuid' => Str::uuid()->toString(),
             'status' => 'draft',
+            'is_taxable' => true,
+            'ppn_rate' => 11.00,
+            'pph_22_rate' => 0.00,
+            'pph_23_rate' => 0.00,
             'created_at' => now(),
             'updated_at' => now(),
         ];

@@ -7,15 +7,19 @@
                     <x-mary-input label="Asal Sekolah" value="{{ $school_name }}" readonly
                         class="bg-gray-50 cursor-not-allowed" hint="Otomatis terisi sesuai akun sekolah Anda" />
                 @endcan
-                @if (auth()->user()->isOwner() || auth()->user()->isAdminCv())
+                @if (auth()->user()->isSuperAdmin() || auth()->user()->isAdmin())
                     <x-mary-choices label="Asal Sekolah" wire:model="school_id" :options="$schools" option-label="name"
                         option-value="id" required single />
                 @endif
-                <x-mary-input label="Kategori Paket" wire:model="package_category"
-                    placeholder="Contoh: Alat Tulis Kantor" required />
-                <x-mary-input label="Tahun Anggaran" wire:model="budget_year" type="number" required />
-                <x-mary-input label="Sumber Dana" wire:model="funding_source" placeholder="Contoh: BOSP Reguler"
-                    required />
+                <x-mary-choices label="Kategori Paket" wire:model="package_category_id"
+                    :options="$packageCategories" option-label="name" option-value="id"
+                    placeholder="Pilih Kategori Paket" required single />
+                <x-mary-select label="Tahun Anggaran" wire:model="budget_year_id"
+                    :options="$budgetYears->map(fn($y) => ['id' => $y->id, 'name' => $y->name])->toArray()"
+                    placeholder="Pilih Tahun Anggaran" required />
+                <x-mary-choices label="Sumber Dana" wire:model="funding_source_id"
+                    :options="$fundingSources" option-label="name" option-value="id"
+                    placeholder="Pilih Sumber Dana" required single />
             </div>
         </x-mary-card>
         <x-mary-card title="Daftar Barang/Jasa" subtitle="Masukkan item yang dibutuhkan" shadow separator
@@ -35,11 +39,12 @@
                         <x-mary-input label="Vol" wire:model.live.debounce.500ms="items.{{ $index }}.quantity"
                             type="number" min="1" required />
                     </div>
-                    <div class="md:col-span-1">
-                        <x-mary-input label="Satuan" wire:model="items.{{ $index }}.unit" placeholder="Rim"
-                            required />
+                    <div class="md:col-span-2">
+                        <x-mary-select label="Satuan" wire:model="items.{{ $index }}.unit_id"
+                            :options="$itemUnits" option-label="name" option-value="id"
+                            placeholder="Pilih" required />
                     </div>
-                    <div class="md:col-span-3">
+                    <div class="md:col-span-2">
                         <x-mary-input label="Harga (Est)"
                             wire:model.live.debounce.500ms="items.{{ $index }}.estimated_price" prefix="Rp"
                             type="number" required />

@@ -35,6 +35,7 @@ class ProcurementProcessPanel extends Component
     public array $inputPrices = [];
 
     public bool $showNegotiation = false;
+    public bool $showVerification = false;
 
     public array $signatoriesData = [
         'headmaster' => ['name' => '', 'nip' => '', 'title' => 'Kepala Sekolah'],
@@ -44,7 +45,7 @@ class ProcurementProcessPanel extends Component
 
     public function mount(ProcurementRequest $procurementRequest)
     {
-        $procurementRequest->load(['items.unit', 'items.negotiations', 'histories.createdBy', 'school', 'supplier', 'documents', 'generatedDocuments']);
+        $procurementRequest->load(['items.unit', 'items.negotiations', 'histories.createdBy', 'school', 'supplier', 'documents', 'generatedDocuments', 'verificationFiles.uploader', 'verifiedBy']);
         $this->procurementRequest = $procurementRequest;
         $this->items = $procurementRequest->items;
 
@@ -301,6 +302,11 @@ class ProcurementProcessPanel extends Component
     public function toggleNegotiation(): void
     {
         $this->showNegotiation = !$this->showNegotiation;
+    }
+
+    public function toggleVerification(): void
+    {
+        $this->showVerification = !$this->showVerification;
     }
 
     public function render()

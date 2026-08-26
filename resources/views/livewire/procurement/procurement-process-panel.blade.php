@@ -190,6 +190,12 @@
                     :procurementRequest="$procurementRequest"
                     wire:key="negotiation-panel-{{ $procurementRequest->id }}" />
             @endif
+            {{-- ─── Verification Panel (embedded) ─────────────────────────── --}}
+            @if ($showVerification)
+                <livewire:procurement.verification-panel
+                    :procurementRequest="$procurementRequest"
+                    wire:key="verification-panel-{{ $procurementRequest->id }}" />
+            @endif
             <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5 mt-6">
                 <h3 class="font-bold text-lg mb-4 text-black">Informasi Nilai Kontrak & Perpajakan Resmi (M6)</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -366,6 +372,35 @@
                                     <p class="text-[10px] text-gray-500">Menunggu Admin CV menerbitkan nomor surat.</p>
                                 @endif
                             @endif
+                        </div>
+                    </div>
+                    <div class="flex gap-3 relative">
+                        <div
+                            class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold z-10 
+                            {{ $procurementRequest->verified_at ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-600' }}">
+                            @if ($procurementRequest->verified_at)
+                                ✓
+                            @else
+                                6
+                            @endif
+                        </div>
+                        <div class="flex-1 bg-gray-50 rounded-lg p-2.5 border border-gray-100">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-semibold text-black block">Verifikasi Penerimaan</span>
+                                @if (auth()->user()->isSchool() && auth()->user()->school_id === $procurementRequest->school_id)
+                                    <x-mary-button label="{{ $showVerification ? 'Tutup' : 'Buka' }}"
+                                        icon="{{ $showVerification ? 'o-chevron-up' : 'o-check-badge' }}"
+                                        wire:click="toggleVerification"
+                                        class="btn-xs {{ $showVerification ? 'bg-emerald-500 text-white border-none' : 'bg-white text-emerald-600 border-emerald-300 hover:bg-emerald-50' }}" />
+                                @endif
+                            </div>
+                            <p class="text-[11px] text-gray-500 mt-0.5">
+                                @if ($procurementRequest->verified_at)
+                                    Terverifikasi pada {{ \Carbon\Carbon::parse($procurementRequest->verified_at)->format('d M Y') }}
+                                @else
+                                    Unggah bukti fisik & konfirmasi penerimaan.
+                                @endif
+                            </p>
                         </div>
                     </div>
                 </div>

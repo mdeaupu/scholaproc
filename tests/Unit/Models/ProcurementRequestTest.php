@@ -2,6 +2,8 @@
 
 use App\Models\ProcurementRequest;
 use App\Models\ProcurementRequestItem;
+use App\Models\ProcurementVerificationFile;
+use App\Models\School;
 use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -270,4 +272,199 @@ test('generateOfficialDocuments membuat dokumen terkait', function () {
     $procurement->generateOfficialDocuments();
 
     expect($procurement->documents()->count())->toEqual(8);
+});
+
+// ─── M11: Verifikasi Penerimaan Barang ───────────────────────
+
+test('canMarkVerified returns false when status is draft', function () {
+    $procurement = ProcurementRequest::factory()->create([
+        'status' => ProcurementRequest::STATUS_DRAFT,
+    ]);
+
+    expect($procurement->canMarkVerified())->toBeFalse();
+});
+
+test('canMarkVerified returns false when status is submitted', function () {
+    $procurement = ProcurementRequest::factory()->create([
+        'status' => ProcurementRequest::STATUS_SUBMITTED,
+    ]);
+
+    expect($procurement->canMarkVerified())->toBeFalse();
+});
+
+test('canMarkVerified returns false when no verification files uploaded', function () {
+    $procurement = ProcurementRequest::factory()->create([
+        'status' => ProcurementRequest::STATUS_ITEMS_PREPARED,
+    ]);
+
+    expect($procurement->canMarkVerified())->toBeFalse();
+});
+
+test('canMarkVerified returns false when already verified', function () {
+    $procurement = ProcurementRequest::factory()->create([
+        'status' => ProcurementRequest::STATUS_ITEMS_PREPARED,
+        'verified_at' => now(),
+        'verified_by' => User::factory()->create()->id,
+    ]);
+
+    ProcurementVerificationFile::create([
+        'procurement_request_id' => $procurement->id,
+        'file_type' => ProcurementVerificationFile::TYPE_SIGNED_DOCUMENT,
+        'file_path' => 'verification_files/1/bast.pdf',
+        'uploaded_by' => User::factory()->create()->id,
+        'uploaded_at' => now(),
+    ]);
+
+    expect($procurement->canMarkVerified())->toBeFalse();
+});
+
+test('canMarkVerified returns true when items_prepared with files', function () {
+    $procurement = ProcurementRequest::factory()->create([
+        'status' => ProcurementRequest::STATUS_ITEMS_PREPARED,
+    ]);
+
+    ProcurementVerificationFile::create([
+        'procurement_request_id' => $procurement->id,
+        'file_type' => ProcurementVerificationFile::TYPE_PHOTO,
+        'file_path' => 'verification_files/1/photo.jpg',
+        'uploaded_by' => User::factory()->create()->id,
+        'uploaded_at' => now(),
+    ]);
+
+    expect($procurement->canMarkVerified())->toBeTrue();
+});
+
+test('canMarkVerified returns true when completed with files', function () {
+    $procurement = ProcurementRequest::factory()->create([
+        'status' => ProcurementRequest::STATUS_COMPLETED,
+    ]);
+
+    ProcurementVerificationFile::create([
+        'procurement_request_id' => $procurement->id,
+        'file_type' => ProcurementVerificationFile::TYPE_SIGNED_DOCUMENT,
+        'file_path' => 'verification_files/1/bast.pdf',
+        'uploaded_by' => User::factory()->create()->id,
+        'uploaded_at' => now(),
+    ]);
+
+    expect($procurement->canMarkVerified())->toBeTrue();
+});
+
+test('hasVerificationEvidence returns false when no signed documents', function () {
+    $procurement = ProcurementRequest::factory()->create();
+
+    ProcurementVerificationFile::create([
+        'procurement_request_id' => $procurement->id,
+        'file_type' => ProcurementVerificationFile::TYPE_PHOTO,
+        'file_path' => 'verification_files/1/photo.jpg',
+        'uploaded_by' => User::factory()->create()->id,
+        'uploaded_at' => now(),
+    ]);
+
+    expect($procurement->hasVerificationEvidence())->toBeFalse();
+});
+
+test('hasVerificationEvidence returns true when signed document exists', function () {
+    $procurement = ProcurementRequest::factory()->create();
+
+    ProcurementVerificationFile::create([
+        'procurement_request_id' => $procurement->id,
+        'file_type' => ProcurementVerificationFile::TYPE_SIGNED_DOCUMENT,
+        'file_path' => 'verification_files/1/bast.pdf',
+        'uploaded_by' => User::factory()->create()->id,
+        'uploaded_at' => now(),
+    ]);
+
+    expect($procurement->hasVerificationEvidence())->toBeTrue();
+});
+
+test('markVerified sets verified_at and verified_by', function () {
+    $school = School::factory()->create();
+    $user = User::factory()->create(['role' => 'school', 'school_id' => $school->id]);
+    $procurement = ProcurementRequest::factory()->create([
+        'status' => ProcurementRequest::STATUS_ITEMS_PREPARED,
+        'school_id' => $school->id,
+    ]);
+
+    ProcurementVerificationFile::create([
+        'procurement_request_id' => $procurement->id,
+        'file_type' => ProcurementVerificationFile::TYPE_SIGNED_DOCUMENT,
+        'file_path' => 'verification_files/1/bast.pdf',
+        'uploaded_by' => $user->id,
+        'uploaded_at' => now(),
+    ]);
+
+    $procurement->markVerified($user);
+
+    $procurement->refresh();
+
+    expect($procurement->verified_at)->not->toBeNull()
+        ->and($procurement->verified_by)->toBe($user->id);
+});
+
+test('markVerified records history with verified_receipt status', function () {
+    $school = School::factory()->create();
+    $user = User::factory()->create(['role' => 'school', 'school_id' => $school->id]);
+    $procurement = ProcurementRequest::factory()->create([
+        'status' => ProcurementRequest::STATUS_ITEMS_PREPARED,
+        'school_id' => $school->id,
+    ]);
+
+    ProcurementVerificationFile::create([
+        'procurement_request_id' => $procurement->id,
+        'file_type' => ProcurementVerificationFile::TYPE_SIGNED_DOCUMENT,
+        'file_path' => 'verification_files/1/bast.pdf',
+        'uploaded_by' => $user->id,
+        'uploaded_at' => now(),
+    ]);
+
+    $procurement->markVerified($user);
+
+    $this->assertDatabaseHas('procurement_request_histories', [
+        'procurement_request_id' => $procurement->id,
+        'status' => 'verified_receipt',
+        'user_id' => $user->id,
+    ]);
+});
+
+test('markVerified throws exception when cannot mark verified', function () {
+    $user = User::factory()->create(['role' => 'school']);
+    $procurement = ProcurementRequest::factory()->create([
+        'status' => ProcurementRequest::STATUS_DRAFT,
+    ]);
+
+    expect(fn () => $procurement->markVerified($user))
+        ->toThrow(Exception::class, 'Verifikasi penerimaan tidak dapat dilakukan');
+});
+
+test('hasVerificationFiles relationship works', function () {
+    $procurement = ProcurementRequest::factory()->create();
+
+    ProcurementVerificationFile::create([
+        'procurement_request_id' => $procurement->id,
+        'file_type' => ProcurementVerificationFile::TYPE_PHOTO,
+        'file_path' => 'verification_files/1/photo.jpg',
+        'uploaded_by' => User::factory()->create()->id,
+        'uploaded_at' => now(),
+    ]);
+
+    ProcurementVerificationFile::create([
+        'procurement_request_id' => $procurement->id,
+        'file_type' => ProcurementVerificationFile::TYPE_SIGNED_DOCUMENT,
+        'file_path' => 'verification_files/1/bast.pdf',
+        'uploaded_by' => User::factory()->create()->id,
+        'uploaded_at' => now(),
+    ]);
+
+    expect($procurement->verificationFiles()->count())->toBe(2);
+});
+
+test('verifiedBy relationship works', function () {
+    $user = User::factory()->create();
+    $procurement = ProcurementRequest::factory()->create([
+        'verified_by' => $user->id,
+    ]);
+
+    expect($procurement->verifiedBy)->not->toBeNull()
+        ->and($procurement->verifiedBy->id)->toBe($user->id);
 });

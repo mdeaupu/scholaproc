@@ -16,14 +16,20 @@ use Illuminate\Support\Str;
 
 class ProcurementRequest extends Model
 {
-    use SoftDeletes, HasFactory;
+    use HasFactory, SoftDeletes;
 
     public const STATUS_DRAFT = 'draft';
+
     public const STATUS_SUBMITTED = 'submitted';
+
     public const STATUS_VERIFIED = 'verified';
+
     public const STATUS_SUPPLIER_ASSIGNED = 'supplier_assigned';
+
     public const STATUS_ITEMS_PREPARED = 'items_prepared';
+
     public const STATUS_COMPLETED = 'completed';
+
     public const STATUS_REJECTED = 'rejected';
 
     protected $fillable = [
@@ -242,9 +248,23 @@ class ProcurementRequest extends Model
             && $this->supplier_id !== null;
     }
 
+    public function canMarkVerified(): bool
+    {
+        return in_array($this->status, [self::STATUS_ITEMS_PREPARED, self::STATUS_COMPLETED])
+            && $this->verificationFiles()->count() > 0
+            && $this->verified_at === null;
+    }
+
+    public function hasVerificationEvidence(): bool
+    {
+        return $this->verificationFiles()
+            ->where('file_type', ProcurementVerificationFile::TYPE_SIGNED_DOCUMENT)
+            ->count() > 0;
+    }
+
     public function submit(User $user): void
     {
-        if (!$this->canSubmit()) {
+        if (! $this->canSubmit()) {
             throw new Exception('Pengajuan tidak dapat di-submit. Pastikan status draft dan memiliki minimal 1 item.');
         }
 
@@ -258,7 +278,7 @@ class ProcurementRequest extends Model
 
     public function verify(User $user): void
     {
-        if (!$this->canVerify()) {
+        if (! $this->canVerify()) {
             throw new Exception('Hanya pengajuan berstatus submitted yang dapat diverifikasi.');
         }
 
@@ -268,17 +288,17 @@ class ProcurementRequest extends Model
 
     public function reject(User $user, string $reason): void
     {
-        if (!$this->canVerify()) {
+        if (! $this->canVerify()) {
             throw new Exception('Hanya pengajuan berstatus submitted yang dapat ditolak.');
         }
 
         $this->update(['status' => self::STATUS_REJECTED]);
-        $this->recordHistory($user, self::STATUS_REJECTED, 'Ditolak: ' . $reason);
+        $this->recordHistory($user, self::STATUS_REJECTED, 'Ditolak: '.$reason);
     }
 
     public function assignSupplier(Supplier $supplier, User $user): void
     {
-        if (!$this->canAssignSupplier()) {
+        if (! $this->canAssignSupplier()) {
             throw new Exception('Hanya pengajuan berstatus verified yang dapat ditentukan suppliernya.');
         }
 
@@ -292,7 +312,7 @@ class ProcurementRequest extends Model
 
     public function markItemsPrepared(User $user): void
     {
-        if (!$this->canPrepareItems()) {
+        if (! $this->canPrepareItems()) {
             throw new Exception('Hanya pengajuan berstatus supplier_assigned yang dapat ditandai siap.');
         }
 
@@ -302,13 +322,27 @@ class ProcurementRequest extends Model
 
     public function complete(User $user): void
     {
-        if (!$this->canComplete()) {
+        if (! $this->canComplete()) {
             throw new Exception('Hanya pengajuan berstatus items_prepared yang dapat diselesaikan. Pastikan pejabat penandatangan dan harga resmi sudah dilengkapi.');
         }
 
         $this->lockTotals();
         $this->update(['status' => self::STATUS_COMPLETED]);
         $this->recordHistory($user, self::STATUS_COMPLETED);
+    }
+
+    public function markVerified(User $user): void
+    {
+        if (! $this->canMarkVerified()) {
+            throw new Exception('Verifikasi penerimaan tidak dapat dilakukan. Pastikan minimal 1 bukti dokumen bertanda tangan sudah diunggah dan status pengadaan adalah barang siap atau selesai.');
+        }
+
+        $this->update([
+            'verified_at' => now(),
+            'verified_by' => $user->id,
+        ]);
+
+        $this->recordHistory($user, 'verified_receipt', 'Barang telah diverifikasi diterima oleh sekolah.');
     }
 
     // ─── Audit Trail ────────────────────────────────────────────────
@@ -349,7 +383,7 @@ class ProcurementRequest extends Model
 
     public function totalPpn(): float
     {
-        if (!$this->is_taxable) {
+        if (! $this->is_taxable) {
             return 0;
         }
 
@@ -418,7 +452,7 @@ class ProcurementRequest extends Model
             'grand_total' => null,
         ]);
 
-        $this->recordHistory($user, $this->status, 'Revisi: ' . $reason);
+        $this->recordHistory($user, $this->status, 'Revisi: '.$reason);
     }
 
     // ─── Dashboard Statistics ───────────────────────────────────────
@@ -454,7 +488,7 @@ class ProcurementRequest extends Model
 
     public function hasSupplier(): bool
     {
-        return !empty($this->supplier_id);
+        return ! empty($this->supplier_id);
     }
 
     public function hasSignatories(): bool
@@ -463,10 +497,11 @@ class ProcurementRequest extends Model
         $existingRoles = $this->signatories()->pluck('role')->toArray();
 
         foreach ($requiredRoles as $role) {
-            if (!in_array($role, $existingRoles)) {
+            if (! in_array($role, $existingRoles)) {
                 return false;
             }
         }
+
         return true;
     }
 
@@ -530,8 +565,8 @@ class ProcurementRequest extends Model
 
     public function generateOfficialDocuments(): void
     {
-        if (!$this->isReadyForDocumentGeneration()) {
-            throw new Exception("Gagal generate. Mohon lengkapi data supplier, penandatangan, dan harga resmi terlebih dahulu.");
+        if (! $this->isReadyForDocumentGeneration()) {
+            throw new Exception('Gagal generate. Mohon lengkapi data supplier, penandatangan, dan harga resmi terlebih dahulu.');
         }
 
         $documentTypes = ['cover', 'planning', 'negotiation', 'purchase_order', 'inspection', 'bast', 'invoice', 'receipt', 'supplier_declaration'];
@@ -602,5 +637,36 @@ class ProcurementRequest extends Model
         $this->generateInvoice();
         $this->generateReceipt();
         $this->generateSupplierDeclaration();
+    }
+
+    // ─── Verification Notification ──────────────────────────────────
+
+    public function notifyReceiptVerified(): void
+    {
+        $schoolName = $this->school->name ?? 'Sekolah';
+        $verifierName = $this->verifiedBy?->name ?? 'Admin Sekolah';
+
+        $message = "Barang pengadaan telah diverifikasi diterima.\n";
+        $message .= "Sekolah: {$schoolName}\n";
+        $message .= "Diverifikasi oleh: {$verifierName}\n";
+        $message .= "Tanggal: {$this->verified_at->format('d M Y H:i')} WIB";
+
+        // WhatsApp notification to admin CV
+        Notification::create([
+            'procurement_request_id' => $this->id,
+            'channel' => 'whatsapp',
+            'recipient' => '-',
+            'message_content' => $message,
+            'status' => 'pending',
+        ]);
+
+        // Email notification
+        Notification::create([
+            'procurement_request_id' => $this->id,
+            'channel' => 'email',
+            'recipient' => '-',
+            'message_content' => $message,
+            'status' => 'pending',
+        ]);
     }
 }

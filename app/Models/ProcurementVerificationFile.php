@@ -7,6 +7,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ProcurementVerificationFile extends Model
 {
+    public const TYPE_PHOTO = 'photo';
+
+    public const TYPE_SIGNED_DOCUMENT = 'signed_document';
+
     public $timestamps = false;
 
     protected $fillable = [
@@ -30,5 +34,15 @@ class ProcurementVerificationFile extends Model
     public function uploader(): BelongsTo
     {
         return $this->belongsTo(User::class, 'uploaded_by');
+    }
+
+    public function isPhoto(): bool
+    {
+        return $this->file_type === self::TYPE_PHOTO;
+    }
+
+    public function isSignedDocument(): bool
+    {
+        return $this->file_type === self::TYPE_SIGNED_DOCUMENT;
     }
 }

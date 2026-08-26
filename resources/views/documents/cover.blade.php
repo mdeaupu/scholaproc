@@ -1,5 +1,16 @@
-@php $letterHead = $schoolSetting->getLetterHead(); @endphp
-<x-document-layout :title="'Cover - ' . $procurement->package_category">
+@php
+    $letterHead = $schoolSetting
+        ? $schoolSetting->getLetterHead()
+        : [
+            'pusat' => '',
+            'provinsi' => '',
+            'sub_wilayah' => null,
+            'sekolah' => strtoupper($school->name),
+            'alamat_lengkap' => $school->address,
+            'kontak' => 'Telp: ' . $school->phone_number,
+        ];
+@endphp
+<x-document-layout :title="'Cover - ' . $procurement->package_category_name">
 
     <div style="margin-top: 40px; text-align: center;">
         <p style="font-size: 13px; font-weight: bold; text-transform: uppercase;">
@@ -23,7 +34,7 @@
     <div style="margin-top: 30px; text-align: center;">
         <p class="bold">TENTANG :</p>
         <p class="bold uppercase" style="font-size: 13px;">PAKET PEKERJAAN</p>
-        <p class="bold uppercase" style="font-size: 13px;">{{ $procurement->package_category }}</p>
+        <p class="bold uppercase" style="font-size: 13px;">{{ $procurement->package_category_name }}</p>
         <p>DI LINGKUNGAN {{ strtoupper($school->name) }}</p>
     </div>
 
@@ -52,7 +63,7 @@
 
     <div style="margin-top: 60px; text-align: center;">
         <p class="bold uppercase">{{ $cityName ?? '-' }}</p>
-        <p>TAHUN ANGGARAN {{ $procurement->budget_year }}</p>
+        <p>TAHUN ANGGARAN {{ $procurement->budget_year_name }}</p>
     </div>
 
 </x-document-layout>

@@ -419,11 +419,19 @@
                 class="p-5 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h3 class="font-bold text-lg text-black">Cetak Dokumen Resmi (M8)</h3>
-                    <p class="text-sm text-gray-500">Unduh dokumen yang telah dirender otomatis oleh sistem.</p>
+                    <p class="text-sm text-gray-500">
+                        @if (auth()->user()->isSuperAdmin() || auth()->user()->isAdmin())
+                            Generate dan unduh dokumen yang telah dirender otomatis oleh sistem.
+                        @else
+                            Unduh dokumen yang telah dirender otomatis oleh sistem.
+                        @endif
+                    </p>
                 </div>
-                <x-mary-button label="Generate Semua" icon="o-document-duplicate"
-                    link="{{ route('documents.generate', ['procurement' => $procurementRequest->id, 'type' => 'all']) }}"
-                    class="btn-sm bg-[#0046FF] hover:bg-[#0046FF]/90 text-white border-none" external />
+                @if (auth()->user()->isSuperAdmin() || auth()->user()->isAdmin())
+                    <x-mary-button label="Generate Semua" icon="o-document-duplicate"
+                        link="{{ route('documents.generate', ['procurement' => $procurementRequest->id, 'type' => 'all']) }}"
+                        class="btn-sm bg-[#0046FF] hover:bg-[#0046FF]/90 text-white border-none" external />
+                @endif
             </div>
 
             <div class="p-5 grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -437,12 +445,13 @@
                         'bast' => 'BAST',
                         'invoice' => 'Invoice',
                         'receipt' => 'Kuitansi',
+                        'supplier_declaration' => 'Identitas Penyedia',
                     ];
+                    $isAdminCv = auth()->user()->isSuperAdmin() || auth()->user()->isAdmin();
                 @endphp
 
                 @foreach ($docTypes as $type => $label)
                     @php
-                        // Cek apakah dokumen spesifik ini sudah pernah di-generate
                         $doc = $procurementRequest->generatedDocuments->where('document_type', $type)->first();
                     @endphp
                     <div
@@ -453,24 +462,30 @@
                             <div class="flex gap-2 w-full">
                                 <x-mary-button icon="o-arrow-down-tray"
                                     link="{{ route('documents.download', $doc->download_token) }}"
-                                    class="btn-xs bg-emerald-500 hover:bg-emerald-600 text-white border-none flex-1"
+                                    class="btn-xs bg-emerald-500 hover:bg-emerald-600 text-white border-none {{ $isAdminCv ? 'flex-1' : 'w-full' }}"
                                     tooltip="Download PDF" no-wire-navigate />
 
-                                <form action="{{ route('documents.regenerate', $doc->id) }}" method="POST"
-                                    class="flex">
-                                    @csrf
-                                    <x-mary-button icon="o-arrow-path" type="submit"
-                                        class="btn-xs btn-outline border-gray-300 text-gray-600 hover:text-[#0046FF] hover:border-[#0046FF]"
-                                        tooltip="Generate Ulang" />
-                                </form>
+                                @if ($isAdminCv)
+                                    <form action="{{ route('documents.regenerate', $doc->id) }}" method="POST"
+                                        class="flex">
+                                        @csrf
+                                        <x-mary-button icon="o-arrow-path" type="submit"
+                                            class="btn-xs btn-outline border-gray-300 text-gray-600 hover:text-[#0046FF] hover:border-[#0046FF]"
+                                            tooltip="Generate Ulang" />
+                                    </form>
+                                @endif
                             </div>
                             <span class="text-[9px] text-gray-400 mt-2">Diperbarui:
-                                {{ $doc->created_at?->format('d/m H:i') ?? '-' }}</span>
+                                {{ \Carbon\Carbon::parse($doc->generated_at)->format('d/m H:i') ?? '-' }}</span>
                         @else
-                            <x-mary-button label="Generate" icon="o-cog"
-                                link="{{ route('documents.generate', ['procurement' => $procurementRequest->id, 'type' => $type]) }}"
-                                class="btn-xs w-full bg-white border-[#0046FF] text-[#0046FF] hover:bg-[#0046FF]/10"
-                                no-wire-navigate />
+                            @if ($isAdminCv)
+                                <x-mary-button label="Generate" icon="o-cog"
+                                    link="{{ route('documents.generate', ['procurement' => $procurementRequest->id, 'type' => $type]) }}"
+                                    class="btn-xs w-full bg-white border-[#0046FF] text-[#0046FF] hover:bg-[#0046FF]/10"
+                                    no-wire-navigate />
+                            @else
+                                <span class="text-xs text-gray-400 italic">Belum digenerate</span>
+                            @endif
                         @endif
                     </div>
                 @endforeach

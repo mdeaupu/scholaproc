@@ -1,4 +1,4 @@
-<x-document-layout :title="'Dokumen Perencanaan - ' . $procurement->package_category">
+<x-document-layout :title="'Dokumen Perencanaan - ' . $procurement->package_category_name">
 
     @include('documents.partials.kop-surat', ['school' => $school, 'schoolSetting' => $schoolSetting])
 
@@ -21,7 +21,7 @@
         <tr>
             <td class="label">Kategori Barang/Jasa</td>
             <td class="colon">:</td>
-            <td>{{ $procurement->package_category }}</td>
+            <td>{{ $procurement->package_category_name }}</td>
         </tr>
     </table>
 
@@ -64,12 +64,12 @@
             <tr>
                 <td class="text-center">6</td>
                 <td>Sumber Anggaran</td>
-                <td class="text-center">{{ $procurement->funding_source }}</td>
+                <td class="text-center">{{ $procurement->funding_source_name }}</td>
             </tr>
             <tr>
                 <td class="text-center">7</td>
                 <td>Tahun Anggaran</td>
-                <td class="text-center">{{ $procurement->budget_year }}</td>
+                <td class="text-center">{{ $procurement->budget_year_name }}</td>
             </tr>
             <tr>
                 <td class="text-center">8</td>

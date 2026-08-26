@@ -16,6 +16,8 @@ class GeneratedDocument extends Model implements HasMedia
 {
     use InteractsWithMedia, HasFactory;
 
+    public $timestamps = false;
+
     protected $fillable = [
         'procurement_request_id',
         'document_type',

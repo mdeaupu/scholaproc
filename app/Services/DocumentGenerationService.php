@@ -19,6 +19,7 @@ class DocumentGenerationService
         'bast' => 'documents.bast',
         'invoice' => 'documents.invoice',
         'receipt' => 'documents.receipt',
+        'supplier_declaration' => 'documents.supplier-declaration',
     ];
 
     private function prepareCommonData(ProcurementRequest $procurement): array
@@ -64,6 +65,7 @@ class DocumentGenerationService
 
             'headmaster' => $this->signatoryOrPlaceholder($signatories, 'headmaster'),
             'inspector' => $this->signatoryOrPlaceholder($signatories, 'inspector'),
+            'treasurer' => $this->signatoryOrPlaceholder($signatories, 'treasurer'),
 
             'subtotal' => $subtotal,
             'ppn' => $ppn,
@@ -172,5 +174,13 @@ class DocumentGenerationService
         $data['document'] = $data['receiptDocument'];
 
         return GeneratedDocument::generatePdf($procurement, 'receipt', self::VIEWS['receipt'], $data);
+    }
+
+    public function generateSupplierDeclaration(ProcurementRequest $procurement): GeneratedDocument
+    {
+        $data = $this->prepareCommonData($procurement);
+        $data['document'] = $this->documentOrFail($procurement, 'supplier_declaration');
+
+        return GeneratedDocument::generatePdf($procurement, 'supplier_declaration', self::VIEWS['supplier_declaration'], $data);
     }
 }

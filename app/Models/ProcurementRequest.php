@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\DocumentGenerationService;
+use App\Services\ProcurementNumberGenerator;
 use Exception;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -487,6 +488,23 @@ class ProcurementRequest extends Model
             ->count() === 0;
     }
 
+    // ─── Accessors ──────────────────────────────────────────────────
+
+    protected function packageCategoryNameAttribute(): string
+    {
+        return $this->packageCategory?->name ?? '-';
+    }
+
+    protected function budgetYearNameAttribute(): string
+    {
+        return $this->budgetYear?->name ?? '-';
+    }
+
+    protected function fundingSourceNameAttribute(): string
+    {
+        return $this->fundingSource?->name ?? '-';
+    }
+
     public function negotiationProgress(): array
     {
         $total = $this->items()->count();
@@ -518,12 +536,10 @@ class ProcurementRequest extends Model
 
         $documentTypes = ['cover', 'planning', 'negotiation', 'purchase_order', 'inspection', 'bast', 'invoice', 'receipt', 'supplier_declaration'];
 
-        $sequenceNumber = str_pad($this->id, 3, '0', STR_PAD_LEFT);
-
-        DB::transaction(function () use ($documentTypes, $sequenceNumber) {
+        DB::transaction(function () use ($documentTypes) {
             foreach ($documentTypes as $type) {
                 $doc = $this->documents()->firstOrNew(['document_type' => $type]);
-                $doc->document_number = $doc->generateNumber($sequenceNumber);
+                $doc->document_number = app(ProcurementNumberGenerator::class)->generate($this, $type);
                 $doc->document_date = now()->toDateString();
                 $doc->save();
             }
@@ -570,6 +586,11 @@ class ProcurementRequest extends Model
         return app(DocumentGenerationService::class)->generateReceipt($this);
     }
 
+    public function generateSupplierDeclaration(): GeneratedDocument
+    {
+        return app(DocumentGenerationService::class)->generateSupplierDeclaration($this);
+    }
+
     public function generateAllDocuments(): void
     {
         $this->generateCover();
@@ -580,5 +601,6 @@ class ProcurementRequest extends Model
         $this->generateBast();
         $this->generateInvoice();
         $this->generateReceipt();
+        $this->generateSupplierDeclaration();
     }
 }

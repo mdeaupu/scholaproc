@@ -89,9 +89,12 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::prefix('documents')->name('documents.')->group(function () {
-        Route::get('/generate/{procurement}/{type}', [DocumentController::class, 'generate'])->name('generate');
         Route::get('/download/{document:download_token}', [DocumentController::class, 'download'])->name('download');
-        Route::post('/regenerate/{document}', [DocumentController::class, 'regenerate'])->name('regenerate');
+
+        Route::middleware('role:superadmin|admin')->group(function () {
+            Route::get('/generate/{procurement}/{type}', [DocumentController::class, 'generate'])->name('generate');
+            Route::post('/regenerate/{document}', [DocumentController::class, 'regenerate'])->name('regenerate');
+        });
     });
     Route::view('profile', 'profile')->name('profile');
 });

@@ -1,4 +1,15 @@
-@php $letterHead = $schoolSetting->getLetterHead(); @endphp
+@php
+    $letterHead = $schoolSetting
+        ? $schoolSetting->getLetterHead()
+        : [
+            'pusat' => '',
+            'provinsi' => '',
+            'sub_wilayah' => null,
+            'sekolah' => strtoupper($school->name),
+            'alamat_lengkap' => $school->address,
+            'kontak' => 'Telp: ' . $school->phone_number,
+        ];
+@endphp
 <table style="border-bottom: 3px solid #1a1a1a; padding-bottom: 6px;">
     <tr>
         <td style="width: 70px; vertical-align: top;">

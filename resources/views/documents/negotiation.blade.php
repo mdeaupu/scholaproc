@@ -1,4 +1,4 @@
-<x-document-layout :title="'Dokumen Hasil Negosiasi - ' . $procurement->package_category">
+<x-document-layout :title="'Dokumen Hasil Negosiasi - ' . $procurement->package_category_name">
 
     @include('documents.partials.kop-surat', ['school' => $school, 'schoolSetting' => $schoolSetting])
 

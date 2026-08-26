@@ -1,4 +1,4 @@
-<x-document-layout :title="'Surat Pesanan - ' . $procurement->package_category">
+<x-document-layout :title="'Surat Pesanan - ' . $procurement->package_category_name">
 
     @include('documents.partials.kop-surat', ['school' => $school, 'schoolSetting' => $schoolSetting])
 
@@ -9,7 +9,7 @@
     <div class="section-spacer"></div>
 
     <p>Sub Pekerjaan :</p>
-    <p class="bold">{{ $procurement->package_category }}</p>
+    <p class="bold">{{ $procurement->package_category_name }}</p>
     <p>Pada {{ $school->name }}</p>
 
     <div class="section-spacer"></div>
@@ -79,7 +79,7 @@
 
     <p class="note">
         Berdasarkan dokumen perencanaan nomor {{ $planningDocument->document_number }} pada kegiatan
-        {{ $procurement->package_category }}, dengan ini kami sampaikan rincian pesanan sebagai berikut :
+        {{ $procurement->package_category_name }}, dengan ini kami sampaikan rincian pesanan sebagai berikut :
     </p>
 
     <table class="items-table">

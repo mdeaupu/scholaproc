@@ -47,7 +47,7 @@ describe('DocumentController - generate()', function () {
             ->where('document_type', 'cover')->exists())->toBeTrue();
     });
 
-    it('type=all men-generate 8 dokumen sekaligus dan redirect back dengan pesan sukses', function () {
+    it('type=all men-generate 9 dokumen sekaligus dan redirect back dengan pesan sukses', function () {
         $user = makeUser();
         $procurement = readyProcurement();
 
@@ -59,7 +59,7 @@ describe('DocumentController - generate()', function () {
         $response->assertRedirect();
         $response->assertSessionHas('success');
 
-        expect(GeneratedDocument::where('procurement_request_id', $procurement->id)->count())->toBe(8);
+        expect(GeneratedDocument::where('procurement_request_id', $procurement->id)->count())->toBe(9);
     });
 
     it('tipe dokumen tidak valid mengembalikan 404', function () {

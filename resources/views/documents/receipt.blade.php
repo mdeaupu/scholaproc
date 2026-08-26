@@ -10,7 +10,7 @@
                     <tr>
                         <td class="label">Tahun Anggaran</td>
                         <td class="colon">:</td>
-                        <td>{{ $procurement->budget_year }}</td>
+                        <td>{{ $procurement->budget_year_name }}</td>
                     </tr>
                     <tr>
                         <td class="label">Nomor</td>
@@ -20,7 +20,7 @@
                     <tr>
                         <td class="label">Sumber Dana</td>
                         <td class="colon">:</td>
-                        <td>{{ $procurement->funding_source }}</td>
+                        <td>{{ $procurement->funding_source_name }}</td>
                     </tr>
                 </table>
             </td>
@@ -48,7 +48,7 @@
         <tr>
             <td class="label">Untuk Pembayaran</td>
             <td class="colon">:</td>
-            <td>{{ $procurement->package_category }}</td>
+            <td>{{ $procurement->package_category_name }}</td>
         </tr>
     </table>
 

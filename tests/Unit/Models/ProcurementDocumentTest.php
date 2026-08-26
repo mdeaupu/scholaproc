@@ -3,6 +3,7 @@
 use App\Models\ProcurementDocument;
 use App\Models\ProcurementRequest;
 use App\Models\Supplier;
+use App\Services\ProcurementNumberGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -24,24 +25,19 @@ test('isComplete mengecek status kelengkapan dokumen', function () {
     expect($document->isComplete())->toBeTrue();
 });
 
-test('generateNumber men-generate nomor dokumen otomatis', function () {
+test('ProcurementNumberGenerator men-generate nomor dokumen otomatis', function () {
     $supplier = Supplier::factory()->create();
     $request = ProcurementRequest::factory()->create([
         'supplier_id' => $supplier->id,
     ]);
 
-    $document = ProcurementDocument::factory()->create([
-        'procurement_request_id' => $request->id,
-        'document_type' => 'bast',
-    ]);
-
-    $generatedNumber = $document->generateNumber('001');
+    $generator = app(ProcurementNumberGenerator::class);
+    $generatedNumber = $generator->generate($request, 'bast');
 
     expect($generatedNumber)->not->toBeEmpty();
 
     $currentYear = date('Y');
     expect($generatedNumber)
         ->toContain($currentYear)
-        ->toContain('BAST')
-        ->toContain('001');
+        ->toContain('BAST');
 });

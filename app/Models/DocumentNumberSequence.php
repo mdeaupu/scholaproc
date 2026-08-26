@@ -27,4 +27,10 @@ class DocumentNumberSequence extends Model
     {
         return $this->belongsTo(BudgetYear::class);
     }
+
+    public function nextNumber(): int
+    {
+        $this->increment('last_number');
+        return $this->last_number;
+    }
 }

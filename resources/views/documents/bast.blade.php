@@ -1,4 +1,4 @@
-<x-document-layout :title="'Berita Acara Serah Terima - ' . $procurement->package_category">
+<x-document-layout :title="'Berita Acara Serah Terima - ' . $procurement->package_category_name">
 
     @include('documents.partials.kop-surat', ['school' => $school, 'schoolSetting' => $schoolSetting])
 
@@ -21,12 +21,12 @@
         <tr>
             <td class="label">Nama Pekerjaan</td>
             <td class="colon">:</td>
-            <td>{{ $procurement->package_category }}</td>
+            <td>{{ $procurement->package_category_name }}</td>
         </tr>
         <tr>
             <td class="label">Tahun</td>
             <td class="colon">:</td>
-            <td>{{ $procurement->budget_year }}</td>
+            <td>{{ $procurement->budget_year_name }}</td>
         </tr>
     </table>
 
@@ -107,7 +107,7 @@
     </table>
 
     <p class="note">
-        PIHAK PERTAMA menyerahkan hasil pekerjaan {{ $procurement->package_category }} kepada PIHAK KEDUA,
+        PIHAK PERTAMA menyerahkan hasil pekerjaan {{ $procurement->package_category_name }} kepada PIHAK KEDUA,
         dan PIHAK KEDUA telah menerima hasil pekerjaan tersebut dalam jumlah yang lengkap dan kondisi
         yang baik sesuai dengan rincian berikut:
     </p>

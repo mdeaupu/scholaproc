@@ -1,4 +1,4 @@
-<x-document-layout :title="'Surat Hasil Pemeriksaan - ' . $procurement->package_category">
+<x-document-layout :title="'Surat Hasil Pemeriksaan - ' . $procurement->package_category_name">
 
     @include('documents.partials.kop-surat', ['school' => $school, 'schoolSetting' => $schoolSetting])
 
@@ -21,12 +21,12 @@
         <tr>
             <td class="label">Nama Pekerjaan</td>
             <td class="colon">:</td>
-            <td>{{ $procurement->package_category }}</td>
+            <td>{{ $procurement->package_category_name }}</td>
         </tr>
         <tr>
             <td class="label">Tahun</td>
             <td class="colon">:</td>
-            <td>{{ $procurement->budget_year }}</td>
+            <td>{{ $procurement->budget_year_name }}</td>
         </tr>
     </table>
 

@@ -44,7 +44,7 @@
                 <tr>
                     <td class="text-center">{{ $i + 1 }}</td>
                     <td>{{ $item->item_name }}</td>
-                    <td class="text-center">{{ $item->unit }}</td>
+                    <td class="text-center">{{ $item->unit->name ?? '-' }}</td>
                     <td class="text-center">{{ $item->quantity }}</td>
                     <td class="text-right">
                         {{ number_format($item->official_price ?? $item->estimated_price, 0, ',', '.') }}</td>

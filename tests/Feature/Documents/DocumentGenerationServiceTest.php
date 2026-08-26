@@ -33,10 +33,10 @@ describe('DocumentGenerationService - nomor dokumen resmi', function () {
 
         $procurement->generateCover();
 
-        expect($procurement->fresh()->documents)->toHaveCount(8);
+        expect($procurement->fresh()->documents)->toHaveCount(9);
     });
 
-    it('TIDAK menomori ulang dokumen yang sudah lengkap (idempoten kalau sudah 8)', function () {
+    it('TIDAK menomori ulang dokumen yang sudah lengkap (idempoten kalau sudah 9)', function () {
         $procurement = readyProcurement();
         $procurement->generateOfficialDocuments();
         $procurement->refresh();
@@ -64,6 +64,7 @@ describe('DocumentGenerationService - generate tiap tipe dokumen (regresi bug na
         'bast' => 'generateBast',
         'invoice' => 'generateInvoice',
         'receipt' => 'generateReceipt',
+        'supplier_declaration' => 'generateSupplierDeclaration',
     ];
 
     foreach ($types as $type => $method) {
@@ -80,17 +81,17 @@ describe('DocumentGenerationService - generate tiap tipe dokumen (regresi bug na
         });
     }
 
-    it('generateAllDocuments membuat 8 GeneratedDocument sekaligus', function () {
+    it('generateAllDocuments membuat 9 GeneratedDocument sekaligus', function () {
         $procurement = readyProcurement();
 
         $procurement->generateAllDocuments();
 
-        expect(GeneratedDocument::where('procurement_request_id', $procurement->id)->count())->toBe(8);
+        expect(GeneratedDocument::where('procurement_request_id', $procurement->id)->count())->toBe(9);
 
         $types = GeneratedDocument::where('procurement_request_id', $procurement->id)
             ->pluck('document_type')->sort()->values()->all();
 
-        $expected = collect(['cover', 'planning', 'negotiation', 'purchase_order', 'inspection', 'bast', 'invoice', 'receipt'])
+        $expected = collect(['cover', 'planning', 'negotiation', 'purchase_order', 'inspection', 'bast', 'invoice', 'receipt', 'supplier_declaration'])
             ->sort()->values()->all();
 
         expect($types)->toBe($expected);

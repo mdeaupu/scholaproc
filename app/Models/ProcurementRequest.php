@@ -228,7 +228,9 @@ class ProcurementRequest extends Model
 
     public function canComplete(): bool
     {
-        return $this->status === self::STATUS_ITEMS_PREPARED;
+        return $this->status === self::STATUS_ITEMS_PREPARED
+            && $this->hasSignatories()
+            && $this->hasOfficialPrices();
     }
 
     public function submit(User $user): void
@@ -292,9 +294,10 @@ class ProcurementRequest extends Model
     public function complete(User $user): void
     {
         if (!$this->canComplete()) {
-            throw new Exception('Hanya pengajuan berstatus items_prepared yang dapat diselesaikan.');
+            throw new Exception('Hanya pengajuan berstatus items_prepared yang dapat diselesaikan. Pastikan pejabat penandatangan dan harga resmi sudah dilengkapi.');
         }
 
+        $this->lockTotals();
         $this->update(['status' => self::STATUS_COMPLETED]);
         $this->recordHistory($user, self::STATUS_COMPLETED);
     }
@@ -476,7 +479,7 @@ class ProcurementRequest extends Model
             throw new Exception("Gagal generate. Mohon lengkapi data supplier, penandatangan, dan harga resmi terlebih dahulu.");
         }
 
-        $documentTypes = ['cover', 'planning', 'negotiation', 'purchase_order', 'inspection', 'bast', 'invoice', 'receipt'];
+        $documentTypes = ['cover', 'planning', 'negotiation', 'purchase_order', 'inspection', 'bast', 'invoice', 'receipt', 'supplier_declaration'];
 
         $sequenceNumber = str_pad($this->id, 3, '0', STR_PAD_LEFT);
 

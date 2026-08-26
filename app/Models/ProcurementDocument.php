@@ -42,6 +42,7 @@ class ProcurementDocument extends Model
             'bast' => 'BAST',
             'invoice' => 'INV',
             'receipt' => 'KW',
+            'supplier_declaration' => 'IDENTITAS-PENYEDIA',
             default => 'DOC'
         };
 

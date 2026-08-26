@@ -20,6 +20,86 @@
             ],
         };
     @endphp
+    {{-- ─── Progress Workflow Stepper ────────────────────────────────── --}}
+    @php
+        $workflowSteps = [
+            ['key' => \App\Models\ProcurementRequest::STATUS_DRAFT, 'label' => 'Draft', 'order' => 1],
+            ['key' => \App\Models\ProcurementRequest::STATUS_SUBMITTED, 'label' => 'Submitted', 'order' => 2],
+            ['key' => \App\Models\ProcurementRequest::STATUS_VERIFIED, 'label' => 'Verified', 'order' => 3],
+            ['key' => \App\Models\ProcurementRequest::STATUS_SUPPLIER_ASSIGNED, 'label' => 'Supplier', 'order' => 4],
+            ['key' => \App\Models\ProcurementRequest::STATUS_ITEMS_PREPARED, 'label' => 'Barang Siap', 'order' => 5],
+            ['key' => \App\Models\ProcurementRequest::STATUS_COMPLETED, 'label' => 'Selesai', 'order' => 6],
+        ];
+
+        $stepMap = collect($workflowSteps)->pluck('order', 'key')->toArray();
+
+        $isRejected = $procurementRequest->status === \App\Models\ProcurementRequest::STATUS_REJECTED;
+
+        if ($isRejected) {
+            $lastValidHistory = $procurementRequest->histories
+                ->where('status', '!=', \App\Models\ProcurementRequest::STATUS_REJECTED)
+                ->sortByDesc('created_at')
+                ->first();
+            $currentOrder = $lastValidHistory
+                ? ($stepMap[$lastValidHistory->status] ?? 1)
+                : 1;
+        } else {
+            $currentOrder = $stepMap[$procurementRequest->status] ?? 0;
+        }
+
+        $completedOrders = $procurementRequest->histories
+            ->pluck('status')
+            ->unique()
+            ->map(fn($s) => $stepMap[$s] ?? null)
+            ->filter()
+            ->toArray();
+    @endphp
+    <div class="mb-6 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="flex items-center justify-between relative">
+            @php
+                $lineTotal = count($workflowSteps) - 1;
+            @endphp
+            <div class="absolute top-3.5 left-0 right-0 h-0.5 bg-gray-200 z-0" style="margin-left: 1.5rem; margin-right: 1.5rem;"></div>
+            <div class="absolute top-3.5 left-0 h-0.5 bg-[#0046FF] z-0 transition-all duration-500"
+                style="margin-left: 1.5rem; width: {{ $currentOrder > 1 ? 'calc(' . (($currentOrder - 1) / $lineTotal * 100) . '% - 3rem)' : '0' }}"></div>
+            @foreach ($workflowSteps as $step)
+                @php
+                    $isDone = in_array($step['order'], $completedOrders) && $step['order'] < $currentOrder;
+                    $isActive = $step['order'] === $currentOrder && !$isRejected;
+                    $isPending = $step['order'] > $currentOrder;
+                    $isRejectedStep = $isRejected && $step['order'] === $currentOrder;
+                @endphp
+                <div class="flex flex-col items-center z-10 flex-1">
+                    <div
+                        class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all duration-300
+                        {{ $isDone ? 'bg-[#0046FF] border-[#0046FF] text-white' : '' }}
+                        {{ $isActive && !$isRejectedStep ? 'bg-white border-[#0046FF] text-[#0046FF] ring-2 ring-[#0046FF]/20' : '' }}
+                        {{ $isRejectedStep ? 'bg-[#FF8040] border-[#FF8040] text-white' : '' }}
+                        {{ $isPending ? 'bg-white border-gray-300 text-gray-400' : '' }}">
+                        @if ($isDone)
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                        @elseif ($isRejectedStep)
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        @else
+                            {{ $step['order'] }}
+                        @endif
+                    </div>
+                    <span
+                        class="text-[10px] mt-1.5 font-medium text-center leading-tight
+                        {{ $isDone ? 'text-[#0046FF]' : '' }}
+                        {{ $isActive ? 'text-[#0046FF] font-bold' : '' }}
+                        {{ $isRejectedStep ? 'text-[#FF8040] font-bold' : '' }}
+                        {{ $isPending ? 'text-gray-400' : '' }}">
+                        {{ $step['label'] }}
+                    </span>
+                </div>
+            @endforeach
+        </div>
+    </div>
     <x-mary-alert icon="o-information-circle" class="{{ $theme['alert'] }} border-none mb-6">
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
             <div>
@@ -235,7 +315,7 @@
                                 @if (auth()->user()->isSuperAdmin() || auth()->user()->isAdmin())
                                     <x-mary-button label="Generate Nomor Surat" icon="o-identification"
                                         wire:click="setDocumentNumbers" wire:loading.attr="disabled"
-                                        spinner="setDocumentNumbers" @disabled(!$procurementRequest->hasOfficialPrices())
+                                        spinner="setDocumentNumbers" @disabled(!$procurementRequest->isReadyForDocumentGeneration())
                                         class="w-full btn-xs bg-[#0046FF] text-white hover:bg-[#0046FF]/95 border-none" />
                                 @else
                                     <p class="text-[10px] text-gray-500">Menunggu Admin CV menerbitkan nomor surat.</p>
@@ -286,6 +366,55 @@
                     @endif
                 @endif
             </div>
+        </div>
+    </div>
+    {{-- ─── Timeline Riwayat Pengadaan ────────────────────────────────── --}}
+    <div class="mt-6 rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div class="p-5 border-b border-gray-100">
+            <h3 class="font-bold text-lg text-black">Riwayat Pengadaan</h3>
+            <p class="text-sm text-gray-500">Chronologis perubahan status pengajuan ini.</p>
+        </div>
+        <div class="p-5">
+            @if ($histories->isEmpty())
+                <p class="text-sm text-gray-400 italic text-center py-4">Belum ada riwayat perubahan.</p>
+            @else
+                <div class="space-y-0 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-200">
+                    @foreach ($histories as $history)
+                        @php
+                            $isRejected = $history->status === \App\Models\ProcurementRequest::STATUS_REJECTED;
+                            $dotColor = $isRejected ? 'bg-[#FF8040]' : 'bg-[#0046FF]';
+                        @endphp
+                        <div class="flex gap-3 relative pb-5 last:pb-0">
+                            <div class="w-6 h-6 rounded-full flex items-center justify-center z-10 {{ $dotColor }} flex-shrink-0 mt-0.5">
+                                @if ($isRejected)
+                                    <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
+                                    </svg>
+                                @else
+                                    <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
+                                    </svg>
+                                @endif
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="text-sm font-semibold text-black">{{ \Illuminate\Support\Str::headline(str_replace('_', ' ', $history->status)) }}</span>
+                                    @if ($history->createdBy)
+                                        <span class="text-xs text-gray-400">oleh</span>
+                                        <span class="text-xs font-medium text-gray-600">{{ $history->createdBy->name }}</span>
+                                    @endif
+                                </div>
+                                @if ($history->notes)
+                                    <p class="text-xs text-gray-500 mt-0.5 italic">{{ $history->notes }}</p>
+                                @endif
+                                <p class="text-[11px] text-gray-400 mt-1">
+                                    {{ \Carbon\Carbon::parse($history->created_at)->format('d M Y H:i') }} WIB
+                                </p>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
         </div>
     </div>
     <x-mary-modal wire:model="taxModal" title="Atur Komponen Pajak Global" class="backdrop-blur text-black"
@@ -359,7 +488,7 @@
                         <p class="text-xs font-bold text-black mb-1">{{ $item->item_name }}</p>
                         <div
                             class="flex justify-between items-center text-[10px] text-gray-500 mb-2 border-b border-gray-200 pb-2">
-                            <span>Qty: {{ $item->quantity }} {{ $item->unit }}</span>
+                            <span>Qty: {{ $item->quantity }} {{ $item->unit?->name ?? '-' }}</span>
                             <span>Estimasi Sekolah: Rp {{ number_format($item->estimated_price, 0, ',', '.') }}</span>
                         </div>
                         <x-mary-input label="Harga Resmi Satuan (Rp)" type="number"

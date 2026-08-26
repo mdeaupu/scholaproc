@@ -34,6 +34,8 @@ class ProcurementProcessPanel extends Component
     public bool $priceModal = false;
     public array $inputPrices = [];
 
+    public bool $showNegotiation = false;
+
     public array $signatoriesData = [
         'headmaster' => ['name' => '', 'nip' => '', 'title' => 'Kepala Sekolah'],
         'inspector' => ['name' => '', 'nip' => '', 'title' => 'Pemeriksa Barang'],
@@ -42,7 +44,7 @@ class ProcurementProcessPanel extends Component
 
     public function mount(ProcurementRequest $procurementRequest)
     {
-        $procurementRequest->load(['items', 'histories.createdBy', 'school', 'supplier']);
+        $procurementRequest->load(['items.unit', 'items.negotiations', 'histories.createdBy', 'school', 'supplier']);
         $this->procurementRequest = $procurementRequest;
         $this->items = $procurementRequest->items;
 
@@ -296,6 +298,11 @@ class ProcurementProcessPanel extends Component
         }
     }
 
+    public function toggleNegotiation(): void
+    {
+        $this->showNegotiation = !$this->showNegotiation;
+    }
+
     public function render()
     {
         $sortedHistories = $this->procurementRequest->histories
@@ -305,6 +312,7 @@ class ProcurementProcessPanel extends Component
         return view('livewire.procurement.procurement-process-panel', [
             'suppliers' => Supplier::all(),
             'histories' => $sortedHistories,
+            'negotiationProgress' => $this->procurementRequest->negotiationProgress(),
         ])->layout('layouts.app');
     }
 }

@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Models\ProcurementNegotiation;
 use App\Models\User;
+use App\Observers\ProcurementNegotiationObserver;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -24,5 +26,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('admin-school-only', function (User $user) {
             return $user->isSchool();
         });
+
+        ProcurementNegotiation::observe(ProcurementNegotiationObserver::class);
     }
 }

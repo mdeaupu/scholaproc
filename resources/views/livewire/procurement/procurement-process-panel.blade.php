@@ -146,7 +146,8 @@
                         ['key' => 'quantity', 'label' => 'Qty'],
                         ['key' => 'unit', 'label' => 'Satuan'],
                         ['key' => 'estimated_price', 'label' => 'Harga Estimasi'],
-                        ['key' => 'subtotal', 'label' => 'Subtotal (Est)'],
+                        ['key' => 'official_price', 'label' => 'Harga Resmi'],
+                        ['key' => 'negotiation_status', 'label' => 'Status Nego'],
                     ]" :rows="$items" striped hover class="text-black">
                         @scope('cell_estimated_price', $item)
                             Rp {{ number_format($item->estimated_price, 0, ',', '.') }}
@@ -154,12 +155,41 @@
                         @scope('cell_unit', $item)
                             {{ $item->unit?->name ?? '-' }}
                         @endscope
-                        @scope('cell_subtotal', $item)
-                            Rp {{ number_format($item->estimatedAmount(), 0, ',', '.') }}
+                        @scope('cell_official_price', $item)
+                            @if ($item->official_price)
+                                <span class="font-semibold text-emerald-600">Rp {{ number_format($item->official_price, 0, ',', '.') }}</span>
+                            @else
+                                <span class="text-gray-400 italic">-</span>
+                            @endif
+                        @endscope
+                        @scope('cell_negotiation_status', $item)
+                            @php
+                                $negoBadge = match($item->negotiation_status) {
+                                    'accepted' => 'bg-emerald-100 text-emerald-700',
+                                    'rejected' => 'bg-red-100 text-red-700',
+                                    'negotiating' => 'bg-[#0046FF]/10 text-[#0046FF]',
+                                    default => 'bg-gray-100 text-gray-500',
+                                };
+                                $negoLabel = match($item->negotiation_status) {
+                                    'accepted' => 'Diterima',
+                                    'rejected' => 'Ditolak',
+                                    'negotiating' => 'Nego',
+                                    default => 'Mulai',
+                                };
+                            @endphp
+                            <span class="px-2 py-0.5 rounded text-[11px] font-semibold {{ $negoBadge }}">
+                                {{ $negoLabel }}
+                            </span>
                         @endscope
                     </x-mary-table>
                 </div>
             </div>
+            {{-- ─── Negotiation Panel (embedded) ────────────────────────────── --}}
+            @if ($showNegotiation && $procurementRequest->hasSupplier())
+                <livewire:procurement.negotiation-panel
+                    :procurementRequest="$procurementRequest"
+                    wire:key="negotiation-panel-{{ $procurementRequest->id }}" />
+            @endif
             <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5 mt-6">
                 <h3 class="font-bold text-lg mb-4 text-black">Informasi Nilai Kontrak & Perpajakan Resmi (M6)</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -169,9 +199,16 @@
                             {{ number_format($procurementRequest->estimatedSubtotal(), 0, ',', '.') }}</span>
                     </div>
                     <div class="flex justify-between border-b border-gray-100 pb-2">
-                        <span class="text-gray-500">Subtotal Resmi (Supplier):</span>
+                        <span class="text-gray-500">Subtotal Resmi (Hasil Nego):</span>
                         <span class="font-semibold text-black">Rp
                             {{ number_format($procurementRequest->officialSubtotal(), 0, ',', '.') }}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-gray-100 pb-2">
+                        <span class="text-gray-500">Progres Negosiasi:</span>
+                        <span class="font-semibold text-[#0046FF]">
+                            {{ $negotiationProgress['settled'] }}/{{ $negotiationProgress['total'] }} item
+                            ({{ $negotiationProgress['percentage'] }}%)
+                        </span>
                     </div>
                     <div class="flex justify-between border-b border-gray-100 pb-2">
                         <span class="text-gray-500">Status Pajak Pengadaan:</span>
@@ -276,8 +313,8 @@
                     <div class="flex gap-3 relative">
                         <div
                             class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold z-10 
-        {{ $procurementRequest->hasOfficialPrices() ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-600' }}">
-                            @if ($procurementRequest->hasOfficialPrices())
+        {{ $procurementRequest->allItemsNegotiationSettled() ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-600' }}">
+                            @if ($procurementRequest->allItemsNegotiationSettled())
                                 ✓
                             @else
                                 4
@@ -285,15 +322,22 @@
                         </div>
                         <div class="flex-1 bg-gray-50 rounded-lg p-2.5 border border-gray-100">
                             <div class="flex items-center justify-between">
-                                <span class="text-xs font-semibold text-black block">Validasi Nominal Kontrak</span>
-                                @if (auth()->user()->isSuperAdmin() || auth()->user()->isAdmin())
-                                    <x-mary-button label="Input Harga" icon="o-currency-dollar"
-                                        wire:click="openPriceModal"
-                                        class="btn-xs bg-white text-gray-600 border-gray-300 hover:border-[#0046FF]" />
+                                <span class="text-xs font-semibold text-black block">Negosiasi Harga</span>
+                                @if ($procurementRequest->canStartNegotiation() || $procurementRequest->allItemsNegotiationSettled())
+                                    <x-mary-button label="{{ $showNegotiation ? 'Tutup' : 'Buka' }}"
+                                        icon="{{ $showNegotiation ? 'o-chevron-up' : 'o-chat-bubble-left-right' }}"
+                                        wire:click="toggleNegotiation"
+                                        class="btn-xs {{ $showNegotiation ? 'bg-[#0046FF] text-white border-none' : 'bg-white text-[#0046FF] border-[#0046FF] hover:bg-[#0046FF]/10' }}" />
                                 @endif
                             </div>
                             <p class="text-[11px] text-gray-500 mt-0.5">
-                                {{ $procurementRequest->hasOfficialPrices() ? 'Harga negosiasi/resmi telah disetujui.' : 'Admin CV harus menginput harga penawaran.' }}
+                                @if ($procurementRequest->allItemsNegotiationSettled())
+                                    Semua item sudah dinegosiasikan.
+                                @elseif ($procurementRequest->hasSupplier())
+                                    {{ $negotiationProgress['settled'] }}/{{ $negotiationProgress['total'] }} item selesai.
+                                @else
+                                    Menunggu penunjukan supplier.
+                                @endif
                             </p>
                         </div>
                     </div>

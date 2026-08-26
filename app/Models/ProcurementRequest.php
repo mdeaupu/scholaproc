@@ -230,7 +230,14 @@ class ProcurementRequest extends Model
     {
         return $this->status === self::STATUS_ITEMS_PREPARED
             && $this->hasSignatories()
-            && $this->hasOfficialPrices();
+            && $this->hasOfficialPrices()
+            && $this->allItemsNegotiationSettled();
+    }
+
+    public function canStartNegotiation(): bool
+    {
+        return $this->status === self::STATUS_SUPPLIER_ASSIGNED
+            && $this->supplier_id !== null;
     }
 
     public function submit(User $user): void
@@ -463,9 +470,38 @@ class ProcurementRequest extends Model
 
     public function hasOfficialPrices(): bool
     {
-        return $this->items()->whereNull('official_price')
-            ->orWhere('official_price', '<=', 0)
+        return $this->items()
+            ->where(function ($q) {
+                $q->whereNull('official_price')
+                    ->orWhere('official_price', '<=', 0);
+            })
+            ->where('negotiation_status', '!=', 'rejected')
             ->count() === 0;
+    }
+
+    public function allItemsNegotiationSettled(): bool
+    {
+        return $this->items()
+            ->whereNotIn('negotiation_status', ['accepted', 'rejected'])
+            ->count() === 0;
+    }
+
+    public function negotiationProgress(): array
+    {
+        $total = $this->items()->count();
+        $accepted = $this->items()->where('negotiation_status', 'accepted')->count();
+        $rejected = $this->items()->where('negotiation_status', 'rejected')->count();
+        $settled = $accepted + $rejected;
+        $pending = $total - $settled;
+
+        return [
+            'total' => $total,
+            'accepted' => $accepted,
+            'rejected' => $rejected,
+            'pending' => $pending,
+            'settled' => $settled,
+            'percentage' => $total > 0 ? round(($settled / $total) * 100) : 0,
+        ];
     }
 
     public function isReadyForDocumentGeneration(): bool

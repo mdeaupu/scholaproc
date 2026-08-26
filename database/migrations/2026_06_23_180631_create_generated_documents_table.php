@@ -12,11 +12,11 @@ return new class extends Migration {
     {
         Schema::create('generated_documents', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('procurement_request_id')->constrained();
-            $table->enum('document_type', ['cover', 'planning', 'negotiation', 'purchase_order', 'inspection', 'bast', 'invoice', 'receipt']);
+            $table->foreignId('procurement_request_id')->constrained('procurement_requests')->cascadeOnDelete();
+            $table->string('document_type', 30);
             $table->string('file_path');
             $table->string('download_token', 64)->unique()->nullable();
-            $table->timestamps();
+            $table->timestamp('generated_at')->useCurrent();
         });
     }
 

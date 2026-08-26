@@ -86,7 +86,7 @@ class LegalDocumentForm extends Component
 
     public function save()
     {
-        if (!auth()->user()->isOwner() && !auth()->user()->isAdminCv()) {
+        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isAdmin()) {
             abort(403, 'Akses ditolak. Anda tidak memiliki otoritas untuk mengelola dokumen supplier.');
         }
 
@@ -106,13 +106,13 @@ class LegalDocumentForm extends Component
 
         session()->flash('toast_success', $message);
 
-        $route = auth()->user()->isOwner() ? 'owner.suppliers.index' : 'cv.suppliers.index';
+        $route = auth()->user()->isSuperAdmin() ? 'owner.suppliers.index' : 'cv.suppliers.index';
         return $this->redirectRoute($route, navigate: true);
     }
 
     public function render()
     {
-        if (!auth()->user()->isOwner() && !auth()->user()->isAdminCv()) {
+        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isAdmin()) {
             abort(403);
         }
 

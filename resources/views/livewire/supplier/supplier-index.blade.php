@@ -3,7 +3,7 @@
         subtitle="Daftar penyedia barang dan jasa terdaftar sebagai mitra pengadaan." separator>
         <x-slot:actions>
             <x-mary-button label="Tambah Supplier"
-                link="{{ auth()->user()->isOwner() ? route('owner.suppliers.create') : route('cv.suppliers.create') }}"
+                link="{{ auth()->user()->isSuperAdmin() ? route('suppliers.create') : route('cv.suppliers.create') }}"
                 icon="o-plus" class="bg-[#0046FF] hover:bg-[#0046FF]/90 text-white border-none" wire:navigate />
         </x-slot:actions>
     </x-mary-header>
@@ -25,12 +25,12 @@
             @scope('actions', $supplier)
                 <div class="flex items-center gap-1">
                     <x-mary-button icon="o-document-plus"
-                        link="{{ auth()->user()->isOwner() ? route('owner.suppliers.legal-documents.create', $supplier->id) : route('cv.suppliers.legal.create', $supplier->id) }}"
+                        link="{{ auth()->user()->isSuperAdmin() ? route('suppliers.legal-documents.create', $supplier->id) : route('cv.suppliers.legal.create', $supplier->id) }}"
                         class="btn-sm btn-circle btn-ghost text-emerald-600" tooltip="Tambah Dokumen Legal" wire:navigate />
                     <x-mary-button icon="o-eye" wire:click="show({{ $supplier->id }})"
                         class="btn-sm btn-circle btn-ghost text-[#0046FF]" tooltip="Detail" />
                     <x-mary-button icon="o-pencil-square"
-                        link="{{ auth()->user()->isOwner() ? route('owner.suppliers.edit', $supplier->id) : route('cv.suppliers.edit', $supplier->id) }}"
+                        link="{{ auth()->user()->isSuperAdmin() ? route('suppliers.edit', $supplier->id) : route('cv.suppliers.edit', $supplier->id) }}"
                         class="btn-sm btn-circle btn-ghost text-black" tooltip="Edit" wire:navigate />
                     <x-mary-button icon="o-trash"
                         wire:click="confirmDestroy({{ $supplier->id }}, '{{ addslashes($supplier->company_name) }}')"
@@ -68,6 +68,22 @@
                         <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Email Perusahaan</p>
                         <p class="mt-0.5">{{ $selectedSupplier->email ?? '-' }}</p>
                     </div>
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Nama Direktur</p>
+                        <p class="font-semibold text-base mt-0.5">{{ $selectedSupplier->director_name }}</p>
+                        @if ($selectedSupplier->director_npwp)
+                            <p class="text-xs text-gray-500 mt-1">NPWP: {{ $selectedSupplier->director_npwp }}</p>
+                        @endif
+                    </div>
+
+                    @if ($selectedSupplier->commissioner_name)
+                        <div>
+                            <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Nama Komisaris</p>
+                            <p class="font-semibold text-base mt-0.5">{{ $selectedSupplier->commissioner_name }}</p>
+                            <p class="text-xs text-gray-500 mt-1">NIK: {{ $selectedSupplier->commissioner_nik ?? '-' }}
+                            </p>
+                        </div>
+                    @endif
                 </div>
                 <div class="border-t border-gray-100 pt-3">
                     <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Alamat Kantor</p>
@@ -131,7 +147,7 @@
                                 </td>
                                 <td class="text-right">
                                     <x-mary-button icon="o-pencil"
-                                        link="{{ auth()->user()->isOwner() ? route('owner.suppliers.legal-documents.edit', [$selectedSupplier->id, $doc->id]) : route('cv.suppliers.legal.edit', [$selectedSupplier->id, $doc->id]) }}"
+                                        link="{{ auth()->user()->isSuperAdmin() ? route('suppliers.legal-documents.edit', [$selectedSupplier->id, $doc->id]) : route('cv.suppliers.legal.edit', [$selectedSupplier->id, $doc->id]) }}"
                                         class="btn-xs btn-circle btn-ghost text-[#0046FF]" tooltip="Edit Dokumen"
                                         wire:navigate />
                                 </td>
@@ -165,7 +181,8 @@
             </div>
         </div>
         <x-slot:actions>
-            <x-mary-button label="Batal" wire:click="$set('confirmingDestroy', false)" class="btn-ghost text-black" />
+            <x-mary-button label="Batal" wire:click="$set('confirmingDestroy', false)"
+                class="btn-ghost text-black" />
             <x-mary-button label="Ya, Hapus" wire:click="destroy" class="bg-[#FF8040] text-white border-none"
                 spinner="destroy" />
         </x-slot:actions>

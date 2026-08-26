@@ -21,14 +21,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Gate::define('owner-only', function (User $user) {
-            return $user->isOwner();
-        });
-        Gate::define('admin-cv-only', function (User $user) {
-            return $user->isAdminCv();
-        });
         Gate::define('admin-school-only', function (User $user) {
-            return $user->isAdminSchool();
+            return $user->isSchool();
         });
     }
 }

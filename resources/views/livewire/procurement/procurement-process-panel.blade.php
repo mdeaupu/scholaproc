@@ -71,13 +71,16 @@
                         @scope('cell_estimated_price', $item)
                             Rp {{ number_format($item->estimated_price, 0, ',', '.') }}
                         @endscope
+                        @scope('cell_unit', $item)
+                            {{ $item->unit?->name ?? '-' }}
+                        @endscope
                         @scope('cell_subtotal', $item)
                             Rp {{ number_format($item->estimatedAmount(), 0, ',', '.') }}
                         @endscope
                     </x-mary-table>
                 </div>
             </div>
-            <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
+            <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5 mt-6">
                 <h3 class="font-bold text-lg mb-4 text-black">Informasi Nilai Kontrak & Perpajakan Resmi (M6)</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                     <div class="flex justify-between border-b border-gray-100 pb-2">
@@ -133,7 +136,7 @@
                         <div class="flex-1 bg-gray-50 rounded-lg p-2.5 border border-gray-100">
                             <div class="flex items-center justify-between">
                                 <span class="text-xs font-semibold text-black">Penunjukan Supplier</span>
-                                @if ($procurementRequest->canAssignSupplier() && (auth()->user()->isOwner() || auth()->user()->isAdminCv()))
+                                @if ($procurementRequest->canAssignSupplier() && (auth()->user()->isSuperAdmin() || auth()->user()->isAdmin()))
                                     <x-mary-button label="Pilih" icon="o-truck" @click="$wire.supplierModal=true"
                                         class="btn-xs bg-white text-[#0046FF] border-[#0046FF] hover:bg-[#0046FF]/10" />
                                 @endif
@@ -156,7 +159,7 @@
                         <div class="flex-1 bg-gray-50 rounded-lg p-2.5 border border-gray-100">
                             <div class="flex items-center justify-between">
                                 <span class="text-xs font-semibold text-black">Komponen Perpajakan</span>
-                                @if (auth()->user()->isOwner() || auth()->user()->isAdminCv())
+                                @if (auth()->user()->isSuperAdmin() || auth()->user()->isAdmin())
                                     <x-mary-button label="Atur" icon="o-ticket" @click="$wire.taxModal=true"
                                         class="btn-xs bg-white text-gray-600 border-gray-300 hover:border-[#0046FF]" />
                                 @endif
@@ -180,7 +183,7 @@
                         <div class="flex-1 bg-gray-50 rounded-lg p-2.5 border border-gray-100">
                             <div class="flex items-center justify-between">
                                 <span class="text-xs font-semibold text-black">Pejabat Penandatangan</span>
-                                @if (auth()->user()->isOwner() || auth()->user()->isAdminCv())
+                                @if (auth()->user()->isSuperAdmin() || auth()->user()->isAdmin())
                                     <x-mary-button label="Input" icon="o-user-group" @click="$wire.signatoryModal=true"
                                         class="btn-xs bg-white text-gray-600 border-gray-300 hover:border-[#0046FF]" />
                                 @endif
@@ -203,7 +206,7 @@
                         <div class="flex-1 bg-gray-50 rounded-lg p-2.5 border border-gray-100">
                             <div class="flex items-center justify-between">
                                 <span class="text-xs font-semibold text-black block">Validasi Nominal Kontrak</span>
-                                @if (auth()->user()->isOwner() || auth()->user()->isAdminCv())
+                                @if (auth()->user()->isSuperAdmin() || auth()->user()->isAdmin())
                                     <x-mary-button label="Input Harga" icon="o-currency-dollar"
                                         wire:click="openPriceModal"
                                         class="btn-xs bg-white text-gray-600 border-gray-300 hover:border-[#0046FF]" />
@@ -229,7 +232,7 @@
                             @if ($procurementRequest->documents()->exists())
                                 <p class="text-[10px] text-emerald-600 font-medium">Dokumen resmi sudah diterbitkan.</p>
                             @else
-                                @if (auth()->user()->isOwner() || auth()->user()->isAdminCv())
+                                @if (auth()->user()->isSuperAdmin() || auth()->user()->isAdmin())
                                     <x-mary-button label="Generate Nomor Surat" icon="o-identification"
                                         wire:click="setDocumentNumbers" wire:loading.attr="disabled"
                                         spinner="setDocumentNumbers" @disabled(!$procurementRequest->hasOfficialPrices())
@@ -262,9 +265,9 @@
                             class="bg-[#0046FF] hover:bg-[#0046FF]/90 text-white border-none w-full btn-sm" />
                     @endif
                 @endcan
-                @if (auth()->user()->isOwner() || auth()->user()->isAdminCv())
+                @if (auth()->user()->isSuperAdmin() || auth()->user()->isAdmin())
                     @if ($procurementRequest->canVerify())
-                        <x-mary-button label="Verifikasi Sesuai" icon="o-check-circle" wire:click="verify"
+                        <x-mary-button label="Verifikasi" icon="o-check-circle" wire:click="verify"
                             wire:loading.attr="disabled" spinner="verify"
                             class="bg-[#0046FF] hover:bg-[#0046FF]/90 text-white border-none w-full btn-sm" />
                         <x-mary-button label="Tolak Pengajuan" icon="o-x-circle" @click="$wire.rejectModal=true"
@@ -272,21 +275,9 @@
                             class="bg-[#FF8040] hover:bg-[#FF8040]/90 text-white border-none w-full btn-sm" />
                     @endif
                     @if ($procurementRequest->canPrepareItems())
-                        @if ($procurementRequest->documents()->exists())
-                            <x-mary-button label="Barang Sudah Disiapkan" icon="o-cube"
-                                wire:click="markItemsPrepared" wire:loading.attr="disabled"
-                                spinner="markItemsPrepared"
-                                class="bg-white border-[#0046FF] text-[#0046FF] hover:bg-[#0046FF]/10 w-full btn-sm" />
-                        @else
-                            <div
-                                class="p-3 bg-white rounded-lg border border-dashed border-amber-300 text-center flex flex-col items-center justify-center mt-2">
-                                <x-mary-icon name="o-lock-closed" class="w-5 h-5 text-amber-500 mb-1" />
-                                <p class="text-[10px] text-amber-700 leading-tight mt-1">
-                                    <strong>Administrasi Belum Lengkap:</strong><br>
-                                    Nomor Surat Resmi (Langkah 5) harus digenerate sebelum supplier menyiapkan barang.
-                                </p>
-                            </div>
-                        @endif
+                        <x-mary-button label="Barang Sudah Disiapkan" icon="o-cube" wire:click="markItemsPrepared"
+                            wire:loading.attr="disabled" spinner="markItemsPrepared"
+                            class="bg-white border-[#0046FF] text-[#0046FF] hover:bg-[#0046FF]/10 w-full btn-sm" />
                     @endif
                     @if ($procurementRequest->canComplete())
                         <x-mary-button label="Selesaikan Pengadaan" icon="o-document-check" wire:click="complete"

@@ -3,9 +3,13 @@
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\DocumentController;
 use App\Livewire\Admin\AdminIndex;
-use App\Livewire\Dashboard\CvDashboard;
-use App\Livewire\Dashboard\OwnerDashboard;
+use App\Livewire\Dashboard\SuperAdminDashboard;
+use App\Livewire\Dashboard\AdminDashboard;
 use App\Livewire\Dashboard\SchoolDashboard;
+use App\Livewire\Master\BudgetYearIndex;
+use App\Livewire\Master\FundingSourceIndex;
+use App\Livewire\Master\ItemUnitIndex;
+use App\Livewire\Master\PackageCategoryIndex;
 use App\Livewire\Procurement\ProcurementProcessPanel;
 use App\Livewire\Procurement\ProcurementRequestForm;
 use App\Livewire\Procurement\ProcurementRequestList;
@@ -31,41 +35,48 @@ Route::middleware('auth')->group(function () {
         /** @var User $user */
         $user = auth()->user();
 
-        if ($user->isOwner()) {
-            return redirect()->route('dashboard.owner');
+        if ($user->isSuperAdmin()) {
+            return redirect()->route('dashboard.superadmin');
         }
-        if ($user->isAdminCv()) {
-            return redirect()->route('dashboard.cv');
+        if ($user->isAdmin()) {
+            return redirect()->route('dashboard.admin');
         }
         return redirect()->route('dashboard.school');
     })->name('dashboard');
 
-    Route::middleware('can:owner-only')->prefix('owner')->group(function () {
-        Route::get('/dashboard', OwnerDashboard::class)->name('dashboard.owner');
-        Route::get('/admins', AdminIndex::class)->name('admins.index');
+    Route::middleware('role:superadmin')->prefix('superadmin')->group(function () {
+        Route::get('/dashboard', SuperAdminDashboard::class)->name('dashboard.superadmin');
         Route::get('/schools', SchoolIndex::class)->name('schools.index');
         Route::get('/schools/create', SchoolForm::class)->name('schools.create');
         Route::get('/schools/{school}/edit', SchoolForm::class)->name('schools.edit');
-        Route::get('/suppliers', SupplierIndex::class)->name('owner.suppliers.index');
-        Route::get('/suppliers/create', SupplierForm::class)->name('owner.suppliers.create');
-        Route::get('/suppliers/{supplier}/edit', SupplierForm::class)->name('owner.suppliers.edit');
-        Route::get('/suppliers/{supplier}/legal-documents/create', LegalDocumentForm::class)->name('owner.suppliers.legal-documents.create');
-        Route::get('/suppliers/{supplier}/legal-documents/{document}/edit', LegalDocumentForm::class)->name('owner.suppliers.legal-documents.edit');
+        Route::get('/suppliers', SupplierIndex::class)->name('suppliers.index');
+        Route::get('/suppliers/create', SupplierForm::class)->name('suppliers.create');
+        Route::get('/suppliers/{supplier}/edit', SupplierForm::class)->name('suppliers.edit');
+        Route::get('/suppliers/{supplier}/legal-documents/create', LegalDocumentForm::class)->name('suppliers.legal-documents.create');
+        Route::get('/suppliers/{supplier}/legal-documents/{document}/edit', LegalDocumentForm::class)->name('suppliers.legal-documents.edit');
+        Route::get('/admins', AdminIndex::class)->name('admins.index');
         Route::put('/user/{user}/reset-password', [AuthController::class, 'resetPassword'])
             ->name('auth.reset-password');
     });
 
-    Route::middleware('can:admin-cv-only')->prefix('cv')->group(function () {
-        Route::get('/dashboard', CvDashboard::class)->name('dashboard.cv');
-        Route::get('/suppliers', SupplierIndex::class)->name('cv.suppliers.index');
-        Route::get('/suppliers/create', SupplierForm::class)->name('cv.suppliers.create');
-        Route::get('/suppliers/{supplier}/edit', SupplierForm::class)->name('cv.suppliers.edit');
-        Route::get('/suppliers/{supplier}/legal-documents/create', LegalDocumentForm::class)->name('cv.suppliers.legal-documents.create');
-        Route::get('/suppliers/{supplier}/legal-documents/{document}/edit', LegalDocumentForm::class)->name('cv.suppliers.legal-documents.edit');
+    Route::middleware('role:admin')->prefix('cv')->group(function () {
+        Route::get('/dashboard', AdminDashboard::class)->name('dashboard.admin');
+        Route::get('/suppliers', SupplierIndex::class)->name('suppliers.index');
+        Route::get('/suppliers/create', SupplierForm::class)->name('suppliers.create');
+        Route::get('/suppliers/{supplier}/edit', SupplierForm::class)->name('suppliers.edit');
+        Route::get('/suppliers/{supplier}/legal-documents/create', LegalDocumentForm::class)->name('suppliers.legal-documents.create');
+        Route::get('/suppliers/{supplier}/legal-documents/{document}/edit', LegalDocumentForm::class)->name('suppliers.legal-documents.edit');
     });
 
-    Route::middleware('can:admin-school-only')->prefix('school')->group(function () {
+    Route::middleware('role:school')->prefix('school')->group(function () {
         Route::get('/dashboard', SchoolDashboard::class)->name('dashboard.school');
+    });
+
+    Route::middleware('role:superadmin|admin')->prefix('master')->name('master.')->group(function () {
+        Route::get('/package-categories', PackageCategoryIndex::class)->name('package-categories');
+        Route::get('/budget-years', BudgetYearIndex::class)->name('budget-years');
+        Route::get('/funding-sources', FundingSourceIndex::class)->name('funding-sources');
+        Route::get('/item-units', ItemUnitIndex::class)->name('item-units');
     });
 
     Route::prefix('procurement-requests')->name('procurement.')->group(function () {

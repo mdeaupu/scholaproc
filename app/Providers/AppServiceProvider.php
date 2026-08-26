@@ -3,8 +3,10 @@
 namespace App\Providers;
 
 use App\Models\GeneratedDocument;
+use App\Models\ProcurementNegotiation;
 use App\Models\User;
 use App\Observers\GeneratedDocumentObserver;
+use App\Observers\ProcurementNegotiationObserver;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -23,16 +25,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Gate::define('owner-only', function (User $user) {
-            return $user->isOwner();
-        });
-        Gate::define('admin-cv-only', function (User $user) {
-            return $user->isAdminCv();
-        });
         Gate::define('admin-school-only', function (User $user) {
-            return $user->isAdminSchool();
+            return $user->isSchool();
         });
 
         GeneratedDocument::observe(GeneratedDocumentObserver::class);
+        ProcurementNegotiation::observe(ProcurementNegotiationObserver::class);
     }
 }

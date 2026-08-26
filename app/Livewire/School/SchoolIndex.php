@@ -3,6 +3,7 @@
 namespace App\Livewire\School;
 
 use App\Models\School;
+use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Mary\Traits\Toast;
@@ -34,7 +35,7 @@ class SchoolIndex extends Component
 
     public function render()
     {
-        if (!auth()->user()->isOwner()) {
+        if (!auth()->user()->isSuperAdmin()) {
             abort(403, 'Akses ditolak. Hanya Owner yang dapat melihat halaman ini.');
         }
 
@@ -74,7 +75,17 @@ class SchoolIndex extends Component
     public function activate(int $id): void
     {
         $school = School::findOrFail($id);
-        $school->activate();
+
+        DB::transaction(function () use ($school) {
+            $school->update(['status' => 'active']);
+
+            if ($school->account) {
+                $school->account->update([
+                    'status' => 'active'
+                ]);
+            }
+        });
+
         $this->success("Sekolah {$school->name} kini aktif kembali.");
     }
 
@@ -90,10 +101,17 @@ class SchoolIndex extends Component
         if ($this->targetSchoolId) {
             $school = School::findOrFail($this->targetSchoolId);
 
-            $school->suspend();
+            DB::transaction(function () use ($school) {
+                $school->suspend();
+
+                if ($school->account) {
+                    $school->account->update([
+                        'status' => 'suspended'
+                    ]);
+                }
+            });
 
             $this->warning("Sekolah {$school->name} berhasil dibekukan sementara.");
-
             $this->confirmingSuspend = false;
             $this->targetSchoolId = null;
             $this->targetSchoolName = '';

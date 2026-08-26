@@ -39,7 +39,7 @@ class AdminIndex extends Component
 
     public function mount(): void
     {
-        if (!auth()->check() || !auth()->user()->isOwner()) {
+        if (!auth()->check() || !auth()->user()->isSuperAdmin()) {
             abort(403, 'Hanya Owner/Superadmin yang memiliki hak akses ke halaman ini.');
         }
     }
@@ -57,7 +57,7 @@ class AdminIndex extends Component
     public function render()
     {
         $admins = User::query()
-            ->adminCv()
+            ->admin()
             ->when($this->search, function ($query) {
                 $query->where(function ($q) {
                     $q->where('name', 'like', '%' . $this->search . '%')
@@ -93,7 +93,10 @@ class AdminIndex extends Component
             'password' => 'required|string|min:6',
         ]);
 
-        User::createAdminCv($validated);
+        $validated['role'] = 'admin';
+        $validated['status'] = 'active';
+
+        User::create($validated);
 
         $this->isFormModalOpen = false;
         $this->resetForm();
@@ -131,7 +134,17 @@ class AdminIndex extends Component
             'password' => 'nullable|string|min:6',
         ]);
 
-        $user->updateAdminCv($validated);
+        $updateData = [
+            'username' => $validated['username'],
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+        ];
+
+        if (!empty($validated['password'])) {
+            $updateData['password'] = $validated['password'];
+        }
+
+        $user->update($updateData);
 
         $this->isFormModalOpen = false;
         $this->resetForm();

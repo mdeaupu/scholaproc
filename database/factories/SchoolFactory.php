@@ -18,13 +18,12 @@ class SchoolFactory extends Factory
     public function definition(): array
     {
         return [
-            'npsn' => fake()->unique()->numerify('########'),
-            'name' => 'SDN ' . fake()->company() . ' Kota',
-            'address' => fake()->address(),
-            'postal_code' => fake()->postcode(),
-            'phone_number' => fake()->phoneNumber(),
-            'email' => fake()->unique()->companyEmail(),
-            'status' => 'active',
+            'name' => $this->faker->company() . ' School',
+            'address' => $this->faker->address(),
+            'npsn' => $this->faker->unique()->numerify('##########'),
+            'phone_number' => $this->faker->phoneNumber(),
+            'created_at' => now(),
+            'updated_at' => now(),
         ];
     }
 }

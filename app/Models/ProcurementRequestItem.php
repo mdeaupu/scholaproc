@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProcurementRequestItem extends Model
 {
@@ -16,11 +17,12 @@ class ProcurementRequestItem extends Model
         'line_number',
         'item_name',
         'specification',
-        'unit',
+        'unit_id',
         'quantity',
         'estimated_price',
         'official_price',
         'is_pph',
+        'negotiation_status',
     ];
 
     protected $guarded = ['id'];
@@ -36,19 +38,35 @@ class ProcurementRequestItem extends Model
         ];
     }
 
+    // ─── Relationships ──────────────────────────────────────────────
+
     public function procurementRequest(): BelongsTo
     {
         return $this->belongsTo(ProcurementRequest::class);
     }
 
+    public function unit(): BelongsTo
+    {
+        return $this->belongsTo(ItemUnit::class, 'unit_id');
+    }
+
+    public function negotiations(): HasMany
+    {
+        return $this->hasMany(ProcurementNegotiation::class, 'procurement_request_item_id');
+    }
+
+    // ─── Calculations ───────────────────────────────────────────────
+
     public function estimatedAmount(): float
     {
-        return (float) $this->estimated_price * $this->quantity;
+        return (float) $this->quantity * (float) $this->estimated_price;
     }
 
     public function officialAmount(): float
     {
-        return (float) ($this->official_price ?? 0) * $this->quantity;
+        $price = $this->official_price ?? $this->estimated_price;
+
+        return (float) $this->quantity * (float) $price;
     }
 
     public function pphAmount(): float
@@ -57,26 +75,30 @@ class ProcurementRequestItem extends Model
             return 0;
         }
 
-        $this->loadMissing('procurementRequest');
-
-        $baseAmount = $this->officialAmount() > 0 ? $this->officialAmount() : $this->estimatedAmount();
-
-        $rate = ($this->procurementRequest->pph_22_rate + $this->procurementRequest->pph_23_rate) / 100;
-
-        return $baseAmount * $rate;
+        return (float) $this->official_price * (float) $this->quantity;
     }
 
-    protected function estimatedAmountTotal(): Attribute
+    // ─── Accessors ──────────────────────────────────────────────────
+
+    protected function estimatedAmountAttribute(): float
     {
-        return Attribute::make(
-            get: fn() => $this->estimatedAmount(),
-        );
+        return $this->estimatedAmount();
     }
 
-    protected function officialAmountTotal(): Attribute
+    protected function officialAmountAttribute(): float
     {
-        return Attribute::make(
-            get: fn() => $this->officialAmount(),
-        );
+        return $this->officialAmount();
+    }
+
+    // ─── Business Methods ───────────────────────────────────────────
+
+    public function latestNegotiationRound()
+    {
+        return $this->negotiations()->latest('round_number')->first();
+    }
+
+    public function isNegotiationSettled(): bool
+    {
+        return in_array($this->negotiation_status, ['accepted', 'rejected']);
     }
 }

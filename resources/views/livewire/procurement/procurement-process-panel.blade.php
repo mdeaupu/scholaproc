@@ -20,6 +20,86 @@
             ],
         };
     @endphp
+    {{-- ─── Progress Workflow Stepper ────────────────────────────────── --}}
+    @php
+        $workflowSteps = [
+            ['key' => \App\Models\ProcurementRequest::STATUS_DRAFT, 'label' => 'Draft', 'order' => 1],
+            ['key' => \App\Models\ProcurementRequest::STATUS_SUBMITTED, 'label' => 'Submitted', 'order' => 2],
+            ['key' => \App\Models\ProcurementRequest::STATUS_VERIFIED, 'label' => 'Verified', 'order' => 3],
+            ['key' => \App\Models\ProcurementRequest::STATUS_SUPPLIER_ASSIGNED, 'label' => 'Supplier', 'order' => 4],
+            ['key' => \App\Models\ProcurementRequest::STATUS_ITEMS_PREPARED, 'label' => 'Barang Siap', 'order' => 5],
+            ['key' => \App\Models\ProcurementRequest::STATUS_COMPLETED, 'label' => 'Selesai', 'order' => 6],
+        ];
+
+        $stepMap = collect($workflowSteps)->pluck('order', 'key')->toArray();
+
+        $isRejected = $procurementRequest->status === \App\Models\ProcurementRequest::STATUS_REJECTED;
+
+        if ($isRejected) {
+            $lastValidHistory = $procurementRequest->histories
+                ->where('status', '!=', \App\Models\ProcurementRequest::STATUS_REJECTED)
+                ->sortByDesc('created_at')
+                ->first();
+            $currentOrder = $lastValidHistory
+                ? ($stepMap[$lastValidHistory->status] ?? 1)
+                : 1;
+        } else {
+            $currentOrder = $stepMap[$procurementRequest->status] ?? 0;
+        }
+
+        $completedOrders = $procurementRequest->histories
+            ->pluck('status')
+            ->unique()
+            ->map(fn($s) => $stepMap[$s] ?? null)
+            ->filter()
+            ->toArray();
+    @endphp
+    <div class="mb-6 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="flex items-center justify-between relative">
+            @php
+                $lineTotal = count($workflowSteps) - 1;
+            @endphp
+            <div class="absolute top-3.5 left-0 right-0 h-0.5 bg-gray-200 z-0" style="margin-left: 1.5rem; margin-right: 1.5rem;"></div>
+            <div class="absolute top-3.5 left-0 h-0.5 bg-[#0046FF] z-0 transition-all duration-500"
+                style="margin-left: 1.5rem; width: {{ $currentOrder > 1 ? 'calc(' . (($currentOrder - 1) / $lineTotal * 100) . '% - 3rem)' : '0' }}"></div>
+            @foreach ($workflowSteps as $step)
+                @php
+                    $isDone = in_array($step['order'], $completedOrders) && $step['order'] < $currentOrder;
+                    $isActive = $step['order'] === $currentOrder && !$isRejected;
+                    $isPending = $step['order'] > $currentOrder;
+                    $isRejectedStep = $isRejected && $step['order'] === $currentOrder;
+                @endphp
+                <div class="flex flex-col items-center z-10 flex-1">
+                    <div
+                        class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all duration-300
+                        {{ $isDone ? 'bg-[#0046FF] border-[#0046FF] text-white' : '' }}
+                        {{ $isActive && !$isRejectedStep ? 'bg-white border-[#0046FF] text-[#0046FF] ring-2 ring-[#0046FF]/20' : '' }}
+                        {{ $isRejectedStep ? 'bg-[#FF8040] border-[#FF8040] text-white' : '' }}
+                        {{ $isPending ? 'bg-white border-gray-300 text-gray-400' : '' }}">
+                        @if ($isDone)
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                        @elseif ($isRejectedStep)
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        @else
+                            {{ $step['order'] }}
+                        @endif
+                    </div>
+                    <span
+                        class="text-[10px] mt-1.5 font-medium text-center leading-tight
+                        {{ $isDone ? 'text-[#0046FF]' : '' }}
+                        {{ $isActive ? 'text-[#0046FF] font-bold' : '' }}
+                        {{ $isRejectedStep ? 'text-[#FF8040] font-bold' : '' }}
+                        {{ $isPending ? 'text-gray-400' : '' }}">
+                        {{ $step['label'] }}
+                    </span>
+                </div>
+            @endforeach
+        </div>
+    </div>
     <x-mary-alert icon="o-information-circle" class="{{ $theme['alert'] }} border-none mb-6">
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
             <div>
@@ -66,18 +146,51 @@
                         ['key' => 'quantity', 'label' => 'Qty'],
                         ['key' => 'unit', 'label' => 'Satuan'],
                         ['key' => 'estimated_price', 'label' => 'Harga Estimasi'],
-                        ['key' => 'subtotal', 'label' => 'Subtotal (Est)'],
+                        ['key' => 'official_price', 'label' => 'Harga Resmi'],
+                        ['key' => 'negotiation_status', 'label' => 'Status Nego'],
                     ]" :rows="$items" striped hover class="text-black">
                         @scope('cell_estimated_price', $item)
                             Rp {{ number_format($item->estimated_price, 0, ',', '.') }}
                         @endscope
-                        @scope('cell_subtotal', $item)
-                            Rp {{ number_format($item->estimatedAmount(), 0, ',', '.') }}
+                        @scope('cell_unit', $item)
+                            {{ $item->unit?->name ?? '-' }}
+                        @endscope
+                        @scope('cell_official_price', $item)
+                            @if ($item->official_price)
+                                <span class="font-semibold text-emerald-600">Rp {{ number_format($item->official_price, 0, ',', '.') }}</span>
+                            @else
+                                <span class="text-gray-400 italic">-</span>
+                            @endif
+                        @endscope
+                        @scope('cell_negotiation_status', $item)
+                            @php
+                                $negoBadge = match($item->negotiation_status) {
+                                    'accepted' => 'bg-emerald-100 text-emerald-700',
+                                    'rejected' => 'bg-red-100 text-red-700',
+                                    'negotiating' => 'bg-[#0046FF]/10 text-[#0046FF]',
+                                    default => 'bg-gray-100 text-gray-500',
+                                };
+                                $negoLabel = match($item->negotiation_status) {
+                                    'accepted' => 'Diterima',
+                                    'rejected' => 'Ditolak',
+                                    'negotiating' => 'Nego',
+                                    default => 'Mulai',
+                                };
+                            @endphp
+                            <span class="px-2 py-0.5 rounded text-[11px] font-semibold {{ $negoBadge }}">
+                                {{ $negoLabel }}
+                            </span>
                         @endscope
                     </x-mary-table>
                 </div>
             </div>
-            <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
+            {{-- ─── Negotiation Panel (embedded) ────────────────────────────── --}}
+            @if ($showNegotiation && $procurementRequest->hasSupplier())
+                <livewire:procurement.negotiation-panel
+                    :procurementRequest="$procurementRequest"
+                    wire:key="negotiation-panel-{{ $procurementRequest->id }}" />
+            @endif
+            <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5 mt-6">
                 <h3 class="font-bold text-lg mb-4 text-black">Informasi Nilai Kontrak & Perpajakan Resmi (M6)</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                     <div class="flex justify-between border-b border-gray-100 pb-2">
@@ -86,9 +199,16 @@
                             {{ number_format($procurementRequest->estimatedSubtotal(), 0, ',', '.') }}</span>
                     </div>
                     <div class="flex justify-between border-b border-gray-100 pb-2">
-                        <span class="text-gray-500">Subtotal Resmi (Supplier):</span>
+                        <span class="text-gray-500">Subtotal Resmi (Hasil Nego):</span>
                         <span class="font-semibold text-black">Rp
                             {{ number_format($procurementRequest->officialSubtotal(), 0, ',', '.') }}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-gray-100 pb-2">
+                        <span class="text-gray-500">Progres Negosiasi:</span>
+                        <span class="font-semibold text-[#0046FF]">
+                            {{ $negotiationProgress['settled'] }}/{{ $negotiationProgress['total'] }} item
+                            ({{ $negotiationProgress['percentage'] }}%)
+                        </span>
                     </div>
                     <div class="flex justify-between border-b border-gray-100 pb-2">
                         <span class="text-gray-500">Status Pajak Pengadaan:</span>
@@ -123,8 +243,8 @@
                     <div class="flex gap-3 relative">
                         <div
                             class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold z-10 
-                            {{ $procurementRequest->is_taxable || $procurementRequest->ppn_rate > 0 ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-600' }}">
-                            @if ($procurementRequest->is_taxable || $procurementRequest->ppn_rate > 0)
+                            {{ $procurementRequest->hasSupplier() ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-600' }}">
+                            @if ($procurementRequest->hasSupplier())
                                 ✓
                             @else
                                 1
@@ -132,23 +252,22 @@
                         </div>
                         <div class="flex-1 bg-gray-50 rounded-lg p-2.5 border border-gray-100">
                             <div class="flex items-center justify-between">
-                                <span class="text-xs font-semibold text-black">Komponen Perpajakan</span>
-                                @if (auth()->user()->isOwner() || auth()->user()->isAdminCv())
-                                    <x-mary-button label="Atur" icon="o-ticket" @click="$wire.taxModal=true"
-                                        class="btn-xs bg-white text-gray-600 border-gray-300 hover:border-[#0046FF]" />
+                                <span class="text-xs font-semibold text-black">Penunjukan Supplier</span>
+                                @if ($procurementRequest->canAssignSupplier() && (auth()->user()->isSuperAdmin() || auth()->user()->isAdmin()))
+                                    <x-mary-button label="Pilih" icon="o-truck" @click="$wire.supplierModal=true"
+                                        class="btn-xs bg-white text-[#0046FF] border-[#0046FF] hover:bg-[#0046FF]/10" />
                                 @endif
                             </div>
                             <p class="text-[11px] text-gray-500 mt-0.5">
-                                Status: <span
-                                    class="font-medium text-black">{{ $procurementRequest->is_taxable ? 'Kena Pajak (Inc. PPN)' : 'Non-PKP / Belum Diatur' }}</span>
+                                {{ $procurementRequest->hasSupplier() ? $procurementRequest->supplier->company_name : 'Belum ditunjuk.' }}
                             </p>
                         </div>
                     </div>
                     <div class="flex gap-3 relative">
                         <div
                             class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold z-10 
-                            {{ $procurementRequest->hasSupplier() ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-600' }}">
-                            @if ($procurementRequest->hasSupplier())
+                            {{ $procurementRequest->is_taxable || $procurementRequest->ppn_rate > 0 ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-600' }}">
+                            @if ($procurementRequest->is_taxable || $procurementRequest->ppn_rate > 0)
                                 ✓
                             @else
                                 2
@@ -156,14 +275,15 @@
                         </div>
                         <div class="flex-1 bg-gray-50 rounded-lg p-2.5 border border-gray-100">
                             <div class="flex items-center justify-between">
-                                <span class="text-xs font-semibold text-black">Penunjukan Supplier</span>
-                                @if ($procurementRequest->canAssignSupplier() && (auth()->user()->isOwner() || auth()->user()->isAdminCv()))
-                                    <x-mary-button label="Pilih" icon="o-truck" @click="$wire.supplierModal=true"
-                                        class="btn-xs bg-white text-[#0046FF] border-[#0046FF] hover:bg-[#0046FF]/10" />
+                                <span class="text-xs font-semibold text-black">Komponen Perpajakan</span>
+                                @if (auth()->user()->isSuperAdmin() || auth()->user()->isAdmin())
+                                    <x-mary-button label="Atur" icon="o-ticket" @click="$wire.taxModal=true"
+                                        class="btn-xs bg-white text-gray-600 border-gray-300 hover:border-[#0046FF]" />
                                 @endif
                             </div>
                             <p class="text-[11px] text-gray-500 mt-0.5">
-                                {{ $procurementRequest->hasSupplier() ? $procurementRequest->supplier->company_name : 'Belum ditunjuk.' }}
+                                Status: <span
+                                    class="font-medium text-black">{{ $procurementRequest->is_taxable ? 'Kena Pajak (Inc. PPN)' : 'Non-PKP / Belum Diatur' }}</span>
                             </p>
                         </div>
                     </div>
@@ -181,7 +301,7 @@
                         <div class="flex-1 bg-gray-50 rounded-lg p-2.5 border border-gray-100">
                             <div class="flex items-center justify-between">
                                 <span class="text-xs font-semibold text-black">Pejabat Penandatangan</span>
-                                @if (auth()->user()->isOwner() || auth()->user()->isAdminCv())
+                                @if (auth()->user()->isSuperAdmin() || auth()->user()->isAdmin())
                                     <x-mary-button label="Input" icon="o-user-group" @click="$wire.signatoryModal=true"
                                         class="btn-xs bg-white text-gray-600 border-gray-300 hover:border-[#0046FF]" />
                                 @endif
@@ -194,8 +314,8 @@
                     <div class="flex gap-3 relative">
                         <div
                             class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold z-10 
-        {{ $procurementRequest->hasOfficialPrices() ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-600' }}">
-                            @if ($procurementRequest->hasOfficialPrices())
+        {{ $procurementRequest->allItemsNegotiationSettled() ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-600' }}">
+                            @if ($procurementRequest->allItemsNegotiationSettled())
                                 ✓
                             @else
                                 4
@@ -203,15 +323,22 @@
                         </div>
                         <div class="flex-1 bg-gray-50 rounded-lg p-2.5 border border-gray-100">
                             <div class="flex items-center justify-between">
-                                <span class="text-xs font-semibold text-black block">Validasi Nominal Kontrak</span>
-                                @if (auth()->user()->isOwner() || auth()->user()->isAdminCv())
-                                    <x-mary-button label="Input Harga" icon="o-currency-dollar"
-                                        wire:click="openPriceModal"
-                                        class="btn-xs bg-white text-gray-600 border-gray-300 hover:border-[#0046FF]" />
+                                <span class="text-xs font-semibold text-black block">Negosiasi Harga</span>
+                                @if ($procurementRequest->canStartNegotiation() || $procurementRequest->allItemsNegotiationSettled())
+                                    <x-mary-button label="{{ $showNegotiation ? 'Tutup' : 'Buka' }}"
+                                        icon="{{ $showNegotiation ? 'o-chevron-up' : 'o-chat-bubble-left-right' }}"
+                                        wire:click="toggleNegotiation"
+                                        class="btn-xs {{ $showNegotiation ? 'bg-[#0046FF] text-white border-none' : 'bg-white text-[#0046FF] border-[#0046FF] hover:bg-[#0046FF]/10' }}" />
                                 @endif
                             </div>
                             <p class="text-[11px] text-gray-500 mt-0.5">
-                                {{ $procurementRequest->hasOfficialPrices() ? 'Harga negosiasi/resmi telah disetujui.' : 'Admin CV harus menginput harga penawaran.' }}
+                                @if ($procurementRequest->allItemsNegotiationSettled())
+                                    Semua item sudah dinegosiasikan.
+                                @elseif ($procurementRequest->hasSupplier())
+                                    {{ $negotiationProgress['settled'] }}/{{ $negotiationProgress['total'] }} item selesai.
+                                @else
+                                    Menunggu penunjukan supplier.
+                                @endif
                             </p>
                         </div>
                     </div>
@@ -230,10 +357,10 @@
                             @if ($procurementRequest->documents()->exists())
                                 <p class="text-[10px] text-emerald-600 font-medium">Dokumen resmi sudah diterbitkan.</p>
                             @else
-                                @if (auth()->user()->isOwner() || auth()->user()->isAdminCv())
+                                @if (auth()->user()->isSuperAdmin() || auth()->user()->isAdmin())
                                     <x-mary-button label="Generate Nomor Surat" icon="o-identification"
                                         wire:click="setDocumentNumbers" wire:loading.attr="disabled"
-                                        spinner="setDocumentNumbers" @disabled(!$procurementRequest->hasOfficialPrices())
+                                        spinner="setDocumentNumbers" @disabled(!$procurementRequest->isReadyForDocumentGeneration())
                                         class="w-full btn-xs bg-[#0046FF] text-white hover:bg-[#0046FF]/95 border-none" />
                                 @else
                                     <p class="text-[10px] text-gray-500">Menunggu Admin CV menerbitkan nomor surat.</p>
@@ -263,9 +390,9 @@
                             class="bg-[#0046FF] hover:bg-[#0046FF]/90 text-white border-none w-full btn-sm" />
                     @endif
                 @endcan
-                @if (auth()->user()->isOwner() || auth()->user()->isAdminCv())
+                @if (auth()->user()->isSuperAdmin() || auth()->user()->isAdmin())
                     @if ($procurementRequest->canVerify())
-                        <x-mary-button label="Verifikasi Sesuai" icon="o-check-circle" wire:click="verify"
+                        <x-mary-button label="Verifikasi" icon="o-check-circle" wire:click="verify"
                             wire:loading.attr="disabled" spinner="verify"
                             class="bg-[#0046FF] hover:bg-[#0046FF]/90 text-white border-none w-full btn-sm" />
                         <x-mary-button label="Tolak Pengajuan" icon="o-x-circle" @click="$wire.rejectModal=true"
@@ -273,21 +400,9 @@
                             class="bg-[#FF8040] hover:bg-[#FF8040]/90 text-white border-none w-full btn-sm" />
                     @endif
                     @if ($procurementRequest->canPrepareItems())
-                        @if ($procurementRequest->documents()->exists())
-                            <x-mary-button label="Barang Sudah Disiapkan" icon="o-cube"
-                                wire:click="markItemsPrepared" wire:loading.attr="disabled"
-                                spinner="markItemsPrepared"
-                                class="bg-white border-[#0046FF] text-[#0046FF] hover:bg-[#0046FF]/10 w-full btn-sm" />
-                        @else
-                            <div
-                                class="p-3 bg-white rounded-lg border border-dashed border-amber-300 text-center flex flex-col items-center justify-center mt-2">
-                                <x-mary-icon name="o-lock-closed" class="w-5 h-5 text-amber-500 mb-1" />
-                                <p class="text-[10px] text-amber-700 leading-tight mt-1">
-                                    <strong>Administrasi Belum Lengkap:</strong><br>
-                                    Nomor Surat Resmi (Langkah 5) harus digenerate sebelum supplier menyiapkan barang.
-                                </p>
-                            </div>
-                        @endif
+                        <x-mary-button label="Barang Sudah Disiapkan" icon="o-cube" wire:click="markItemsPrepared"
+                            wire:loading.attr="disabled" spinner="markItemsPrepared"
+                            class="bg-white border-[#0046FF] text-[#0046FF] hover:bg-[#0046FF]/10 w-full btn-sm" />
                     @endif
                     @if ($procurementRequest->canComplete())
                         <x-mary-button label="Selesaikan Pengadaan" icon="o-document-check" wire:click="complete"
@@ -362,6 +477,55 @@
             </div>
         </div>
     @endif
+    {{-- ─── Timeline Riwayat Pengadaan ────────────────────────────────── --}}
+    <div class="mt-6 rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div class="p-5 border-b border-gray-100">
+            <h3 class="font-bold text-lg text-black">Riwayat Pengadaan</h3>
+            <p class="text-sm text-gray-500">Chronologis perubahan status pengajuan ini.</p>
+        </div>
+        <div class="p-5">
+            @if ($histories->isEmpty())
+                <p class="text-sm text-gray-400 italic text-center py-4">Belum ada riwayat perubahan.</p>
+            @else
+                <div class="space-y-0 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-200">
+                    @foreach ($histories as $history)
+                        @php
+                            $isRejected = $history->status === \App\Models\ProcurementRequest::STATUS_REJECTED;
+                            $dotColor = $isRejected ? 'bg-[#FF8040]' : 'bg-[#0046FF]';
+                        @endphp
+                        <div class="flex gap-3 relative pb-5 last:pb-0">
+                            <div class="w-6 h-6 rounded-full flex items-center justify-center z-10 {{ $dotColor }} flex-shrink-0 mt-0.5">
+                                @if ($isRejected)
+                                    <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
+                                    </svg>
+                                @else
+                                    <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
+                                    </svg>
+                                @endif
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="text-sm font-semibold text-black">{{ \Illuminate\Support\Str::headline(str_replace('_', ' ', $history->status)) }}</span>
+                                    @if ($history->createdBy)
+                                        <span class="text-xs text-gray-400">oleh</span>
+                                        <span class="text-xs font-medium text-gray-600">{{ $history->createdBy->name }}</span>
+                                    @endif
+                                </div>
+                                @if ($history->notes)
+                                    <p class="text-xs text-gray-500 mt-0.5 italic">{{ $history->notes }}</p>
+                                @endif
+                                <p class="text-[11px] text-gray-400 mt-1">
+                                    {{ \Carbon\Carbon::parse($history->created_at)->format('d M Y H:i') }} WIB
+                                </p>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+        </div>
+    </div>
     <x-mary-modal wire:model="taxModal" title="Atur Komponen Pajak Global" class="backdrop-blur text-black"
         title-class="text-[#0046FF]">
         <x-mary-form wire:submit="setTaxes">
@@ -433,7 +597,7 @@
                         <p class="text-xs font-bold text-black mb-1">{{ $item->item_name }}</p>
                         <div
                             class="flex justify-between items-center text-[10px] text-gray-500 mb-2 border-b border-gray-200 pb-2">
-                            <span>Qty: {{ $item->quantity }} {{ $item->unit }}</span>
+                            <span>Qty: {{ $item->quantity }} {{ $item->unit?->name ?? '-' }}</span>
                             <span>Estimasi Sekolah: Rp {{ number_format($item->estimated_price, 0, ',', '.') }}</span>
                         </div>
                         <x-mary-input label="Harga Resmi Satuan (Rp)" type="number"

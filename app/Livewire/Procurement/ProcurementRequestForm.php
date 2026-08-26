@@ -2,6 +2,10 @@
 
 namespace App\Livewire\Procurement;
 
+use App\Models\BudgetYear;
+use App\Models\FundingSource;
+use App\Models\ItemUnit;
+use App\Models\PackageCategory;
 use App\Models\ProcurementRequest;
 use App\Models\School;
 use Illuminate\Support\Facades\DB;
@@ -17,9 +21,9 @@ class ProcurementRequestForm extends Component
     public bool $isEdit = false;
 
     public $school_id = '';
-    public $package_category = '';
-    public $budget_year = '';
-    public $funding_source = '';
+    public $package_category_id = '';
+    public $budget_year_id = '';
+    public $funding_source_id = '';
 
     public $items = [];
     public $school_name = '';
@@ -40,7 +44,7 @@ class ProcurementRequestForm extends Component
             $this->isEdit = true;
             $this->procurement = ProcurementRequest::findOrFail($id);
 
-            if (!$user->can('admin-school-only')) {
+            if (!$user->isSchool()) {
                 session()->flash('error', 'Anda tidak memiliki hak akses untuk mengubah pengajuan ini.');
                 return redirect()->route('procurement.index');
             }
@@ -57,9 +61,9 @@ class ProcurementRequestForm extends Component
 
             $this->school_id = $this->procurement->school_id;
             $this->school_name = $this->procurement->school?->name;
-            $this->package_category = $this->procurement->package_category;
-            $this->budget_year = $this->procurement->budget_year;
-            $this->funding_source = $this->procurement->funding_source;
+            $this->package_category_id = $this->procurement->package_category_id;
+            $this->budget_year_id = $this->procurement->budget_year_id;
+            $this->funding_source_id = $this->procurement->funding_source_id;
 
             $this->items = $this->procurement->items->map(function ($item) {
                 return [
@@ -67,12 +71,12 @@ class ProcurementRequestForm extends Component
                     'item_name' => $item->item_name,
                     'specification' => $item->specification ?? '',
                     'quantity' => $item->quantity,
-                    'unit' => $item->unit,
+                    'unit_id' => $item->unit_id,
                     'estimated_price' => $item->estimated_price,
                 ];
             })->toArray();
         } else {
-            if ($user->can('admin-school-only')) {
+            if ($user->isSchool()) {
                 $this->school_id = $user->school_id;
                 $this->school_name = $user->school?->name ?? 'Sekolah Anda';
             }
@@ -102,8 +106,8 @@ class ProcurementRequestForm extends Component
             'item_name' => '',
             'specification' => '',
             'quantity' => 1,
-            'unit' => '',
-            'estimated_price' => 0
+            'unit_id' => '',
+            'estimated_price' => 0,
         ];
     }
 
@@ -119,14 +123,15 @@ class ProcurementRequestForm extends Component
 
     public function save()
     {
-        $data = $this->validate([
-            'package_category' => 'required|string|max:255',
-            'budget_year' => 'required|integer|min:2020',
-            'funding_source' => 'required|string|max:255',
+        $this->validate([
+            'package_category_id' => 'required|exists:package_categories,id',
+            'budget_year_id' => 'required|exists:budget_years,id',
+            'funding_source_id' => 'required|exists:funding_sources,id',
             'items' => 'required|array|min:1',
-            'items.*.item_name' => 'required|string',
+            'items.*.item_name' => 'required|string|max:255',
+            'items.*.specification' => 'nullable|string|max:1000',
             'items.*.quantity' => 'required|integer|min:1',
-            'items.*.unit' => 'required|string',
+            'items.*.unit_id' => 'required|exists:item_units,id',
             'items.*.estimated_price' => 'required|numeric|min:0',
         ]);
 
@@ -139,25 +144,29 @@ class ProcurementRequestForm extends Component
             }
         }
 
-        DB::transaction(function () use ($data) {
+        DB::transaction(function () {
             $processedItems = collect($this->items)->map(function ($item, $index) {
                 return [
                     'line_number' => $index + 1,
                     'item_name' => $item['item_name'],
                     'specification' => $item['specification'] ?: '-',
                     'quantity' => $item['quantity'],
-                    'unit' => $item['unit'],
+                    'unit_id' => $item['unit_id'],
                     'estimated_price' => $item['estimated_price'],
                     'official_price' => null,
                     'is_pph' => false,
+                    'negotiation_status' => 'not_started',
                 ];
             })->toArray();
 
-            if ($this->isEdit) {
-                if (auth()->user()->isOwner() || auth()->user()->isAdminCv()) {
-                    $data['school_id'] = $this->school_id;
-                }
+            $data = [
+                'school_id' => $this->school_id,
+                'package_category_id' => $this->package_category_id,
+                'budget_year_id' => $this->budget_year_id,
+                'funding_source_id' => $this->funding_source_id,
+            ];
 
+            if ($this->isEdit) {
                 $this->procurement->update($data);
                 $this->procurement->items()->delete();
                 $this->procurement->items()->createMany($processedItems);
@@ -179,7 +188,11 @@ class ProcurementRequestForm extends Component
     public function render()
     {
         return view('livewire.procurement.procurement-request-form', [
-            'schools' => School::all()
+            'schools' => School::all(),
+            'packageCategories' => PackageCategory::where('is_active', true)->get(),
+            'fundingSources' => FundingSource::where('is_active', true)->get(),
+            'budgetYears' => BudgetYear::all(),
+            'itemUnits' => ItemUnit::where('is_active', true)->get(),
         ])->layout('layouts.app');
     }
 }

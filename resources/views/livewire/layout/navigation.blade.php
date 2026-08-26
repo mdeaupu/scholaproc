@@ -32,10 +32,10 @@ new class extends Component {
             : 'US';
         $dashboardRoute = 'dashboard';
         if ($user) {
-            if ($user->isOwner()) {
-                $dashboardRoute = 'dashboard.owner';
-            } elseif (method_exists($user, 'isAdminCv') && $user->isAdminCv()) {
-                $dashboardRoute = 'dashboard.cv';
+            if ($user->isSuperAdmin()) {
+                $dashboardRoute = 'dashboard.superadmin';
+            } elseif (method_exists($user, 'isAdmin') && $user->isAdmin()) {
+                $dashboardRoute = 'dashboard.admin';
             } else {
                 $dashboardRoute = 'dashboard.school';
             }
@@ -62,16 +62,35 @@ new class extends Component {
         @endif
         <x-mary-menu-item title="Dashboard" icon="o-squares-2x2" link="{{ route($dashboardRoute) }}" :active="request()->routeIs('dashboard*')"
             wire:navigate class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-        @if ($user && $user->isOwner())
-            <x-mary-menu-sub title="Master Data" icon="o-circle-stack" :open="request()->routeIs('admins.*', 'schools.*', '*suppliers.index')">
-                <x-mary-menu-item title="Manajemen Admin" icon="o-users" link="{{ route('admins.index') }}"
-                    :active="request()->routeIs('admins.*')" wire:navigate
+
+        @if ($user->isSuperAdmin() || $user->isAdmin())
+            <x-mary-menu-sub title="Master Data" icon="o-circle-stack" class="text-sm font-medium text-black"
+                :open="request()->routeIs('admins.*', 'schools.*', '*suppliers.index', 'master.*')">
+                @if ($user->isSuperAdmin())
+                    <x-mary-menu-item title="Manajemen Admin" icon="o-users" link="{{ route('admins.index') }}"
+                        :active="request()->routeIs('admins.*')" wire:navigate
+                        class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+
+                    <x-mary-menu-item title="Manajemen Sekolah" icon="o-academic-cap" link="{{ route('schools.index') }}"
+                        :active="request()->routeIs('schools.*')" wire:navigate
+                        class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+
+                    <x-mary-menu-item title="Manajemen Supplier" icon="o-building-office-2"
+                        link="{{ route('suppliers.index') }}" :active="request()->routeIs('suppliers.*')" wire:navigate
+                        class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+                @endif
+
+                <x-mary-menu-item title="Kategori Paket" icon="o-tag" link="{{ route('master.package-categories') }}"
+                    :active="request()->routeIs('master.package-categories')" wire:navigate
                     class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-                <x-mary-menu-item title="Manajemen Sekolah" icon="o-academic-cap" link="{{ route('schools.index') }}"
-                    :active="request()->routeIs('schools.*')" wire:navigate
+                <x-mary-menu-item title="Sumber Dana" icon="o-banknotes" link="{{ route('master.funding-sources') }}"
+                    :active="request()->routeIs('master.funding-sources')" wire:navigate
                     class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-                <x-mary-menu-item title="Manajemen Supplier" icon="o-building-office-2"
-                    link="{{ route('owner.suppliers.index') }}" :active="request()->routeIs('owner.suppliers.*')" wire:navigate
+                <x-mary-menu-item title="Tahun Anggaran" icon="o-calendar-days" link="{{ route('master.budget-years') }}"
+                    :active="request()->routeIs('master.budget-years')" wire:navigate
+                    class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+                <x-mary-menu-item title="Satuan Barang" icon="o-scale" link="{{ route('master.item-units') }}"
+                    :active="request()->routeIs('master.item-units')" wire:navigate
                     class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
             </x-mary-menu-sub>
         @endif

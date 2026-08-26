@@ -34,6 +34,8 @@ class ProcurementProcessPanel extends Component
     public bool $priceModal = false;
     public array $inputPrices = [];
 
+    public bool $showNegotiation = false;
+
     public array $signatoriesData = [
         'headmaster' => ['name' => '', 'nip' => '', 'title' => 'Kepala Sekolah'],
         'inspector' => ['name' => '', 'nip' => '', 'title' => 'Pemeriksa Barang'],
@@ -42,7 +44,7 @@ class ProcurementProcessPanel extends Component
 
     public function mount(ProcurementRequest $procurementRequest)
     {
-        $procurementRequest->load(['items', 'histories.createdBy', 'school', 'supplier', 'documents', 'generatedDocuments']);
+        $procurementRequest->load(['items.unit', 'items.negotiations', 'histories.createdBy', 'school', 'supplier', 'documents', 'generatedDocuments']);
         $this->procurementRequest = $procurementRequest;
         $this->items = $procurementRequest->items;
 
@@ -74,13 +76,13 @@ class ProcurementProcessPanel extends Component
 
     private function authorizeAdminSchool(): void
     {
-        abort_if(!auth()->user()->isAdminSchool(), 403, 'Akses Ditolak: Hanya Admin Sekolah yang berhak melakukan tindakan ini.');
+        abort_if(!auth()->user()->isSchool(), 403, 'Akses Ditolak: Hanya Admin Sekolah yang berhak melakukan tindakan ini.');
     }
 
     private function authorizeAdminCvOrOwner(): void
     {
         $user = auth()->user();
-        abort_if(!$user->isOwner() && !$user->isAdminCv(), 403, 'Akses Ditolak: Hanya Pihak CV yang berhak memproses administrasi.');
+        abort_if(!$user->isSuperAdmin() && !$user->isAdmin(), 403, 'Akses Ditolak: Hanya Pihak CV yang berhak memproses administrasi.');
     }
 
     public function submitRequest()
@@ -296,10 +298,21 @@ class ProcurementProcessPanel extends Component
         }
     }
 
+    public function toggleNegotiation(): void
+    {
+        $this->showNegotiation = !$this->showNegotiation;
+    }
+
     public function render()
     {
+        $sortedHistories = $this->procurementRequest->histories
+            ->sortByDesc('created_at')
+            ->values();
+
         return view('livewire.procurement.procurement-process-panel', [
-            'suppliers' => Supplier::all()
+            'suppliers' => Supplier::all(),
+            'histories' => $sortedHistories,
+            'negotiationProgress' => $this->procurementRequest->negotiationProgress(),
         ])->layout('layouts.app');
     }
 }

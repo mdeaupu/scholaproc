@@ -40,9 +40,9 @@
                     @forelse ($recentRequests as $request)
                         <li class="px-6 py-4 flex items-center justify-between hover:bg-gray-50">
                             <div>
-                                <p class="font-medium text-[#0046FF]">{{ $request->request_number ?? 'Draft Baru' }}</p>
+                                <p class="font-medium text-[#0046FF]">{{ strtoupper($request->status) }} — {{ Str::limit($request->uuid, 8, '') }}</p>
                                 <p class="text-sm text-gray-500">Estimasi Kebutuhan: Rp
-                                    {{ number_format($request->total_estimated_amount ?? 0, 0, ',', '.') }}
+                                    {{ number_format($request->estimatedSubtotal(), 0, ',', '.') }}
                                 </p>
                             </div>
                             <div>

@@ -25,8 +25,10 @@ class Supplier extends Model
         'director_nik',
         'director_npwp',
         'director_phone',
+        'director_address',
         'commissioner_name',
         'commissioner_nik',
+        'commissioner_address',
     ];
 
     protected $casts = [

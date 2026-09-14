@@ -3,10 +3,12 @@
 namespace App\Providers;
 
 use App\Models\GeneratedDocument;
+use App\Models\Notification;
 use App\Models\ProcurementNegotiation;
 use App\Models\ProcurementVerificationFile;
 use App\Models\User;
 use App\Observers\GeneratedDocumentObserver;
+use App\Observers\NotificationObserver;
 use App\Observers\ProcurementNegotiationObserver;
 use App\Observers\ProcurementVerificationFileObserver;
 use Illuminate\Support\Facades\Gate;
@@ -32,6 +34,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         GeneratedDocument::observe(GeneratedDocumentObserver::class);
+        Notification::observe(NotificationObserver::class);
         ProcurementNegotiation::observe(ProcurementNegotiationObserver::class);
         ProcurementVerificationFile::observe(ProcurementVerificationFileObserver::class);
     }

@@ -92,6 +92,7 @@ class ProcurementProcessPanel extends Component
 
         try {
             $this->procurementRequest->submit(auth()->user());
+            $this->procurementRequest->notifySubmitted();
             $this->success('Pengajuan berhasil di-submit ke sistem.');
         } catch (Exception $e) {
             $this->error($e->getMessage());
@@ -104,6 +105,7 @@ class ProcurementProcessPanel extends Component
 
         try {
             $this->procurementRequest->verify(auth()->user());
+            $this->procurementRequest->notifyVerified();
             $this->success('Pengajuan berhasil diverifikasi.');
         } catch (Exception $e) {
             $this->error($e->getMessage());
@@ -122,6 +124,7 @@ class ProcurementProcessPanel extends Component
 
         try {
             $this->procurementRequest->reject(auth()->user(), $this->rejectReason);
+            $this->procurementRequest->notifyRejected($this->rejectReason);
             $this->success('Pengajuan telah ditolak.');
             $this->rejectModal = false;
             $this->rejectReason = '';
@@ -154,6 +157,7 @@ class ProcurementProcessPanel extends Component
 
             $this->procurementRequest->load(['supplier', 'documents']);
             $this->procurementRequest->refresh();
+            $this->procurementRequest->notifySupplierAssigned();
 
             $this->success("Supplier {$supplier->company_name} ditunjuk dan Draft Surat Pesanan berhasil dibuat.");
             $this->supplierModal = false;
@@ -168,6 +172,7 @@ class ProcurementProcessPanel extends Component
 
         try {
             $this->procurementRequest->markItemsPrepared(auth()->user());
+            $this->procurementRequest->notifyItemsPrepared();
             $this->success('Status pengajuan diubah menjadi: Barang/Jasa Disiapkan.');
         } catch (Exception $e) {
             $this->error($e->getMessage());
@@ -180,6 +185,7 @@ class ProcurementProcessPanel extends Component
 
         try {
             $this->procurementRequest->complete(auth()->user());
+            $this->procurementRequest->notifyCompleted();
             $this->success('Proses pengadaan telah selesai dan BAST dapat diterbitkan.');
         } catch (Exception $e) {
             $this->error($e->getMessage());

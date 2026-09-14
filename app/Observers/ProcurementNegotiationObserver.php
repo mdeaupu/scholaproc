@@ -15,6 +15,15 @@ class ProcurementNegotiationObserver
             'price' => $negotiation->offered_price,
             'user_id' => $negotiation->user_id,
         ]);
+
+        $procurementRequest = $negotiation->procurementRequestItem->procurementRequest;
+
+        if ($procurementRequest) {
+            $procurementRequest->notifyNegotiationOffer(
+                $negotiation->procurementRequestItem,
+                $negotiation
+            );
+        }
     }
 
     public function updated(ProcurementNegotiation $negotiation): void
@@ -26,6 +35,20 @@ class ProcurementNegotiationObserver
                 'status' => $negotiation->status,
                 'price' => $negotiation->offered_price,
             ]);
+
+            $procurementRequest = $negotiation->procurementRequestItem->procurementRequest;
+
+            if ($procurementRequest) {
+                $action = $negotiation->status === ProcurementNegotiation::STATUS_ACCEPTED
+                    ? 'accepted'
+                    : 'rejected';
+
+                $procurementRequest->notifyNegotiationDecided(
+                    $negotiation->procurementRequestItem,
+                    $negotiation,
+                    $action
+                );
+            }
         }
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\DocumentGenerationService;
+use App\Services\NotificationService;
 use App\Services\ProcurementNumberGenerator;
 use Exception;
 use Illuminate\Database\Eloquent\Builder;
@@ -639,34 +640,67 @@ class ProcurementRequest extends Model
         $this->generateSupplierDeclaration();
     }
 
-    // ─── Verification Notification ──────────────────────────────────
+    // ─── Notification Methods ─────────────────────────────────────
+
+    private function getNotificationService(): NotificationService
+    {
+        return app(NotificationService::class);
+    }
+
+    public function notifySubmitted(): void
+    {
+        $this->getNotificationService()->notify($this, 'submitted', [], auth()->user());
+    }
+
+    public function notifyVerified(): void
+    {
+        $this->getNotificationService()->notify($this, 'verified', [], auth()->user());
+    }
+
+    public function notifyRejected(string $reason): void
+    {
+        $this->getNotificationService()->notify($this, 'rejected', ['reason' => $reason], auth()->user());
+    }
+
+    public function notifySupplierAssigned(): void
+    {
+        $this->getNotificationService()->notify($this, 'supplier_assigned', [], auth()->user());
+    }
+
+    public function notifyNegotiationOffer(ProcurementRequestItem $item, ProcurementNegotiation $negotiation): void
+    {
+        $this->getNotificationService()->notify($this, 'negotiation_offer', [
+            'item' => $item,
+            'negotiation' => $negotiation,
+        ], auth()->user());
+    }
+
+    public function notifyNegotiationDecided(ProcurementRequestItem $item, ProcurementNegotiation $negotiation, string $action): void
+    {
+        $event = $action === 'accepted' ? 'negotiation_accepted' : 'negotiation_rejected';
+        $this->getNotificationService()->notify($this, $event, [
+            'item' => $item,
+            'negotiation' => $negotiation,
+        ], auth()->user());
+    }
+
+    public function notifyItemsPrepared(): void
+    {
+        $this->getNotificationService()->notify($this, 'items_prepared', [], auth()->user());
+    }
 
     public function notifyReceiptVerified(): void
     {
-        $schoolName = $this->school->name ?? 'Sekolah';
-        $verifierName = $this->verifiedBy?->name ?? 'Admin Sekolah';
+        $this->getNotificationService()->notify($this, 'receipt_verified', [], auth()->user());
+    }
 
-        $message = "Barang pengadaan telah diverifikasi diterima.\n";
-        $message .= "Sekolah: {$schoolName}\n";
-        $message .= "Diverifikasi oleh: {$verifierName}\n";
-        $message .= "Tanggal: {$this->verified_at->format('d M Y H:i')} WIB";
+    public function notifyCompleted(): void
+    {
+        $this->getNotificationService()->notify($this, 'completed', [], auth()->user());
+    }
 
-        // WhatsApp notification to admin CV
-        Notification::create([
-            'procurement_request_id' => $this->id,
-            'channel' => 'whatsapp',
-            'recipient' => '-',
-            'message_content' => $message,
-            'status' => 'pending',
-        ]);
-
-        // Email notification
-        Notification::create([
-            'procurement_request_id' => $this->id,
-            'channel' => 'email',
-            'recipient' => '-',
-            'message_content' => $message,
-            'status' => 'pending',
-        ]);
+    public function notifyDocumentGenerated(): void
+    {
+        $this->getNotificationService()->notify($this, 'document_generated', [], auth()->user());
     }
 }

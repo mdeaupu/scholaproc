@@ -61,5 +61,46 @@
                 </ul>
             </div>
         </x-mary-card>
+
+        <x-mary-card shadow class="p-0 overflow-hidden border-t-4 border-[#FF8040]">
+            <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+                <h3 class="text-lg font-medium text-black">Notifikasi Terbaru</h3>
+                <a href="{{ route('notifications.inbox') }}" class="text-sm text-blue-600 hover:underline" wire:navigate>
+                    Lihat Semua →
+                </a>
+            </div>
+            <div class="bg-white">
+                <ul class="divide-y divide-gray-200">
+                    @forelse ($recentNotifications as $notif)
+                        <li class="px-6 py-4 flex items-center justify-between hover:bg-gray-50 {{ $notif->read_at === null ? 'bg-amber-50' : '' }}">
+                            <div>
+                                <p class="font-medium {{ $notif->read_at === null ? 'text-black' : 'text-gray-600' }}">
+                                    @if ($notif->channel === 'whatsapp')
+                                        <span class="text-green-600">WhatsApp</span>
+                                    @else
+                                        <span class="text-blue-600">Email</span>
+                                    @endif
+                                    — {{ Str::limit($notif->message_content, 50) }}
+                                </p>
+                                <p class="text-sm text-gray-500">{{ $notif->created_at->diffForHumans() }}</p>
+                            </div>
+                            <div>
+                                @if ($notif->status === 'sent')
+                                    <span class="badge badge-success badge-sm">Terkirim</span>
+                                @elseif ($notif->status === 'pending')
+                                    <span class="badge badge-warning badge-sm">Menunggu</span>
+                                @else
+                                    <span class="badge badge-error badge-sm">Gagal</span>
+                                @endif
+                            </div>
+                        </li>
+                    @empty
+                        <li class="px-6 py-8 text-center text-gray-500">
+                            Belum ada notifikasi untuk pengadaan Anda.
+                        </li>
+                    @endforelse
+                </ul>
+            </div>
+        </x-mary-card>
     </div>
 </div>

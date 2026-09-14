@@ -1,10 +1,10 @@
 # PRD — Sistem Informasi Pengadaan Barang Sekolah (Versi Final v7)
 
 > Perubahan dari v6: disesuaikan dengan struktur database final (19 tabel) —
-> ditambahkan modul Negosiasi Harga (M11) dan Verifikasi Penerimaan Barang
-> (M12), master data (kategori paket, sumber dana, tahun anggaran, satuan),
-> penomoran dokumen otomatis, snapshot total harga, dan penambahan data
-> legal/kepemilikan supplier.
+> ditambahkan modul Negosiasi Harga (M11) dan Notifikasi (M12), master data
+> (kategori paket, sumber dana, tahun anggaran, satuan), penomoran dokumen
+> otomatis, snapshot total harga, dan penambahan data legal/kepemilikan
+> supplier.
 
 ## 1. Gambaran Sistem
 
@@ -39,6 +39,7 @@ Sistem mendukung:
 - Menentukan harga resmi (hasil negosiasi yang diterima sekolah)
 - Mengelola dokumen pengadaan
 - Mengirim notifikasi
+- **Mengelola notifikasi (lihat, filter, resend, hapus) via NotificationManager**
 
 ### School
 - Membuat pengajuan
@@ -49,6 +50,7 @@ Sistem mendukung:
 - **Mengonfirmasi barang sudah diterima (verifikasi)**
 - Mengunduh dokumen
 - Menerima notifikasi
+- **Melihat notifikasi pengadaan sekolah via Notification Inbox**
 
 > Catatan: supplier tidak memiliki akun login. Semua interaksi atas nama
 > supplier (termasuk penawaran harga) diwakilkan oleh Admin.
@@ -156,7 +158,7 @@ Admin dapat:
 - Menentukan supplier
 - Mengatur pajak (PPN, PPh 22, PPh 23)
 - Mengatur pejabat penandatangan
-- Mengatur nomor dokumen (**otomatis**, lihat M12b)
+- Mengatur nomor dokumen (**otomatis**, lihat `document_number_sequences`)
 
 ### M9. Negosiasi Harga (BARU)
 
@@ -197,10 +199,34 @@ Channel:
 - WhatsApp (WAHA)
 - Email
 
-Event tambahan yang perlu dinotifikasi:
-- Ada tawaran harga baru masuk (negosiasi)
-- Tawaran harga diterima/ditolak
-- Barang telah diverifikasi diterima
+Event yang dinotifikasi:
+
+| Event | WhatsApp | Email | Penerima |
+|---|---|---|---|
+| Pengajuan baru (submitted) | ✓ | ✓ | Admin CV |
+| Pengajuan diverifikasi (verified) | ✓ | ✓ | School |
+| Pengajuan ditolak (rejected) | ✓ | ✓ | School |
+| Supplier ditentukan (supplier_assigned) | ✓ | ✓ | School |
+| Tawaran harga baru (negotiation_offer) | ✓ | ✓ | School |
+| Tawaran diterima (negotiation_accepted) | ✓ | ✓ | School |
+| Tawaran ditolak (negotiation_rejected) | ✓ | ✓ | School |
+| Barang siap (items_prepared) | ✓ | ✓ | School |
+| Barang diverifikasi diterima (receipt_verified) | ✓ | ✓ | Admin CV |
+| Pengadaan selesai (completed) | ✓ | ✓ | School |
+| Dokumen tersedia (document_generated) | ✓ | ✓ | School |
+
+Fitur:
+- **NotificationManager** — Dashboard admin/superadmin untuk melihat log notifikasi, filter berdasarkan status/channel/pesan, resend notifikasi gagal, hapus notifikasi, toggle read/unread, detail modal
+- **NotificationInbox** — Inbox khusus school untuk melihat notifikasi terkait pengadaan sekolah, filter channel/cari pesan, toggle read/unread, detail modal
+- **Read/unread tracking** — Notifikasi ditandai sudah dibaca saat user membuka detail
+- **Duplicate detection** — Notifikasi dengan event + channel + procurement yang sama dalam 5 menit otomatis di-skip
+- **Async dispatch** — Notifikasi dikirim via Laravel Queue (Observer auto-dispatch on create)
+- **Retry mechanism** — Job retry 3x dengan backoff (WhatsApp: 30s, Email: 60s)
+- **Recovery command** — `notifications:recover` untuk retry notifikasi stuck, force-fail setelah max retries
+- **Cleanup command** — `notifications:cleanup` untuk hapus notifikasi lama (default 90 hari)
+- **WhatsApp status monitoring** — Status koneksi WAHA ditampilkan real-time (WORKING/SCAN_QR/STOPPED/UNAVAILABLE)
+- **Rate limiting** — WhatsApp terbatas 30 pesan/menit via Laravel RateLimiter
+- **Email template** — Template HTML branded dengan detail procurement dan link download dokumen
 
 ### M13. Laporan
 
@@ -243,7 +269,7 @@ Export:
 - **generated_documents** — metadata PDF hasil generate
 
 ### Sistem
-- **notifications** — log pengiriman WhatsApp & Email
+- **notifications** — log pengiriman WhatsApp & Email, inbox notifikasi per pengguna, dengan read/unread tracking
 
 > Catatan: seluruh kolom yang sebelumnya `ENUM` sudah diganti `VARCHAR` —
 > nilai valid (status, role, document_type, dll) di-hardcode di level
@@ -305,17 +331,21 @@ users
 
 ## 8. Notifikasi Sistem
 
-WhatsApp:
-- Pengajuan baru
-- Supplier ditentukan
-- **Ada tawaran harga baru / tawaran diterima-ditolak**
-- Barang siap
-- **Barang telah diverifikasi diterima**
-- Dokumen tersedia
+WhatsApp & Email (kedua channel aktif untuk seluruh event):
+- Pengajuan baru → Admin CV
+- Pengajuan diverifikasi → School
+- Pengajuan ditolak → School
+- Supplier ditentukan → School
+- Tawaran harga baru masuk (negosiasi) → School
+- Tawaran harga diterima (negosiasi) → School
+- Tawaran harga ditolak (negosiasi) → School
+- Barang siap dikirim → School
+- Barang telah diverifikasi diterima → Admin CV
+- Pengadaan selesai → School
+- Dokumen tersedia untuk diunduh → School
 
-Email:
-- Seluruh event penting
-- Link dokumen
+Email hanya (template HTML):
+- Seluruh event penting dengan link download dokumen
 
 ---
 
@@ -378,8 +408,8 @@ Digunakan pada:
 ### Queue
 
 Digunakan untuk:
-- WhatsApp
-- Email
+- WhatsApp (kirim notifikasi via WAHA, queue: `notifications`)
+- Email (kirim notifikasi via Laravel Mail, queue: `notifications`)
 - Generate dokumen massal
 
 ### PDF Engine

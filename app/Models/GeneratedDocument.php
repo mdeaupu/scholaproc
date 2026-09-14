@@ -64,6 +64,22 @@ class GeneratedDocument extends Model implements HasMedia
         return $procurement->$method();
     }
 
+    public static function typeLabel(string $type): string
+    {
+        return match ($type) {
+            'cover' => 'Cover',
+            'planning' => 'Perencanaan (HPS)',
+            'negotiation' => 'Negosiasi Harga',
+            'purchase_order' => 'Surat Pesanan (SPK)',
+            'inspection' => 'Pemeriksaan Barang (BA-HP)',
+            'bast' => 'Berita Acara Serah Terima (BAST)',
+            'invoice' => 'Faktur',
+            'receipt' => 'Kuitansi',
+            'supplier_declaration' => 'Identitas Penyedia',
+            default => ucfirst(str_replace('_', ' ', $type)),
+        };
+    }
+
     public function downloadUrl(): string
     {
         /** @var Media|null $media */

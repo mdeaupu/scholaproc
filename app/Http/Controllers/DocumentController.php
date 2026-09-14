@@ -22,6 +22,7 @@ class DocumentController extends Controller
         try {
             if ($type === 'all') {
                 $procurement->generateAllDocuments();
+                $procurement->notifyDocumentGenerated();
 
                 return back()->with('success', 'Semua dokumen berhasil di-generate.');
             }

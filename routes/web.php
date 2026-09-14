@@ -10,6 +10,9 @@ use App\Livewire\Master\BudgetYearIndex;
 use App\Livewire\Master\FundingSourceIndex;
 use App\Livewire\Master\ItemUnitIndex;
 use App\Livewire\Master\PackageCategoryIndex;
+use App\Livewire\Notification\NotificationInbox;
+use App\Livewire\Notification\NotificationManager;
+use App\Livewire\WhatsApp\SessionManager as WhatsAppSessionManager;
 use App\Livewire\Procurement\ProcurementProcessPanel;
 use App\Livewire\Procurement\ProcurementRequestForm;
 use App\Livewire\Procurement\ProcurementRequestList;
@@ -96,6 +99,19 @@ Route::middleware('auth')->group(function () {
             Route::post('/regenerate/{document}', [DocumentController::class, 'regenerate'])->name('regenerate');
         });
     });
+
+    Route::middleware('role:superadmin|admin')->prefix('notifications')->name('notifications.')->group(function () {
+        Route::get('/', NotificationManager::class)->name('index');
+    });
+
+    Route::middleware('role:school')->prefix('notifications')->name('notifications.')->group(function () {
+        Route::get('/inbox', NotificationInbox::class)->name('inbox');
+    });
+
+    Route::middleware('role:superadmin')->prefix('whatsapp')->name('whatsapp.')->group(function () {
+        Route::get('/session', WhatsAppSessionManager::class)->name('session');
+    });
+
     Route::view('profile', 'profile')->name('profile');
 });
 

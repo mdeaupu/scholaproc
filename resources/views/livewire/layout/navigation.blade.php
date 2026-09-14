@@ -1,11 +1,26 @@
 <?php
 
 use App\Livewire\Actions\Logout;
+use App\Models\Notification;
 use Livewire\Volt\Component;
 use Livewire\Attributes\On;
 
 new class extends Component {
     public bool $logoutModal = false;
+
+    public function getUnreadCountProperty(): int
+    {
+        $user = auth()->user();
+
+        if ($user->isSuperAdmin() || $user->isAdmin()) {
+            return Notification::unread()->count();
+        }
+
+        return Notification::unread()
+            ->whereIn('event_type', Notification::SCHOOL_EVENTS)
+            ->whereHas('procurementRequest', fn ($q) => $q->where('school_id', $user->school_id))
+            ->count();
+    }
 
     #[On('profile-updated')]
     public function updateSidebar() {}
@@ -96,6 +111,22 @@ new class extends Component {
         @endif
         <x-mary-menu-item title="Data Pengadaan" icon="o-shopping-cart" link="{{ route('procurement.index') }}"
             :active="request()->routeIs('procurement.*')" wire:navigate class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+        @if ($user->isSuperAdmin() || $user->isAdmin())
+            <x-mary-menu-item title="Notifikasi" icon="o-bell" link="{{ route('notifications.index') }}"
+                :active="request()->routeIs('notifications.index')" wire:navigate
+                class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]"
+                badge="{{ $this->unreadCount > 0 ? $this->unreadCount : '' }}" />
+        @else
+            <x-mary-menu-item title="Notifikasi" icon="o-bell" link="{{ route('notifications.inbox') }}"
+                :active="request()->routeIs('notifications.inbox')" wire:navigate
+                class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]"
+                badge="{{ $this->unreadCount > 0 ? $this->unreadCount : '' }}" />
+        @endif
+        @if ($user->isSuperAdmin())
+            <x-mary-menu-item title="WhatsApp" icon="o-chat-bubble-left-right" link="{{ route('whatsapp.session') }}"
+                :active="request()->routeIs('whatsapp.*')" wire:navigate
+                class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+        @endif
         <div class="my-2 border-t border-gray-200"></div>
         <x-mary-menu-sub title="Pengaturan" icon="o-cog-6-tooth" class="text-sm font-medium text-black"
             :open="request()->routeIs('profile*')">

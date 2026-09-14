@@ -51,7 +51,7 @@ Re-render Component / Blade             Database → Response / Download
 | Generate & download dokumen PDF | ✗ Tidak | ✓ Ya |
 | Export Excel | ✗ Tidak | ✓ Ya |
 | Halaman laporan summary (baca saja) | ■ Opsional | ✓ Ya |
-| Notifikasi / resend | ✓ Ya (list + resend) | ✗ Tidak |
+| Notifikasi / resend / inbox | ✓ Ya (NotificationManager + NotificationInbox) | ✗ Tidak |
 | Manajemen CRUD entitas (termasuk master data) | ✓ Ya (modal, inline edit) | ✗ Tidak |
 | Workflow state transition | ✓ Ya (konfirmasi modal) | ✗ Tidak |
 | QR Scanner (kamera real-time) | ✓ Ya (wire + Alpine) | ✗ Tidak |
@@ -328,26 +328,70 @@ Observer: ProcurementVerificationFileObserver
 ### M12. Notifikasi ■ LIVEWIRE
 
 Mengapa Livewire?
-- Daftar notifikasi dengan status (terkirim/gagal) perlu live update
+- Daftar notifikasi dengan status (terkirim/gagal) perlu live update tanpa reload
 - Tombol resend menggunakan `wire:click` dengan feedback langsung (spinner, toast)
+- Filter status/channel/search secara interaktif
+- WhatsApp status monitoring real-time (polling 10 detik)
 - Dispatch ke Queue lewat `NotificationObserver` agar tidak blocking
 
-Livewire Component: `NotificationManager`
-- `index()` — daftar dengan filter status + live polling
-- `resend(Notification)` — trigger ulang pengiriman via WhatsApp/Email
+Livewire Component: `NotificationManager` *(admin/superadmin)*
+- `mount()` — cek WhatsApp status, authorize admin/superadmin
+- `pollNotifications()` — refresh status WhatsApp + re-render setiap 10 detik
+- `resend($id)` — reset status ke pending, re-dispatch queue job (hanya jika belum sent)
+- `delete($id)` / `confirmDelete()` — hapus notifikasi langsung atau via modal
+- `toggleRead($id)` — toggle status read/unread
+- `showDetail($id)` — buka modal detail, auto-mark sebagai read
+- Computed: `unreadCount` — jumlah notifikasi belum dibaca
+- Properties: `$statusFilter`, `$channelFilter`, `$search` — filter interaktif
+
+Livewire Component: `NotificationInbox` *(school)*
+- `mount()` — authorize school only
+- `toggleRead($id)` — toggle read/unread dengan authorization (hanya notifikasi sekolah sendiri)
+- `showDetail($id)` — buka modal detail, auto-mark sebagai read
+- Query scope: hanya `SCHOOL_EVENTS` + `school_id` milik user yang login
+- Properties: `$channelFilter`, `$search` — filter channel dan cari pesan
 
 Model: Notification
-- `send()`, `sendWhatsapp()`, `sendEmail()`, `markSent()`, `markFailed()`
+- Relationships: `procurementRequest()`, `triggeredBy()`
+- Scopes: `byChannel()`, `pending()`, `sent()`, `failed()`, `forProcurement()`, `byEventType()`, `unread()`, `read()`
+- Status methods: `markSent()`, `markFailed()`, `markAsRead()`, `markAsUnread()`
+- Status checks: `isPending()`, `isSent()`, `isFailed()`, `isRead()`, `isWhatsapp()`, `isEmail()`
+- Accessors: `status_label` (Indonesian), `channel_label`
+- Constants: `CHANNEL_WHATSAPP`, `CHANNEL_EMAIL`, `STATUS_PENDING/SENT/FAILED`, `SCHOOL_EVENTS`
 
 Model: ProcurementRequest *(notif methods)*
-- `notifySubmitted()`, `notifyVerified()`, `notifySupplierAssigned()`, `notifyNegotiationOffer()`, `notifyNegotiationDecided()`, `notifyItemsPrepared()`, `notifyReceiptVerified()`, `notifyCompleted()`
+- `notifySubmitted()`, `notifyVerified()`, `notifyRejected($reason)`
+- `notifySupplierAssigned()`, `notifyNegotiationOffer()`, `notifyNegotiationDecided()`
+- `notifyItemsPrepared()`, `notifyReceiptVerified()`, `notifyCompleted()`
+- `notifyDocumentGenerated()`
 
 Service Layer
-- `WhatsAppService.send()` — integrasi WAHA (Docker)
-- `EmailService.send()` — Laravel Mail
+- `NotificationService::notify()` — orchestrator: build message, resolve recipient, create DB record
+- `NotificationService::createNotification()` — create record + duplicate detection (5 min window)
+- `NotificationContentBuilder` — 10 static method pembuat pesan Bahasa Indonesia per event
+- `WhatsAppService::send()` — integrasi WAHA (HTTP API, rate limiting 30/menit)
+- `WhatsAppService` — session management: `getSessionInfo()`, `startSession()`, `stopSession()`, `getQRCode()`, `logout()`, `deleteSession()`
+- `EmailService::send()` — Laravel Mail dengan HTML template branded
 
 Observer: NotificationObserver
-- `created` → `dispatchQueue()` — Laravel Queue agar tidak blocking request
+- Registered di `AppServiceProvider::boot()` via `Notification::observe()`
+- `created` → dispatch `SendWhatsAppNotification` atau `SendEmailNotification` (queue: `notifications`)
+
+Jobs
+- `SendWhatsAppNotification` — tries: 3, backoff: 30s, queue: `notifications`
+- `SendEmailNotification` — tries: 3, backoff: 60s, queue: `notifications`, render HTML template
+
+Console Commands
+- `notifications:recover` — retry notifikasi stuck (pending > N menit), force-fail setelah max retries
+- `notifications:cleanup` — hapus notifikasi lebih tua dari N hari (default 90)
+
+Config: `config/waha.php`
+- `base_url`, `session`, `api_key`, `admin_cv_phone`, `admin_cv_email`, `rate_limit`
+
+Routes
+- `GET /notifications` → `NotificationManager` (middleware: `role:superadmin|admin`)
+- `GET /notifications/inbox` → `NotificationInbox` (middleware: `role:school`)
+- `GET /whatsapp/session` → `WhatsAppSessionManager` (middleware: `role:superadmin`)
 
 ---
 
@@ -407,7 +451,7 @@ Livewire component meneruskan filter aktif sebagai query param saat user klik Ex
 | M9. Negosiasi Harga | ■ Livewire | Tawar-menawar real-time, keputusan modal, notifikasi instan |
 | M10. Generate Dokumen PDF | ■ Traditional Controller | Download file stream, DOMPDF, tidak perlu reaktivitas |
 | M11. Verifikasi Penerimaan Barang | ■ Livewire | Upload file real-time, checklist bukti sebelum verified |
-| M12. Notifikasi | ■ Livewire | Status real-time, resend dengan feedback langsung |
+| M12. Notifikasi | ■ Livewire | Status real-time, resend dengan feedback langsung, dual component (admin+school), WhatsApp monitoring |
 | M13a. Laporan — Filter & View | ■ Livewire | Filter interaktif, preview ringkasan live |
 | M13b. Laporan — Export PDF/Excel | ■ Traditional Controller | File download, Fast-Excel + DOMPDF |
 

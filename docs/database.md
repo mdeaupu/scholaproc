@@ -522,23 +522,33 @@ Columns:
 19. Table: notifications
 --------------------------------------------------------------------------------
 Deskripsi: Log antrian dan arsip isi lengkap notifikasi WhatsApp (via WAHA) dan
-           email. Dipakai untuk melacak status pengiriman dan sebagai bukti
-           audit isi pesan yang pernah dikirim ke pengguna.
+           email. Dipakai untuk melacak status pengiriman, sebagai bukti audit
+           isi pesan, dan sebagai inbox notifikasi per pengguna (school melihat
+           notifikasi pengadaan sekolah mereka, admin melihat semua).
 
 Columns:
   - id (BIGINT, PK, AI) -> ID unik notifikasi
   - procurement_request_id (BIGINT, FK, Nullable) -> References procurement_requests(id). Notifikasi terkait transaksi mana (NULL kalau notifikasi umum/sistem)
+  - event_type (VARCHAR(50), Nullable) -> jenis event yang memicu notifikasi. Hardcode:
+      submitted, verified, rejected, supplier_assigned, negotiation_offer,
+      negotiation_accepted, negotiation_rejected, items_prepared,
+      receipt_verified, completed, document_generated
+  - triggered_by (BIGINT, FK, Nullable) -> References users(id). User yang memicu event ini (audit trail)
   - channel (VARCHAR(20), NOT NULL) -> hardcode: whatsapp, email. Media pengiriman notifikasi ini
   - recipient (VARCHAR(255), NOT NULL) -> nomor WhatsApp atau alamat email tujuan
   - message_content (TEXT, Nullable) -> isi pesan lengkap yang dikirim, disimpan untuk arsip/audit
   - status (VARCHAR(20), NOT NULL, DEFAULT 'pending') -> hardcode: pending, sent, failed. Status pengiriman notifikasi ini
   - error_message (TEXT, Nullable) -> pesan error dari provider kalau pengiriman gagal
+  - meta (JSON, Nullable) -> metadata extensible, misal: retry_count untuk mekanisme recovery notifikasi stuck
   - sent_at (TIMESTAMP, Nullable) -> waktu notifikasi berhasil terkirim
+  - read_at (TIMESTAMP, Nullable) -> waktu notifikasi dibaca oleh penerima (untuk read/unread tracking di inbox)
   - created_at (TIMESTAMP, Nullable) -> waktu notifikasi masuk antrian
   - updated_at (TIMESTAMP, Nullable) -> waktu terakhir status notifikasi diubah
 
   Indexes:
   - PRIMARY KEY (id)
   - FOREIGN KEY (procurement_request_id) REFERENCES procurement_requests(id)
+  - FOREIGN KEY (triggered_by) REFERENCES users(id)
   - INDEX (status)
   - INDEX (channel)
+  - INDEX (event_type)

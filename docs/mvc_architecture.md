@@ -414,20 +414,66 @@ Business Methods
 ## M12. Notifikasi
 
 **Model: Notification**
-- `send()`, `sendWhatsapp()`, `sendEmail()`, `markSent()`, `markFailed()`
 
-**Model: ProcurementRequest**
-- `notifySubmitted()`
-- `notifyVerified()`
-- `notifySupplierAssigned()`
-- **`notifyNegotiationOffer()`** *(baru)*
-- **`notifyNegotiationDecided()`** *(baru)*
-- `notifyItemsPrepared()`
-- **`notifyReceiptVerified()`** *(baru)*
-- `notifyCompleted()`
+Relationships
+- `procurementRequest()` — belongsTo ProcurementRequest
+- `triggeredBy()` — belongsTo User
 
-**Controller: NotificationController**
-- `index()`, `resend()`
+Scopes
+- `scopeByChannel()`, `scopePending()`, `scopeSent()`, `scopeFailed()`
+- `scopeForProcurement()`, `scopeByEventType()`, `scopeUnread()`, `scopeRead()`
+
+Status Methods
+- `markSent()`, `markFailed($error)`, `markAsRead()`, `markAsUnread()`
+- `isPending()`, `isSent()`, `isFailed()`, `isRead()`, `isWhatsapp()`, `isEmail()`
+
+Accessors
+- `status_label` — label Bahasa Indonesia (Menunggu/Terkirim/Gagal)
+- `channel_label` — label tampilan (WhatsApp/Email)
+
+Constants
+- `CHANNEL_WHATSAPP`, `CHANNEL_EMAIL`
+- `STATUS_PENDING`, `STATUS_SENT`, `STATUS_FAILED`
+- `SCHOOL_EVENTS` — array event yang terlihat oleh school
+
+**Model: ProcurementRequest** *(notif methods)*
+- `notifySubmitted()` → Admin CV
+- `notifyVerified($user)` → School
+- `notifyRejected($user, $reason)` → School
+- `notifySupplierAssigned()` → School
+- `notifyNegotiationOffer($item, $negotiation)` → School
+- `notifyNegotiationDecided($item, $negotiation, $action)` → School
+- `notifyItemsPrepared()` → School
+- `notifyReceiptVerified($user)` → Admin CV
+- `notifyCompleted()` → School
+- `notifyDocumentGenerated()` → School
+
+**Service: NotificationService**
+- `notify(ProcurementRequest, event, context, triggeredBy)` — orchestrator utama
+- `createNotification(...)` — buat record + duplicate detection (5 min window)
+- `buildMessage(...)` — delegasi ke `NotificationContentBuilder` per event type
+- `resolveRecipientPhone(...)` — submitted/receipt_verified → Admin CV, lainnya → School
+- `resolveRecipientEmail(...)` — logika sama dengan phone
+
+**Service: NotificationContentBuilder** *(static)*
+- 10 method pembuat pesan Bahasa Indonesia: `buildSubmitted()`, `buildVerified()`, `buildRejected()`, `buildSupplierAssigned()`, `buildNegotiationOffer()`, `buildNegotiationDecided()`, `buildItemsPrepared()`, `buildReceiptVerified()`, `buildCompleted()`, `buildDocumentGenerated()`
+
+**Service: WhatsAppService**
+- `send($phone, $message)` — kirim via WAHA API + rate limiting
+- `formatPhoneNumber($phone)` — format Indonesia (0xxx → 62xxx)
+- `isAvailable()`, `getSessionStatus()`, `getSessionInfo()` — cek status WAHA
+- `startSession()`, `stopSession()`, `logout()`, `deleteSession()`, `getQRCode()` — session management
+
+**Jobs**
+- `SendWhatsAppNotification` — tries: 3, backoff: 30s, queue: `notifications`
+- `SendEmailNotification` — tries: 3, backoff: 60s, queue: `notifications`, render HTML template
+
+**Console Commands**
+- `notifications:recover {--minutes=10} {--max-retries=3}` — retry notifikasi stuck
+- `notifications:cleanup {--days=90}` — hapus notifikasi lama
+
+**NotificationObserver** — registered di `AppServiceProvider::boot()`
+- `created` → dispatch `SendWhatsAppNotification` atau `SendEmailNotification` (hanya jika status pending)
 
 ---
 
@@ -480,10 +526,19 @@ Walaupun menggunakan Fat Model, beberapa proses tetap dipisahkan agar Model tida
 - **`generateSupplierDeclaration()`** *(baru)*
 
 **WhatsAppService**
-- `send()`
+- `send()`, `formatPhoneNumber()`, `isAvailable()`, `getSessionStatus()`, `getSessionInfo()`
+- `startSession()`, `stopSession()`, `logout()`, `deleteSession()`, `getQRCode()`
 
 **EmailService**
-- `send()`
+- `send($recipient, $subject, $htmlBody)` — kirim email via Laravel Mail
+
+**NotificationService**
+- `notify()`, `createNotification()`, `buildMessage()`
+- `resolveRecipientPhone()`, `resolveRecipientEmail()`
+- Duplicate detection (5 min window)
+
+**NotificationContentBuilder**
+- 10 static method pembuat pesan per event type
 
 **ProcurementNumberGenerator**
 - `generatePlanningNumber()`, `generateNegotiationNumber()`, `generatePurchaseOrderNumber()`

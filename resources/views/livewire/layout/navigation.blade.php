@@ -112,6 +112,9 @@ new class extends Component {
         <x-mary-menu-item title="Data Pengadaan" icon="o-shopping-cart" link="{{ route('procurement.index') }}"
             :active="request()->routeIs('procurement.*')" wire:navigate class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
         @if ($user->isSuperAdmin() || $user->isAdmin())
+            <x-mary-menu-item title="Laporan" icon="o-document-chart-bar" link="{{ route('reports.index') }}"
+                :active="request()->routeIs('reports.*')" wire:navigate
+                class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
             <x-mary-menu-item title="Notifikasi" icon="o-bell" link="{{ route('notifications.index') }}"
                 :active="request()->routeIs('notifications.index')" wire:navigate
                 class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]"

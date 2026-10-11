@@ -12,6 +12,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -32,6 +35,39 @@ class ProcurementRequest extends Model
     public const STATUS_COMPLETED = 'completed';
 
     public const STATUS_REJECTED = 'rejected';
+
+    /**
+     * Ekspresi nilai transaksi untuk laporan. Dipisah dari alias SELECT karena
+     * SQL tidak mengizinkan memakai alias yang sama di dalam SUM() pada daftar
+     * SELECT yang sama — karena itu reportSummary() memakai ekspresi ini
+     * langsung, bukan lewat nama alias.
+     *
+     * `REPORT_EFFECTIVE_TOTAL_SQL` mengikuti basis nilai yang sama dengan
+     * {@see getOfficialAmount()}: bila snapshot sudah dikunci
+     * (`totals_locked_at` terisi) angka itu yang dipakai, bila belum dihitung
+     * live dari harga item resmi + PPN — persis seperti
+     * baseSubtotal()/totalPpn()/grandTotal().
+     */
+    private const REPORT_ESTIMATED_SQL = 'COALESCE(item_totals.estimated_subtotal, 0)';
+
+    private const REPORT_BASE_SQL = 'CASE WHEN COALESCE(item_totals.official_item_count, 0) > 0
+            AND COALESCE(item_totals.official_subtotal, 0) > 0
+            THEN COALESCE(item_totals.official_subtotal, 0)
+            ELSE COALESCE(item_totals.estimated_subtotal, 0) END';
+
+    private const REPORT_EFFECTIVE_TOTAL_SQL = 'CASE
+            WHEN procurement_requests.totals_locked_at IS NOT NULL
+                THEN procurement_requests.grand_total
+            ELSE ('.self::REPORT_BASE_SQL.' + CASE
+                    WHEN procurement_requests.is_taxable
+                        THEN ROUND(('.self::REPORT_BASE_SQL.') * procurement_requests.ppn_rate / 100, 2)
+                    ELSE 0
+                END)
+        END';
+
+    private const REPORT_QUANTITY_SQL = 'COALESCE(item_totals.total_quantity, 0)';
+
+    private const REPORT_ITEM_TYPES_SQL = 'COALESCE(item_totals.total_item_types, 0)';
 
     protected $fillable = [
         'uuid',
@@ -211,6 +247,127 @@ class ProcurementRequest extends Model
         return $query->whereHas('items', function ($q) {
             $q->where('negotiation_status', 'negotiating');
         });
+    }
+
+    // ─── Report Scopes ──────────────────────────────────────────────
+
+    /**
+     * Subquery agregat item per transaksi, dipakai bersama oleh
+     * scopeWithReportTotals() dan scopeWithGroupedReportTotals().
+     */
+    protected static function itemTotalsSubquery(): QueryBuilder
+    {
+        return DB::table('procurement_request_items')
+            ->select('procurement_request_id')
+            ->selectRaw('COALESCE(SUM(quantity * estimated_price), 0) AS estimated_subtotal')
+            ->selectRaw('COALESCE(SUM(quantity * COALESCE(official_price, estimated_price)), 0) AS official_subtotal')
+            ->selectRaw('SUM(CASE WHEN official_price IS NOT NULL THEN 1 ELSE 0 END) AS official_item_count')
+            ->selectRaw('COALESCE(SUM(quantity), 0) AS total_quantity')
+            ->selectRaw('COUNT(*) AS total_item_types')
+            ->groupBy('procurement_request_id');
+    }
+
+    public function scopePeriod(Builder $query, ?string $from = null, ?string $to = null): Builder
+    {
+        $column = 'COALESCE(procurement_requests.requested_at, procurement_requests.created_at)';
+        $reportTimezone = config('report.timezone', 'Asia/Jakarta');
+        $storageTimezone = config('app.timezone', 'UTC');
+
+        if ($from) {
+            $start = Carbon::parse($from, $reportTimezone)->startOfDay()->setTimezone($storageTimezone);
+            $query->whereRaw("{$column} >= ?", [$start->toDateTimeString()]);
+        }
+
+        if ($to) {
+            $end = Carbon::parse($to, $reportTimezone)->endOfDay()->setTimezone($storageTimezone);
+            $query->whereRaw("{$column} <= ?", [$end->toDateTimeString()]);
+        }
+
+        return $query;
+    }
+
+    /**
+     * Catatan penamaan: `scopeSchool()` dan `scopeSupplier()` dari dokumen
+     * arsitektur tidak dapat dibuat — nama tersebut sudah dipakai relasi
+     * `school()` dan `supplier()`, dan Eloquent selalu mendahulukan method yang
+     * benar-benar ada di model sebelum scope-nya, sehingga panggilan
+     * `ProcurementRequest::school($id)` akan mengarah ke relasi, bukan filter.
+     * Kontrak yang sama sudah dipenuhi oleh scopeBySchool() dan
+     * scopeBySupplier() yang dipakai di seluruh laporan.
+     */
+    public function scopeStatus(Builder $query, $status): Builder
+    {
+        $status = is_array($status) ? array_filter($status) : [$status];
+        $status = array_values($status);
+
+        if ($status === []) {
+            return $query;
+        }
+
+        return $query->whereIn('procurement_requests.status', $status);
+    }
+
+    /**
+     * Titik masuk tunggal untuk seluruh filter laporan, dipakai bersama oleh
+     * Livewire ReportViewer dan ReportController agar hasil preview di layar
+     * selalu identik dengan isi file export.
+     */
+    public function scopeForReport(Builder $query, array $filters = []): Builder
+    {
+        return $query
+            ->period($filters['date_from'] ?? null, $filters['date_to'] ?? null)
+            ->when(! empty($filters['school_id']), fn ($q) => $q->bySchool($filters['school_id']))
+            ->when(! empty($filters['supplier_id']), fn ($q) => $q->bySupplier($filters['supplier_id']))
+            ->when(! empty($filters['status']), fn ($q) => $q->status($filters['status']));
+    }
+
+    /**
+     * Menyisipkan agregat nilai per transaksi (subtotal estimasi, subtotal
+     * dasar, total resmi setelah pajak, jumlah & jenis item) lewat LEFT JOIN ke
+     * subquery agregat item — menghindari N+1 saat laporan mengagregasi banyak
+     * baris.
+     */
+    public function scopeWithReportTotals(Builder $query): Builder
+    {
+        return self::joinReportItemTotals($query)
+            ->select('procurement_requests.*')
+            ->selectRaw(self::REPORT_ESTIMATED_SQL.' AS report_estimated_subtotal')
+            ->selectRaw(self::REPORT_BASE_SQL.' AS report_base_subtotal')
+            ->selectRaw(self::REPORT_EFFECTIVE_TOTAL_SQL.' AS report_effective_total')
+            ->selectRaw(self::REPORT_QUANTITY_SQL.' AS report_total_quantity')
+            ->selectRaw(self::REPORT_ITEM_TYPES_SQL.' AS report_total_item_types');
+    }
+
+    /**
+     * Versi agregat dari {@see scopeWithReportTotals()} untuk query yang memakai
+     * GROUP BY. Karena mode ONLY_FULL_GROUP_BY aktif di MySQL, hanya kolom
+     * SCHOOL/SUPPLIER/STATUS yang diagregasi beserta ekspresi agregat di bawah
+     * yang boleh dipilih — bukan `procurement_requests.*`.
+     */
+    public function scopeWithGroupedReportTotals(Builder $query): Builder
+    {
+        return self::joinReportItemTotals($query);
+    }
+
+    protected static function joinReportItemTotals(Builder $query): Builder
+    {
+        return $query->leftJoinSub(
+            self::itemTotalsSubquery(),
+            'item_totals',
+            'item_totals.procurement_request_id',
+            '=',
+            'procurement_requests.id'
+        );
+    }
+
+    /**
+     * Literal status untuk dipakai di dalam SQL agregat. Nilai yang di-*splice*
+     * ke query selalu berasal dari konstanta kelas (bukan input pengguna),
+     * sehingga aman tanpa binding parameter.
+     */
+    protected static function sqlStatus(string $status): string
+    {
+        return "'".str_replace("'", "''", $status)."'";
     }
 
     // ─── State Machine ──────────────────────────────────────────────
@@ -454,6 +611,214 @@ class ProcurementRequest extends Model
         ]);
 
         $this->recordHistory($user, $this->status, 'Revisi: '.$reason);
+    }
+
+    // ─── Report ─────────────────────────────────────────────────────
+
+    public static function statusLabels(): array
+    {
+        return [
+            self::STATUS_DRAFT => 'Draft',
+            self::STATUS_SUBMITTED => 'Diajukan',
+            self::STATUS_VERIFIED => 'Diverifikasi',
+            self::STATUS_SUPPLIER_ASSIGNED => 'Supplier Ditentukan',
+            self::STATUS_ITEMS_PREPARED => 'Barang Siap',
+            self::STATUS_COMPLETED => 'Selesai',
+            self::STATUS_REJECTED => 'Ditolak',
+        ];
+    }
+
+    public static function statusLabel(string $status): string
+    {
+        return self::statusLabels()[$status] ?? ucfirst(str_replace('_', ' ', $status));
+    }
+
+    public static function reportStatuses(): array
+    {
+        return array_keys(self::statusLabels());
+    }
+
+    /**
+     * Ringkasan angka untuk laporan. Semua agregasi terjadi di database —
+     * transaksi yang tidak cocok filter sudah tersaring oleh scopeForReport()
+     * sebelum method ini dipanggil.
+     */
+    public static function reportSummary(Builder $query): array
+    {
+        $aggregate = $query
+            ->withGroupedReportTotals()
+            ->selectRaw('COUNT(procurement_requests.id) AS total_transactions')
+            ->selectRaw('COALESCE(SUM('.self::REPORT_ESTIMATED_SQL.'), 0) AS total_estimated')
+            ->selectRaw('COALESCE(SUM('.self::REPORT_EFFECTIVE_TOTAL_SQL.'), 0) AS total_official')
+            ->selectRaw('COALESCE(SUM('.self::REPORT_QUANTITY_SQL.'), 0) AS total_quantity')
+            ->selectRaw('COALESCE(SUM('.self::REPORT_ITEM_TYPES_SQL.'), 0) AS total_item_types')
+            ->selectRaw('COALESCE(SUM(CASE WHEN procurement_requests.status = '.self::sqlStatus(self::STATUS_COMPLETED).' THEN 1 ELSE 0 END), 0) AS completed_count')
+            ->selectRaw('COALESCE(SUM(CASE WHEN procurement_requests.status = '.self::sqlStatus(self::STATUS_REJECTED).' THEN 1 ELSE 0 END), 0) AS rejected_count')
+            ->selectRaw('COALESCE(SUM(CASE WHEN procurement_requests.totals_locked_at IS NOT NULL THEN 1 ELSE 0 END), 0) AS locked_count')
+            ->selectRaw('COALESCE(SUM(CASE WHEN procurement_requests.supplier_id IS NULL THEN 1 ELSE 0 END), 0) AS unsuppliered_count')
+            ->first();
+
+        $totalTransactions = (int) ($aggregate->total_transactions ?? 0);
+        $totalOfficial = (float) ($aggregate->total_official ?? 0);
+
+        return [
+            'total_transactions' => $totalTransactions,
+            'total_quantity' => (int) ($aggregate->total_quantity ?? 0),
+            'total_item_types' => (int) ($aggregate->total_item_types ?? 0),
+            'total_estimated' => round((float) ($aggregate->total_estimated ?? 0), 2),
+            'total_official' => round($totalOfficial, 2),
+            'average_value' => $totalTransactions > 0 ? round($totalOfficial / $totalTransactions, 2) : 0.0,
+            'saving_amount' => round((float) ($aggregate->total_estimated ?? 0) - $totalOfficial, 2),
+            'completed_count' => (int) ($aggregate->completed_count ?? 0),
+            'rejected_count' => (int) ($aggregate->rejected_count ?? 0),
+            'locked_count' => (int) ($aggregate->locked_count ?? 0),
+            'unsuppliered_count' => (int) ($aggregate->unsuppliered_count ?? 0),
+        ];
+    }
+
+    /**
+     * Rekap nilai pengadaan per sekolah. Hanya sekolah yang memiliki transaksi
+     * pada rentang filter yang muncul, diurutkan dari nilai terbesar.
+     */
+    public static function reportBySchool(Builder $query): Collection
+    {
+        return $query
+            ->withGroupedReportTotals()
+            ->join('schools', 'schools.id', '=', 'procurement_requests.school_id')
+            ->groupBy('schools.id', 'schools.name', 'schools.npsn')
+            ->orderByDesc('total_official')
+            ->orderBy('schools.name')
+            ->selectRaw('schools.id AS school_id, schools.name AS school_name, schools.npsn AS school_npsn')
+            ->selectRaw('COUNT(procurement_requests.id) AS total_transactions')
+            ->selectRaw('COALESCE(SUM('.self::REPORT_ESTIMATED_SQL.'), 0) AS total_estimated')
+            ->selectRaw('COALESCE(SUM('.self::REPORT_EFFECTIVE_TOTAL_SQL.'), 0) AS total_official')
+            ->selectRaw('COALESCE(SUM('.self::REPORT_QUANTITY_SQL.'), 0) AS total_quantity')
+            ->selectRaw('COALESCE(SUM(CASE WHEN procurement_requests.status = '.self::sqlStatus(self::STATUS_COMPLETED).' THEN 1 ELSE 0 END), 0) AS completed_count')
+            ->selectRaw('COALESCE(SUM(CASE WHEN procurement_requests.status = '.self::sqlStatus(self::STATUS_REJECTED).' THEN 1 ELSE 0 END), 0) AS rejected_count')
+            ->get()
+            ->map(fn ($row) => [
+                'school_id' => (int) $row->school_id,
+                'school_name' => $row->school_name,
+                'school_npsn' => $row->school_npsn,
+                'total_transactions' => (int) $row->total_transactions,
+                'total_quantity' => (int) $row->total_quantity,
+                'total_estimated' => round((float) $row->total_estimated, 2),
+                'total_official' => round((float) $row->total_official, 2),
+                'completed_count' => (int) $row->completed_count,
+                'rejected_count' => (int) $row->rejected_count,
+            ])
+            ->values();
+    }
+
+    /**
+     * Rekap nilai pengadaan per supplier. Transaksi yang supplier-nya belum
+     * ditentukan sengaja tidak dimasukkan — kolom supplier tidak akan pernah
+     * terisi pada rekap ini.
+     */
+    public static function reportBySupplier(Builder $query): Collection
+    {
+        return $query
+            ->withGroupedReportTotals()
+            ->whereNotNull('procurement_requests.supplier_id')
+            ->join('suppliers', 'suppliers.id', '=', 'procurement_requests.supplier_id')
+            ->groupBy('suppliers.id', 'suppliers.company_name')
+            ->orderByDesc('total_official')
+            ->orderBy('suppliers.company_name')
+            ->selectRaw('suppliers.id AS supplier_id, suppliers.company_name AS company_name')
+            ->selectRaw('COUNT(procurement_requests.id) AS total_transactions')
+            ->selectRaw('COALESCE(SUM('.self::REPORT_ESTIMATED_SQL.'), 0) AS total_estimated')
+            ->selectRaw('COALESCE(SUM('.self::REPORT_EFFECTIVE_TOTAL_SQL.'), 0) AS total_official')
+            ->selectRaw('COALESCE(SUM('.self::REPORT_QUANTITY_SQL.'), 0) AS total_quantity')
+            ->selectRaw('COALESCE(SUM(CASE WHEN procurement_requests.status = '.self::sqlStatus(self::STATUS_COMPLETED).' THEN 1 ELSE 0 END), 0) AS completed_count')
+            ->get()
+            ->map(fn ($row) => [
+                'supplier_id' => (int) $row->supplier_id,
+                'company_name' => $row->company_name,
+                'total_transactions' => (int) $row->total_transactions,
+                'total_quantity' => (int) $row->total_quantity,
+                'total_estimated' => round((float) $row->total_estimated, 2),
+                'total_official' => round((float) $row->total_official, 2),
+                'completed_count' => (int) $row->completed_count,
+            ])
+            ->values();
+    }
+
+    /**
+     * Rekap per status. Semua status selalu ditampilkan (zero-filled) supaya
+     * pembaca laporan bisa langsung melihat alur transaksi yang belum selesai
+     * tanpa harus menebak angka nol.
+     */
+    public static function reportByStatus(Builder $query): Collection
+    {
+        $aggregated = $query
+            ->withGroupedReportTotals()
+            ->groupBy('procurement_requests.status')
+            ->selectRaw('procurement_requests.status AS status')
+            ->selectRaw('COUNT(procurement_requests.id) AS total_transactions')
+            ->selectRaw('COALESCE(SUM('.self::REPORT_ESTIMATED_SQL.'), 0) AS total_estimated')
+            ->selectRaw('COALESCE(SUM('.self::REPORT_EFFECTIVE_TOTAL_SQL.'), 0) AS total_official')
+            ->selectRaw('COALESCE(SUM('.self::REPORT_QUANTITY_SQL.'), 0) AS total_quantity')
+            ->get()
+            ->keyBy('status');
+
+        return collect(self::statusLabels())
+            ->map(function (string $label, string $status) use ($aggregated) {
+                $row = $aggregated->get($status);
+
+                return [
+                    'status' => $status,
+                    'label' => $label,
+                    'total_transactions' => (int) ($row->total_transactions ?? 0),
+                    'total_quantity' => (int) ($row->total_quantity ?? 0),
+                    'total_estimated' => round((float) ($row->total_estimated ?? 0), 2),
+                    'total_official' => round((float) ($row->total_official ?? 0), 2),
+                ];
+            })
+            ->values();
+    }
+
+    /**
+     * Daftar transaksi untuk tabel detail & sheet "Transaksi". Nilai uang
+     * diambil dari agregat report_effective_total agar konsisten dengan
+     * ringkasan dan rekap lain.
+     */
+    public static function reportTransactions(Builder $query, ?int $limit = null, int $offset = 0): Collection
+    {
+        return $query
+            ->withReportTotals()
+            ->with([
+                'school' => fn ($q) => $q->withTrashed()->select('id', 'name', 'npsn'),
+                'supplier' => fn ($q) => $q->withTrashed()->select('id', 'company_name'),
+                'packageCategory:id,name',
+                'budgetYear:id,name',
+            ])
+            ->orderByDesc('procurement_requests.created_at')
+            ->orderByDesc('procurement_requests.id')
+            ->when($limit, fn ($q) => $q->offset($offset)->limit($limit))
+            ->get()
+            ->map(fn (self $request) => self::mapReportTransaction($request))
+            ->values();
+    }
+
+    public static function mapReportTransaction(self $request): array
+    {
+        return [
+            'id' => $request->id,
+            'uuid' => $request->uuid,
+            'school_name' => $request->school?->name ?? '-',
+            'school_npsn' => $request->school?->npsn ?? '-',
+            'supplier_name' => $request->supplier?->company_name ?? null,
+            'category_name' => $request->packageCategory?->name ?? '-',
+            'budget_year_name' => $request->budgetYear?->name ?? '-',
+            'status' => $request->status,
+            'status_label' => self::statusLabel($request->status),
+            'requested_at' => $request->requested_at,
+            'created_at' => $request->created_at,
+            'total_quantity' => (int) $request->report_total_quantity,
+            'total_item_types' => (int) $request->report_total_item_types,
+            'total_estimated' => round((float) $request->report_estimated_subtotal, 2),
+            'total_official' => round((float) $request->report_effective_total, 2),
+        ];
     }
 
     // ─── Dashboard Statistics ───────────────────────────────────────

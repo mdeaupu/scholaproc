@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\ReportController;
 use App\Livewire\Admin\AdminIndex;
 use App\Livewire\Dashboard\SuperAdminDashboard;
 use App\Livewire\Dashboard\AdminDashboard;
@@ -12,6 +13,7 @@ use App\Livewire\Master\ItemUnitIndex;
 use App\Livewire\Master\PackageCategoryIndex;
 use App\Livewire\Notification\NotificationInbox;
 use App\Livewire\Notification\NotificationManager;
+use App\Livewire\Report\ReportViewer;
 use App\Livewire\WhatsApp\SessionManager as WhatsAppSessionManager;
 use App\Livewire\Procurement\ProcurementProcessPanel;
 use App\Livewire\Procurement\ProcurementRequestForm;
@@ -106,6 +108,13 @@ Route::middleware('auth')->group(function () {
 
     Route::middleware('role:school')->prefix('notifications')->name('notifications.')->group(function () {
         Route::get('/inbox', NotificationInbox::class)->name('inbox');
+    });
+
+    Route::middleware('role:superadmin|admin')->prefix('reports')->name('reports.')->group(function () {
+        Route::get('/', ReportViewer::class)->name('index');
+        Route::get('/summary', [ReportController::class, 'summary'])->name('summary');
+        Route::get('/export/excel', [ReportController::class, 'exportExcel'])->name('export.excel');
+        Route::get('/export/pdf', [ReportController::class, 'exportPdf'])->name('export.pdf');
     });
 
     Route::middleware('role:superadmin')->prefix('whatsapp')->name('whatsapp.')->group(function () {

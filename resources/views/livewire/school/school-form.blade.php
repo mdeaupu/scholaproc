@@ -34,6 +34,14 @@
                                 ['id' => 'suspended', 'name' => 'Ditangguhkan'],
                             ]" />
                     </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                        <x-mary-input label="Nama Kepala Sekolah" wire:model="principal_name"
+                            placeholder="Contoh: Dra. Siti Aminah, M.Pd." icon="o-user"
+                            hint="Untuk blok tanda tangan dokumen resmi" />
+                        <x-mary-input label="NIP Kepala Sekolah" wire:model="principal_nip"
+                            placeholder="Contoh: 197001011994031005" icon="o-identification"
+                            hint="Kosongkan jika tidak ada" />
+                    </div>
                     <div class="mt-6 pt-4 border-t border-gray-100">
                         <div class="text-sm font-semibold mb-4 text-[#0046FF] flex items-center gap-2">
                             <x-mary-icon name="o-user-circle" class="w-5 h-5" />
@@ -48,7 +56,7 @@
                     </div>
                 </x-mary-card>
             </div>
-            <div class="lg:col-span-1">
+            <div class="lg:col-span-1 space-y-6">
                 <x-mary-card title="Konfigurasi Kop Surat" shadow separator class="border-t-4 border-[#0046FF]">
                     <x-slot:subtitle>
                         <p class="text-xs text-gray-500 mt-0.5">
@@ -67,6 +75,21 @@
                         <x-mary-icon name="o-information-circle" class="w-4 h-4 text-[#0046FF] shrink-0 mt-0.5" />
                         <span>Data kop surat tersimpan terpisah di tabel <code>school_settings</code> sesuai standar
                             3NF.</span>
+                    </div>
+                </x-mary-card>
+                <x-mary-card title="Sumber Dana Tersedia" shadow separator class="border-t-4 border-[#FF8040]">
+                    <x-slot:subtitle>
+                        <p class="text-xs text-gray-500 mt-0.5">
+                            Batasi sumber dana yang dapat dipakai sekolah ini saat mengajukan pengadaan.
+                        </p>
+                    </x-slot:subtitle>
+                    <x-mary-select wire:model="funding_source_ids" :options="$fundingSources->toArray()"
+                        option-value="id" option-label="name" placeholder="Pilih sumber dana..." multiple
+                        icon="o-banknotes" />
+                    <div class="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600 flex gap-2">
+                        <x-mary-icon name="o-information-circle" class="w-4 h-4 text-[#FF8040] shrink-0 mt-0.5" />
+                        <span>Kosongkan semua pilihan jika sekolah boleh memakai <strong>semua</strong> sumber dana
+                            aktif.</span>
                     </div>
                 </x-mary-card>
             </div>

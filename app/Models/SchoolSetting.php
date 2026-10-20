@@ -30,7 +30,9 @@ class SchoolSetting extends Model
             'sub_wilayah' => $this->kop_sub_wilayah ? strtoupper($this->kop_sub_wilayah) : null,
             'sekolah' => strtoupper($this->school->name),
             'alamat_lengkap' => $this->school->address . ' Kode Pos: ' . $this->school->postal_code,
-            'kontak' => 'Telp: ' . $this->school->phone_number . ' | Email: ' . $this->school->email
+            'kontak' => 'Telp: ' . $this->school->phone_number . ' | Email: ' . $this->school->email,
+            'kepala_sekolah' => $this->school->principal_name,
+            'nip_kepala_sekolah' => $this->school->principal_nip,
         ];
     }
 }

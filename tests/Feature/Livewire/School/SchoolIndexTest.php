@@ -92,3 +92,92 @@ test('superadmin dapat menghapus sekolah melalui alur konfirmasi modal (Soft Del
 
     assertSoftDeleted($school);
 });
+test('komponen menolak non-superadmin secara internal di setiap aksi', function () {
+    $nonSuperadmin = User::factory()->create(['role' => 'admin']);
+
+    Livewire::actingAs($nonSuperadmin)
+        ->test(SchoolIndex::class)
+        ->assertStatus(403);
+});
+
+test('superadmin dapat mereset password akun admin sekolah', function () {
+    $school = School::factory()->create();
+    $account = User::factory()->create([
+        'school_id' => $school->id,
+        'role' => 'school',
+        'username' => $school->npsn,
+        'password' => Hash::make('oldpass'),
+    ]);
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
+
+    Livewire::actingAs($superadmin)
+        ->test(SchoolIndex::class)
+        ->call('confirmResetPassword', $school->id)
+        ->assertSet('confirmingResetPassword', true)
+        ->assertSet('targetSchoolId', $school->id)
+        ->call('resetUserPassword')
+        ->assertHasErrors(['newPassword' => 'required'])
+        ->set('newPassword', 'newsecret456')
+        ->call('resetUserPassword')
+        ->assertSet('confirmingResetPassword', false)
+        ->assertSet('newPassword', '');
+
+    expect(Hash::check('newsecret456', $account->fresh()->password))->toBeTrue();
+});
+
+test('reset password kurang dari delapan karakter ditolak', function () {
+    $school = School::factory()->create();
+    User::factory()->create([
+        'school_id' => $school->id,
+        'role' => 'school',
+        'username' => $school->npsn,
+        'password' => Hash::make('oldpass'),
+    ]);
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
+
+    Livewire::actingAs($superadmin)
+        ->test(SchoolIndex::class)
+        ->call('confirmResetPassword', $school->id)
+        ->set('newPassword', 'short')
+        ->call('resetUserPassword')
+        ->assertHasErrors(['newPassword' => 'min'])
+        ->assertSet('confirmingResetPassword', true);
+});
+
+test('superadmin dapat menonaktifkan lalu mengaktifkan kembali akun sekolah', function () {
+    $school = School::factory()->create();
+    $account = User::factory()->create([
+        'school_id' => $school->id,
+        'role' => 'school',
+        'username' => $school->npsn,
+        'status' => 'active',
+    ]);
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
+
+    Livewire::actingAs($superadmin)
+        ->test(SchoolIndex::class)
+        ->call('confirmToggleAccount', $school->id)
+        ->assertSet('confirmingToggleAccount', true)
+        ->assertSet('targetAccountId', $account->id)
+        ->call('toggleAccount')
+        ->assertSet('confirmingToggleAccount', false);
+
+    expect($account->fresh()->status)->toBe('suspended');
+
+    Livewire::actingAs($superadmin)
+        ->test(SchoolIndex::class)
+        ->call('confirmToggleAccount', $school->id)
+        ->call('toggleAccount');
+
+    expect($account->fresh()->status)->toBe('active');
+});
+
+test('aksi akun gagal untuk sekolah yang belum memiliki akun admin', function () {
+    $school = School::factory()->create();
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
+
+    Livewire::actingAs($superadmin)
+        ->test(SchoolIndex::class)
+        ->call('confirmResetPassword', $school->id)
+        ->assertStatus(404);
+});

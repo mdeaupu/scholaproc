@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -19,6 +20,8 @@ class School extends Model
         'postal_code',
         'phone_number',
         'email',
+        'principal_name',
+        'principal_nip',
         'status',
     ];
 
@@ -31,6 +34,12 @@ class School extends Model
     {
         return $this->hasOne(User::class)->where('role', 'school');
     }
+
+    public function fundingSources(): BelongsToMany
+    {
+        return $this->belongsToMany(FundingSource::class)->withTimestamps();
+    }
+
     public function procurementRequests(): HasMany
     {
         return $this->hasMany(ProcurementRequest::class);

@@ -101,6 +101,24 @@
                         <span class="text-gray-500 font-medium">Email Resmi</span>
                         <span>{{ $selectedSchool->email ?? '-' }}</span>
                     </div>
+                    <div class="flex justify-between border-b border-gray-200 pb-2">
+                        <span class="text-gray-500 font-medium">Kepala Sekolah</span>
+                        <span class="text-right">{{ $selectedSchool->principal_name ?? '-' }}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-gray-200 pb-2">
+                        <span class="text-gray-500 font-medium">NIP Kepala Sekolah</span>
+                        <span class="font-mono text-right">{{ $selectedSchool->principal_nip ?? '-' }}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-gray-200 pb-2">
+                        <span class="text-gray-500 font-medium">Sumber Dana Boleh</span>
+                        <span class="text-right text-xs">
+                            @if ($selectedSchool->fundingSources->isEmpty())
+                                Semua sumber dana aktif
+                            @else
+                                {{ $selectedSchool->fundingSources->pluck('name')->join(', ') }}
+                            @endif
+                        </span>
+                    </div>
                     <div class="flex justify-between pt-1">
                         <span class="text-gray-500 font-medium">Status</span>
                         @if ($selectedSchool->isActive())
@@ -109,6 +127,48 @@
                             <x-mary-badge label="Dibekukan" class="bg-[#FF8040] text-white border-none badge-sm" />
                         @endif
                     </div>
+                </div>
+                <div class="bg-gray-50 rounded-xl p-4 text-sm border border-gray-100">
+                    <div class="flex items-center justify-between border-b border-gray-200 pb-2 mb-3">
+                        <span class="text-gray-500 font-medium">Akun Admin Sekolah</span>
+                        @if ($selectedSchool->account)
+                            @if ($selectedSchool->account->status === 'active')
+                                <x-mary-badge label="Aktif" class="bg-[#0046FF] text-white border-none badge-sm" />
+                            @else
+                                <x-mary-badge label="Nonaktif" class="bg-[#FF8040] text-white border-none badge-sm" />
+                            @endif
+                        @endif
+                    </div>
+                    @if ($selectedSchool->account)
+                        <div class="space-y-2">
+                            <div class="flex justify-between">
+                                <span class="text-gray-500 font-medium">Username</span>
+                                <span class="font-mono font-bold">{{ $selectedSchool->account->username }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-500 font-medium">Email</span>
+                                <span>{{ $selectedSchool->account->email ?? '-' }}</span>
+                            </div>
+                            <div class="flex justify-end gap-2 pt-2">
+                                <x-mary-button label="Reset Password" icon="o-key"
+                                    wire:click="confirmResetPassword({{ $selectedSchool->id }})"
+                                    class="btn-sm bg-[#0046FF] text-white border-none" />
+                                @if ($selectedSchool->account->status === 'active')
+                                    <x-mary-button label="Nonaktifkan Akun" icon="o-no-symbol"
+                                        wire:click="confirmToggleAccount({{ $selectedSchool->id }})"
+                                        class="btn-sm bg-[#FF8040] text-white border-none" />
+                                @else
+                                    <x-mary-button label="Aktifkan Akun" icon="o-check-badge"
+                                        wire:click="confirmToggleAccount({{ $selectedSchool->id }})"
+                                        class="btn-sm bg-[#0046FF] text-white border-none" />
+                                @endif
+                            </div>
+                        </div>
+                    @else
+                        <p class="text-xs text-gray-400">
+                            Belum ada akun admin untuk sekolah ini. Isi password saat edit sekolah untuk membuatnya.
+                        </p>
+                    @endif
                 </div>
             </div>
         @endif
@@ -154,6 +214,50 @@
             <x-mary-button label="Batal" wire:click="$set('confirmingDestroy', false)"
                 class="btn-ghost text-black" />
             <x-mary-button label="Ya, Hapus" wire:click="destroy" class="bg-[#FF8040] text-white border-none" />
+        </x-slot:actions>
+    </x-mary-modal>
+    <x-mary-modal wire:model="confirmingResetPassword" title="Reset Password Akun Sekolah" class="backdrop-blur"
+        title-class="text-[#0046FF]">
+        <div class="flex items-start gap-4">
+            <div class="p-3 bg-[#0046FF]/10 text-[#0046FF] rounded-full shrink-0">
+                <x-mary-icon name="o-key" class="w-7 h-7" />
+            </div>
+            <div class="flex-1">
+                <p class="font-semibold text-black">Reset password untuk <span
+                        class="text-[#0046FF]">"{{ $targetSchoolName }}"</span>?</p>
+                <p class="text-sm text-gray-500 mt-1 leading-relaxed">
+                    Password akun admin sekolah akan diganti dengan nilai baru di bawah.
+                </p>
+                <x-mary-input label="Password Baru" type="password" wire:model="newPassword"
+                    placeholder="Minimal 8 karakter" icon="o-lock-closed" class="mt-4" />
+            </div>
+        </div>
+        <x-slot:actions>
+            <x-mary-button label="Batal" wire:click="$set('confirmingResetPassword', false)"
+                class="btn-ghost text-black" />
+            <x-mary-button label="Ya, Reset Password" wire:click="resetUserPassword"
+                class="bg-[#0046FF] text-white border-none" />
+        </x-slot:actions>
+    </x-mary-modal>
+    <x-mary-modal wire:model="confirmingToggleAccount" title="Ubah Status Akun Sekolah" class="backdrop-blur"
+        title-class="text-[#FF8040]">
+        <div class="flex items-start gap-4">
+            <div class="p-3 bg-[#FF8040]/10 text-[#FF8040] rounded-full shrink-0">
+                <x-mary-icon name="o-no-symbol" class="w-7 h-7" />
+            </div>
+            <div>
+                <p class="font-semibold text-black">Ubah status akun <span
+                        class="text-[#FF8040]">"{{ $targetAccountName }}"</span>?</p>
+                <p class="text-sm text-gray-500 mt-1 leading-relaxed">
+                    Akun nonaktif tidak dapat digunakan untuk login, namun riwayat transaksi tetap tersimpan.
+                </p>
+            </div>
+        </div>
+        <x-slot:actions>
+            <x-mary-button label="Batal" wire:click="$set('confirmingToggleAccount', false)"
+                class="btn-ghost text-black" />
+            <x-mary-button label="Ya, Ubah Status" wire:click="toggleAccount"
+                class="bg-[#FF8040] text-white border-none" />
         </x-slot:actions>
     </x-mary-modal>
 </div>

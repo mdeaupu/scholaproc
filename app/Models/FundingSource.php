@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class FundingSource extends Model
@@ -21,5 +22,10 @@ class FundingSource extends Model
     public function procurementRequests(): HasMany
     {
         return $this->hasMany(ProcurementRequest::class);
+    }
+
+    public function schools(): BelongsToMany
+    {
+        return $this->belongsToMany(School::class)->withTimestamps();
     }
 }

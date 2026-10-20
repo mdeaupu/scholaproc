@@ -18,6 +18,8 @@ class SchoolService
                 'postal_code' => $data['postal_code'] ?? null,
                 'phone_number' => $data['phone_number'],
                 'email' => $data['email'] ?? null,
+                'principal_name' => $data['principal_name'] ?? null,
+                'principal_nip' => $data['principal_nip'] ?? null,
                 'status' => $data['status'] ?? 'active',
             ]);
 
@@ -26,6 +28,8 @@ class SchoolService
                 'kop_provinsi' => $data['kop_provinsi'],
                 'kop_sub_wilayah' => $data['kop_sub_wilayah'] ?? null,
             ]);
+
+            $school->fundingSources()->sync($data['funding_source_ids'] ?? []);
 
             $account = $school->account()->create([
                 'name' => 'Admin ' . $school->name,
@@ -52,6 +56,8 @@ class SchoolService
                 'postal_code' => $data['postal_code'] ?? null,
                 'phone_number' => $data['phone_number'],
                 'email' => $data['email'] ?? null,
+                'principal_name' => $data['principal_name'] ?? null,
+                'principal_nip' => $data['principal_nip'] ?? null,
                 'status' => $data['status'],
             ]);
 
@@ -63,6 +69,8 @@ class SchoolService
                     'kop_sub_wilayah' => $data['kop_sub_wilayah'] ?? null,
                 ]
             );
+
+            $school->fundingSources()->sync($data['funding_source_ids'] ?? []);
 
             $account = $school->account;
 

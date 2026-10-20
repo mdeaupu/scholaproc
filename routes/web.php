@@ -8,14 +8,11 @@ use App\Livewire\School\SchoolForm;
 use App\Livewire\School\SchoolIndex;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
-use Livewire\Volt\Volt;
 
 Route::middleware('guest')->group(function () {
     Route::get('/', function () {
         return redirect()->route('login');
     });
-
-    Volt::route('login', 'auth.login')->name('login');
 });
 
 Route::middleware('auth')->group(function () {
@@ -29,6 +26,7 @@ Route::middleware('auth')->group(function () {
         if ($user->isAdmin()) {
             return redirect()->route('dashboard.admin');
         }
+
         return redirect()->route('dashboard.school');
     })->name('dashboard');
 
@@ -52,6 +50,6 @@ Route::middleware('auth')->group(function () {
     Route::view('profile', 'profile')->name('profile');
 });
 
-if (file_exists(__DIR__ . '/auth.php')) {
-    require __DIR__ . '/auth.php';
+if (file_exists(__DIR__.'/auth.php')) {
+    require __DIR__.'/auth.php';
 }

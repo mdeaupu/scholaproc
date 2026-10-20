@@ -38,7 +38,7 @@ test('profile information can be updated', function () {
     $this->assertNull($user->email_verified_at);
 });
 
-test('email verification status is unchanged when the email address is unchanged', function () {
+test('email verified timestamp is unchanged when the email address is unchanged', function () {
     $user = User::factory()->create();
 
     $this->actingAs($user);

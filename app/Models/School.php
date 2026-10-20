@@ -44,7 +44,7 @@ class School extends Model
     public function activeRequestsCount(): int
     {
         return $this->procurementRequests()
-            ->whereNotIn('status', ['completed', 'rejected'])
+            ->active()
             ->count();
     }
 

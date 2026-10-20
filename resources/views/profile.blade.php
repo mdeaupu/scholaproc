@@ -13,5 +13,11 @@
                 <livewire:profile.update-password-form />
             </div>
         </div>
+        <div class="bg-white overflow-hidden shadow-sm rounded-2xl border border-base-200/80 p-6 sm:p-8 relative">
+            <div class="absolute top-0 left-0 w-1 h-full bg-[#FF8040]"></div>
+            <div class="max-w-2xl">
+                <livewire:profile.delete-user-form />
+            </div>
+        </div>
     </div>
 </x-app-layout>

@@ -13,21 +13,35 @@ class SchoolForm extends Component
     use Toast;
 
     public ?School $school = null;
+
     public bool $isEdit = false;
 
     public string $npsn = '';
+
     public string $name = '';
+
     public string $address = '';
+
     public ?string $postal_code = null;
+
     public string $phone_number = '';
+
     public ?string $email = null;
+
     public string $status = 'active';
+
     public string $kop_pusat = '';
+
     public string $kop_provinsi = '';
+
     public string $kop_sub_wilayah = '';
+
     public string $password = '';
+
     public ?string $principal_name = null;
+
     public ?string $principal_nip = null;
+
     public array $funding_source_ids = [];
 
     public function mount(?School $school = null)
@@ -53,7 +67,7 @@ class SchoolForm extends Component
     protected function rules(): array
     {
         $rules = [
-            'npsn' => 'required|numeric|digits:8|unique:schools,npsn,' . ($this->school->id ?? 'NULL'),
+            'npsn' => 'required|numeric|digits:8|unique:schools,npsn,'.($this->school->id ?? 'NULL'),
             'name' => 'required|string|max:255',
             'address' => 'required|string',
             'postal_code' => 'nullable|string|max:10',
@@ -111,6 +125,7 @@ class SchoolForm extends Component
 
         $this->redirectRoute('schools.index', navigate: true);
     }
+
     public function render()
     {
         return view('livewire.school.school-form', [

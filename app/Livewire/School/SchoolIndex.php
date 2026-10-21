@@ -12,20 +12,32 @@ use Mary\Traits\Toast;
 
 class SchoolIndex extends Component
 {
-    use WithPagination, Toast;
+    use Toast, WithPagination;
 
     public bool $confirmingSuspend = false;
+
     public bool $confirmingDestroy = false;
+
     public bool $confirmingResetPassword = false;
+
     public bool $confirmingToggleAccount = false;
+
     public ?int $targetSchoolId = null;
+
     public string $targetSchoolName = '';
+
     public ?int $targetAccountId = null;
+
     public string $targetAccountName = '';
+
     public string $newPassword = '';
+
     public string $search = '';
+
     public string $filterStatus = '';
+
     public bool $detailModal = false;
+
     public ?School $selectedSchool = null;
 
     protected function authorizeSuperAdmin(): void
@@ -54,8 +66,8 @@ class SchoolIndex extends Component
         $schools = School::with(['setting', 'account'])
             ->when($this->search, function ($query) {
                 $query->where(function ($q) {
-                    $q->where('name', 'like', '%' . $this->search . '%')
-                        ->orWhere('npsn', 'like', '%' . $this->search . '%');
+                    $q->where('name', 'like', '%'.$this->search.'%')
+                        ->orWhere('npsn', 'like', '%'.$this->search.'%');
                 });
             })
             ->when($this->filterStatus, function ($query) {
@@ -69,12 +81,12 @@ class SchoolIndex extends Component
             ['key' => 'name', 'label' => 'Nama Sekolah'],
             ['key' => 'phone_number', 'label' => 'No. Telepon', 'sortable' => false],
             ['key' => 'status', 'label' => 'Status', 'class' => 'w-28'],
-            ['key' => 'actions', 'label' => 'Aksi', 'class' => 'text-right w-48', 'sortable' => false]
+            ['key' => 'actions', 'label' => 'Aksi', 'class' => 'text-right w-48', 'sortable' => false],
         ];
 
         return view('livewire.school.school-index', [
             'schools' => $schools,
-            'headers' => $headers
+            'headers' => $headers,
         ])->layout('layouts.app');
     }
 
@@ -97,7 +109,7 @@ class SchoolIndex extends Component
 
             if ($school->account) {
                 $school->account->update([
-                    'status' => 'active'
+                    'status' => 'active',
                 ]);
             }
         });
@@ -126,7 +138,7 @@ class SchoolIndex extends Component
 
                 if ($school->account) {
                     $school->account->update([
-                        'status' => 'suspended'
+                        'status' => 'suspended',
                     ]);
                 }
             });

@@ -10,7 +10,8 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
-use function Pest\Laravel\{actingAs};
+
+use function Pest\Laravel\actingAs;
 
 uses(RefreshDatabase::class);
 
@@ -41,21 +42,21 @@ test('superadmin dapat mendaftarkan sekolah baru sekaligus data kop surat dan ad
 
     $this->assertDatabaseHas('schools', [
         'npsn' => '12345678',
-        'name' => 'SMA Bina Bangsa'
+        'name' => 'SMA Bina Bangsa',
     ]);
 
     $school = School::where('npsn', '12345678')->first();
 
     $this->assertDatabaseHas('school_settings', [
         'school_id' => $school->id,
-        'kop_pusat' => 'Yayasan Bina Bangsa Pusat'
+        'kop_pusat' => 'Yayasan Bina Bangsa Pusat',
     ]);
 
     $this->assertDatabaseHas('users', [
         'school_id' => $school->id,
         'role' => 'school',
         'username' => '12345678',
-        'name' => 'Admin SMA Bina Bangsa'
+        'name' => 'Admin SMA Bina Bangsa',
     ]);
 
     $admin = User::where('school_id', $school->id)->where('role', 'school')->first();
@@ -75,7 +76,7 @@ test('aturan validasi form diterapkan dengan benar saat pendaftaran', function (
         ->assertHasErrors([
             'npsn' => 'numeric',
             'name' => 'required',
-            'password' => 'min'
+            'password' => 'min',
         ]);
 });
 
@@ -101,19 +102,19 @@ test('superadmin dapat mengubah informasi sekolah dan kop surat yang sudah ada',
 
     $school = School::factory()->create([
         'npsn' => '87654321',
-        'name' => 'Nama Sekolah Lama'
+        'name' => 'Nama Sekolah Lama',
     ]);
 
     $setting = SchoolSetting::factory()->create([
         'school_id' => $school->id,
-        'kop_pusat' => 'Kop Pusat Lama'
+        'kop_pusat' => 'Kop Pusat Lama',
     ]);
 
     $admin = User::factory()->create([
         'school_id' => $school->id,
         'role' => 'school',
         'username' => '87654321',
-        'password' => Hash::make('oldpassword')
+        'password' => Hash::make('oldpassword'),
     ]);
 
     actingAs($superadmin);
@@ -137,7 +138,7 @@ test('update password mengubah password admin', function () {
 
     $school = School::factory()->create([
         'npsn' => '22222222',
-        'name' => 'Sekolah B'
+        'name' => 'Sekolah B',
     ]);
 
     SchoolSetting::factory()->create(['school_id' => $school->id]);
@@ -146,7 +147,7 @@ test('update password mengubah password admin', function () {
         'school_id' => $school->id,
         'role' => 'school',
         'username' => '22222222',
-        'password' => Hash::make('oldpass')
+        'password' => Hash::make('oldpass'),
     ]);
 
     actingAs($superadmin);
@@ -170,7 +171,7 @@ test('update tanpa password mempertahankan password lama', function () {
 
     $school = School::factory()->create([
         'npsn' => '33333333',
-        'name' => 'Sekolah C'
+        'name' => 'Sekolah C',
     ]);
 
     SchoolSetting::factory()->create(['school_id' => $school->id]);
@@ -179,7 +180,7 @@ test('update tanpa password mempertahankan password lama', function () {
         'school_id' => $school->id,
         'role' => 'school',
         'username' => '33333333',
-        'password' => Hash::make('oldpass')
+        'password' => Hash::make('oldpass'),
     ]);
 
     actingAs($superadmin);
@@ -203,7 +204,7 @@ test('update sekolah yang tidak memiliki admin akan membuat admin jika password 
 
     $school = School::factory()->create([
         'npsn' => '44444444',
-        'name' => 'Sekolah Tanpa Admin'
+        'name' => 'Sekolah Tanpa Admin',
     ]);
 
     SchoolSetting::factory()->create(['school_id' => $school->id]);
@@ -234,7 +235,7 @@ test('update sekolah tanpa admin dan password kosong tidak membuat admin', funct
 
     $school = School::factory()->create([
         'npsn' => '55555555',
-        'name' => 'Sekolah Tanpa Admin 2'
+        'name' => 'Sekolah Tanpa Admin 2',
     ]);
 
     SchoolSetting::factory()->create(['school_id' => $school->id]);
@@ -266,7 +267,7 @@ test('setiap sekolah hanya memiliki satu admin', function () {
     User::factory()->create([
         'school_id' => $school->id,
         'role' => 'school',
-        'username' => '66666666'
+        'username' => '66666666',
     ]);
 
     $adminCount = User::where('school_id', $school->id)->where('role', 'school')->count();

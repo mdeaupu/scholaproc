@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class School extends Model
 {
-    use SoftDeletes, HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'npsn',
@@ -83,6 +83,7 @@ class School extends Model
     {
         return $this->procurementRequests()->count();
     }
+
     public function totalProcurementValue(): float
     {
         return (float) $this->procurementRequests()

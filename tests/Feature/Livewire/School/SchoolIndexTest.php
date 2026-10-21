@@ -5,7 +5,9 @@ use App\Models\School;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
-use function Pest\Laravel\{actingAs, get, assertSoftDeleted};
+
+use function Pest\Laravel\actingAs;
+use function Pest\Laravel\assertSoftDeleted;
 
 uses(RefreshDatabase::class);
 

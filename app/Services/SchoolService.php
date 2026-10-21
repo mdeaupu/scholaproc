@@ -32,7 +32,7 @@ class SchoolService
             $school->fundingSources()->sync($data['funding_source_ids'] ?? []);
 
             $account = $school->account()->create([
-                'name' => 'Admin ' . $school->name,
+                'name' => 'Admin '.$school->name,
                 'username' => $data['npsn'],
                 'email' => $school->email,
                 'password' => Hash::make($data['password']),
@@ -76,7 +76,7 @@ class SchoolService
 
             if ($account) {
                 $accountData = [
-                    'name' => 'Admin ' . $school->name,
+                    'name' => 'Admin '.$school->name,
                     'username' => $data['npsn'],
                     'email' => $data['email'] ?? null,
                     'status' => $data['status'],
@@ -91,7 +91,7 @@ class SchoolService
                     $accountData['email'] = $data['email'] ?? null;
                 }
 
-                if (!empty($data['password'])) {
+                if (! empty($data['password'])) {
                     $accountData['password'] = Hash::make($data['password']);
                 }
 
@@ -99,18 +99,18 @@ class SchoolService
                     $accountData['status'] = $data['status'];
                 }
 
-                if (!empty($accountData)) {
+                if (! empty($accountData)) {
                     $account->update($accountData);
                 }
 
                 $account->syncRoles(['school']);
 
             } else {
-                $password = !empty($data['password']) ? $data['password'] : $data['npsn'];
+                $password = ! empty($data['password']) ? $data['password'] : $data['npsn'];
 
-                if (!empty($data['password'])) {
+                if (! empty($data['password'])) {
                     $account = $school->account()->create([
-                        'name' => 'Admin ' . $school->name,
+                        'name' => 'Admin '.$school->name,
                         'username' => $data['npsn'],
                         'email' => $school->email,
                         'password' => Hash::make($password),

@@ -72,7 +72,7 @@ test('users can logout', function () {
 
     $this->actingAs($user);
 
-    $component = Volt::test('layout.navigation');
+    $component = Volt::test('layout.sidebar-menu');
 
     $component->call('logout');
 

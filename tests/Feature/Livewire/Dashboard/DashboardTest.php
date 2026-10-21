@@ -6,13 +6,15 @@ use App\Livewire\Dashboard\SuperAdminDashboard;
 use App\Models\BudgetYear;
 use App\Models\GeneratedDocument;
 use App\Models\Notification;
+use App\Models\PackageCategory;
 use App\Models\ProcurementNegotiation;
 use App\Models\ProcurementRequest;
 use App\Models\ProcurementRequestItem;
 use App\Models\School;
+use App\Models\Supplier;
 use App\Models\User;
-use Livewire\Livewire;
 use Illuminate\Support\Carbon;
+use Livewire\Livewire;
 
 test('procurement request scopes return correct status data', function () {
     $school = School::factory()->create();
@@ -47,13 +49,13 @@ test('scope awaiting negotiation correctly filters requests based on item status
     $requestNegotiating = ProcurementRequest::factory()->create(['school_id' => $school->id]);
     ProcurementRequestItem::factory()->create([
         'procurement_request_id' => $requestNegotiating->id,
-        'negotiation_status' => 'negotiating'
+        'negotiation_status' => 'negotiating',
     ]);
 
     $requestAccepted = ProcurementRequest::factory()->create(['school_id' => $school->id]);
     ProcurementRequestItem::factory()->create([
         'procurement_request_id' => $requestAccepted->id,
-        'negotiation_status' => 'accepted'
+        'negotiation_status' => 'accepted',
     ]);
 
     $awaitingRequests = ProcurementRequest::awaitingNegotiation()->get();
@@ -249,7 +251,7 @@ test('admin cv can access cv dashboard with pending verifications data', functio
 
     $request = ProcurementRequest::factory()->create([
         'school_id' => $school->id,
-        'status' => 'submitted'
+        'status' => 'submitted',
     ]);
 
     Livewire::actingAs($adminCv)
@@ -324,7 +326,7 @@ test('admin school can access school dashboard with specific institutional view 
 
     $adminSchool = User::factory()->create([
         'role' => 'school',
-        'school_id' => $school->id
+        'school_id' => $school->id,
     ]);
 
     ProcurementRequest::factory()->create(['school_id' => $school->id, 'status' => 'submitted']);
@@ -452,7 +454,7 @@ test('school dashboard counts negotiations awaiting its decision and payment fol
 test('admin school sees fallback message if not bound to any school', function () {
     $unboundAdmin = User::factory()->create([
         'role' => 'school',
-        'school_id' => null
+        'school_id' => null,
     ]);
 
     Livewire::actingAs($unboundAdmin)
@@ -464,4 +466,125 @@ test('admin school sees fallback message if not bound to any school', function (
         ->assertViewHas('pendingNegotiationCount', 0)
         ->assertViewHas('paymentPendingCount', 0)
         ->assertViewHas('recentRequests', fn ($requests) => $requests->isEmpty());
+});
+
+test('school dashboard provides six month trend and chart settings', function () {
+    $school = School::factory()->create();
+    $user = User::factory()->create(['role' => 'school', 'school_id' => $school->id]);
+
+    ProcurementRequest::factory()->create(['school_id' => $school->id, 'status' => 'submitted']);
+
+    Livewire::actingAs($user)
+        ->test(SchoolDashboard::class)
+        ->assertViewHas('trendLabels', fn ($labels) => count($labels) === 6)
+        ->assertViewHas('trendCounts', fn ($counts) => count($counts) === 6 && $counts[5] === 1)
+        ->assertViewHas('trendAmounts', fn ($amounts) => count($amounts) === 6)
+        ->assertViewHas('trendChart', function ($chart) {
+            return $chart['type'] === 'bar'
+                && count($chart['data']['datasets']) === 2
+                && count($chart['data']['labels']) === 6;
+        })
+        ->assertViewHas('categoryChart', fn ($chart) => $chart['type'] === 'doughnut');
+});
+
+test('school dashboard groups procurement requests by package category', function () {
+    $school = School::factory()->create();
+    $user = User::factory()->create(['role' => 'school', 'school_id' => $school->id]);
+    $categoryA = PackageCategory::create(['name' => 'Sarana Prasarana']);
+    $categoryB = PackageCategory::create(['name' => 'Alat Tulis Kantor']);
+
+    ProcurementRequest::factory()->create([
+        'school_id' => $school->id,
+        'status' => 'submitted',
+        'package_category_id' => $categoryA->id,
+    ]);
+    ProcurementRequest::factory()->create([
+        'school_id' => $school->id,
+        'status' => 'draft',
+        'package_category_id' => $categoryB->id,
+    ]);
+    ProcurementRequest::factory()->create([
+        'school_id' => $school->id,
+        'status' => 'draft',
+        'package_category_id' => $categoryA->id,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test(SchoolDashboard::class)
+        ->assertViewHas('categoryGrandTotal', 3)
+        ->assertViewHas('categoryBreakdown', function ($breakdown) use ($categoryA, $categoryB) {
+            $byName = $breakdown->pluck('count', 'name');
+
+            return $breakdown->count() === 2
+                && $byName[$categoryA->name] === 2
+                && $byName[$categoryB->name] === 1
+                && (int) $breakdown->sum('count') === 3;
+        })
+        ->assertViewHas('totalRequests', 3);
+});
+
+test('school dashboard lists pending negotiation items with item and supplier details', function () {
+    $school = School::factory()->create();
+    $otherSchool = School::factory()->create();
+    $user = User::factory()->create(['role' => 'school', 'school_id' => $school->id]);
+    $cvStaff = User::factory()->create(['role' => 'admin']);
+    $supplier = Supplier::create([
+        'company_name' => 'PT Maju Jaya',
+        'pic_name' => 'Budi',
+        'email' => 'dummy@majujaya.test',
+        'phone' => '0263000000',
+        'address' => 'Jl. Dummy No. 1',
+        'npwp' => '00.000.000.0-000.000',
+        'nib' => '1234567890',
+        'director_name' => 'Direktur Dummy',
+        'director_nik' => '1234567890123456',
+    ]);
+
+    $request = ProcurementRequest::factory()->create([
+        'school_id' => $school->id,
+        'status' => 'negotiation',
+        'supplier_id' => $supplier->id,
+    ]);
+    $item = ProcurementRequestItem::factory()->create([
+        'procurement_request_id' => $request->id,
+        'item_name' => 'Laptop',
+        'negotiation_status' => 'negotiating',
+    ]);
+    ProcurementNegotiation::create([
+        'procurement_request_item_id' => $item->id,
+        'round_number' => 1,
+        'offered_by' => ProcurementNegotiation::OFFERED_BY_CV,
+        'user_id' => $cvStaff->id,
+        'offered_price' => 12000000,
+        'status' => ProcurementNegotiation::STATUS_PENDING,
+    ]);
+
+    $otherRequest = ProcurementRequest::factory()->create([
+        'school_id' => $otherSchool->id,
+        'status' => 'negotiation',
+    ]);
+    $otherItem = ProcurementRequestItem::factory()->create([
+        'procurement_request_id' => $otherRequest->id,
+        'negotiation_status' => 'negotiating',
+    ]);
+    ProcurementNegotiation::create([
+        'procurement_request_item_id' => $otherItem->id,
+        'round_number' => 1,
+        'offered_by' => ProcurementNegotiation::OFFERED_BY_CV,
+        'user_id' => $cvStaff->id,
+        'offered_price' => 9000000,
+        'status' => ProcurementNegotiation::STATUS_PENDING,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test(SchoolDashboard::class)
+        ->assertViewHas('negotiationWaitingCount', 1)
+        ->assertViewHas('pendingNegotiationItems', function ($items) use ($request, $item, $supplier) {
+            return $items->count() === 1
+                && $items->first()->id === $items->first()->id
+                && $items->first()->procurementRequestItem->id === $item->id
+                && $items->first()->procurementRequestItem->item_name === 'Laptop'
+                && $items->first()->procurementRequest->id === $request->id
+                && $items->first()->procurementRequest->supplier->company_name === $supplier->company_name;
+        });
 });

@@ -14,23 +14,25 @@
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
-    <body class="font-sans antialiased">
-        <div class="min-h-screen bg-gray-100">
-            <livewire:layout.navigation />
+    <body class="font-sans antialiased bg-gray-100">
+        <livewire:layout.navigation />
 
-            <!-- Page Heading -->
-            @if (isset($header))
-                <header class="bg-white shadow">
-                    <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-                        {{ $header }}
-                    </div>
-                </header>
-            @endif
+        <x-mary-main :with-nav="true" :full-width="true">
+            <x-slot:sidebar drawer="sidebar" class="!h-dvh lg:!h-[calc(100vh-65px)] bg-base-100 border-e border-base-content/10">
+                <livewire:layout.sidebar-menu />
+            </x-slot:sidebar>
 
-            <!-- Page Content -->
-            <main>
+            <x-slot:content>
+                @if (isset($header))
+                    <header class="bg-base-100 border-b border-base-content/10 shadow-sm -mx-5 -mt-5 mb-5 lg:-mx-10 lg:-mt-5">
+                        <div class="py-4 px-4 sm:px-6 lg:px-10">
+                            {{ $header }}
+                        </div>
+                    </header>
+                @endif
+
                 {{ $slot }}
-            </main>
-        </div>
+            </x-slot:content>
+        </x-mary-main>
     </body>
 </html>

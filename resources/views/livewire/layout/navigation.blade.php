@@ -1,120 +1,91 @@
 <?php
 
-use App\Livewire\Actions\Logout;
+use App\Models\Notification;
 use Livewire\Volt\Component;
 
 new class extends Component {
-    /**
-     * Log the current user out of the application.
-     */
-    public function logout(Logout $logout): void
-    {
-        $logout();
+    public $notifications = [];
 
-        $this->redirect('/', navigate: true);
+    public function mount(): void
+    {
+        /** @var \App\Models\User|null $user */
+        $user = auth()->user();
+
+        if ($user?->isSchool() && $user->school_id) {
+            $this->notifications = Notification::whereHas(
+                'procurementRequest',
+                fn ($query) => $query->where('school_id', $user->school_id)
+            )->latest()->take(5)->get();
+        }
     }
 }; ?>
 
-<nav x-data="{ open: false }" class="bg-white border-b border-gray-100">
-    <!-- Primary Navigation Menu -->
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16">
-            <div class="flex">
-                <!-- Logo -->
-                <div class="shrink-0 flex items-center">
-                    <a href="{{ route('dashboard') }}" wire:navigate>
-                        <x-application-logo class="block h-9 w-auto fill-current text-gray-800" />
-                    </a>
-                </div>
+<x-mary-nav sticky :full-width="true">
+    <x-slot:brand>
+        <label for="sidebar" class="btn btn-square btn-ghost swap swap-rotate lg:hidden">
+            <input type="checkbox" />
+            <svg class="swap-off fill-current" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                viewBox="0 0 24 24">
+                <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" fill="none"
+                    stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <svg class="swap-on fill-current" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                viewBox="0 0 24 24">
+                <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" stroke-width="2" fill="none"
+                    stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+        </label>
 
-                <!-- Navigation Links -->
-                <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                    <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard*')" wire:navigate>
-                        {{ __('Dashboard') }}
-                    </x-nav-link>
-                </div>
-            </div>
+        <a href="{{ route('dashboard') }}" wire:navigate class="flex items-center gap-3">
+            <span class="bg-[#0046FF] text-white rounded-xl p-2">
+                <x-mary-icon name="o-building-library" class="w-5 h-5" />
+            </span>
+            <span class="leading-tight text-left">
+                <span class="block font-extrabold text-sm sm:text-base text-gray-900">Sistem Informasi</span>
+                <span class="block text-xs sm:text-sm text-gray-500">Pengadaan Barang Sekolah</span>
+            </span>
+        </a>
+    </x-slot:brand>
 
-            <!-- Settings Dropdown -->
-            <div class="hidden sm:flex sm:items-center sm:ms-6">
-                <x-dropdown align="right" width="48">
-                    <x-slot name="trigger">
-                        <button
-                            class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-500 bg-white hover:text-gray-700 focus:outline-none transition ease-in-out duration-150">
-                            <div x-data="{{ json_encode(['name' => auth()->user()->name]) }}" x-text="name"
-                                x-on:profile-updated.window="name = $event.detail.name"></div>
+    <x-slot:actions>
+        @if (auth()->user()?->isSchool())
+            <x-mary-dropdown right scroll max-height="max-h-96">
+                <x-slot:trigger>
+                    <button class="btn btn-ghost btn-circle relative" title="Notifikasi">
+                        <x-mary-icon name="o-bell-alert" class="w-6 h-6 text-gray-600" />
+                        @if (count($notifications))
+                            <span
+                                class="badge badge-error badge-xs absolute top-0 right-0 -mt-1 -me-1 text-white font-bold">
+                                {{ count($notifications) > 9 ? '9+' : count($notifications) }}
+                            </span>
+                        @endif
+                    </button>
+                </x-slot:trigger>
 
-                            <div class="ms-1">
-                                <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg"
-                                    viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd"
-                                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                                        clip-rule="evenodd" />
-                                </svg>
+                <div class="w-80">
+                    <div class="px-4 py-2.5 font-bold text-sm text-gray-900 border-b border-base-content/10">
+                        Notifikasi Terbaru
+                    </div>
+                    @forelse ($notifications as $notification)
+                        <li>
+                            <div class="flex flex-col items-start gap-1 py-2 px-2">
+                                <span class="text-sm text-gray-700 leading-snug normal-case">
+                                    {{ \Illuminate\Support\Str::limit($notification->message_content, 80) }}</span>
+                                <span class="text-xs text-gray-400">{{ $notification->created_at->diffForHumans() }}</span>
                             </div>
-                        </button>
-                    </x-slot>
-
-                    <x-slot name="content">
-                        <x-dropdown-link :href="route('profile')" wire:navigate>
-                            {{ __('Profile') }}
-                        </x-dropdown-link>
-
-                        <!-- Authentication -->
-                        <button wire:click="logout" class="w-full text-start">
-                            <x-dropdown-link>
-                                {{ __('Log Out') }}
-                            </x-dropdown-link>
-                        </button>
-                    </x-slot>
-                </x-dropdown>
-            </div>
-
-            <!-- Hamburger -->
-            <div class="-me-2 flex items-center sm:hidden">
-                <button @click="open = ! open"
-                    class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:bg-gray-100 focus:text-gray-500 transition duration-150 ease-in-out">
-                    <svg class="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
-                        <path :class="{'hidden': open, 'inline-flex': ! open }" class="inline-flex"
-                            stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M4 6h16M4 12h16M4 18h16" />
-                        <path :class="{'hidden': ! open, 'inline-flex': open }" class="hidden" stroke-linecap="round"
-                            stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Responsive Navigation Menu -->
-    <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
-        <div class="pt-2 pb-3 space-y-1">
-            <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')" wire:navigate>
-                {{ __('Dashboard') }}
-            </x-responsive-nav-link>
-        </div>
-
-        <!-- Responsive Settings Options -->
-        <div class="pt-4 pb-1 border-t border-gray-200">
-            <div class="px-4">
-                <div class="font-medium text-base text-gray-800"
-                    x-data="{{ json_encode(['name' => auth()->user()->name]) }}" x-text="name"
-                    x-on:profile-updated.window="name = $event.detail.name"></div>
-                <div class="font-medium text-sm text-gray-500">{{ auth()->user()->email }}</div>
-            </div>
-
-            <div class="mt-3 space-y-1">
-                <x-responsive-nav-link :href="route('profile')" wire:navigate>
-                    {{ __('Profile') }}
-                </x-responsive-nav-link>
-
-                <!-- Authentication -->
-                <button wire:click="logout" class="w-full text-start">
-                    <x-responsive-nav-link>
-                        {{ __('Log Out') }}
-                    </x-responsive-nav-link>
-                </button>
-            </div>
-        </div>
-    </div>
-</nav>
+                        </li>
+                    @empty
+                        <li>
+                            <div class="text-sm text-gray-400 normal-case py-2 px-2">Belum ada notifikasi.</div>
+                        </li>
+                    @endforelse
+                    <li class="border-t border-base-content/10 mt-1">
+                        <a href="#notifikasi-terbaru" class="text-[#0046FF] font-semibold justify-center text-sm">
+                            Lihat Semua
+                        </a>
+                    </li>
+                </div>
+            </x-mary-dropdown>
+        @endif
+    </x-slot:actions>
+</x-mary-nav>

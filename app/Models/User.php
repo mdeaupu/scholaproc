@@ -15,7 +15,7 @@ use Spatie\Permission\Traits\HasRoles;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, HasRoles;
+    use HasFactory, HasRoles, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -55,7 +55,6 @@ class User extends Authenticatable
         ];
     }
 
-
     public function school(): BelongsTo
     {
         return $this->belongsTo(School::class);
@@ -71,7 +70,6 @@ class User extends Authenticatable
         return $this->hasMany(ProcurementNegotiation::class);
     }
 
-
     public function isSuperAdmin(): bool
     {
         return $this->role === 'superadmin';
@@ -85,6 +83,11 @@ class User extends Authenticatable
     public function isSchool(): bool
     {
         return $this->role === 'school';
+    }
+
+    public function isActive(): bool
+    {
+        return $this->status === 'active';
     }
 
     public function canManageSchools(): bool
@@ -111,7 +114,6 @@ class User extends Authenticatable
     {
         return $this->isSchool() && $this->school_id === $request->school_id;
     }
-
 
     public function scopeActive(Builder $query): Builder
     {

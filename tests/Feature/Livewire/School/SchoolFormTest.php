@@ -1,25 +1,29 @@
 <?php
 
+use App\Livewire\School\SchoolForm;
+use App\Models\FundingSource;
+use App\Models\GeneratedDocument;
+use App\Models\ProcurementRequest;
 use App\Models\School;
 use App\Models\SchoolSetting;
 use App\Models\User;
-use App\Livewire\School\SchoolForm;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
-use function Pest\Laravel\{actingAs};
+
+use function Pest\Laravel\actingAs;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
-    Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
+    Role::firstOrCreate(['name' => 'superadmin', 'guard_name' => 'web']);
     Role::firstOrCreate(['name' => 'school', 'guard_name' => 'web']);
 });
 
-test('owner dapat mendaftarkan sekolah baru sekaligus data kop surat dan admin otomatis', function () {
-    $owner = User::factory()->create(['role' => 'owner']);
+test('superadmin dapat mendaftarkan sekolah baru sekaligus data kop surat dan admin otomatis', function () {
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
 
-    actingAs($owner);
+    actingAs($superadmin);
 
     Livewire::test(SchoolForm::class)
         ->set('npsn', '12345678')
@@ -38,21 +42,21 @@ test('owner dapat mendaftarkan sekolah baru sekaligus data kop surat dan admin o
 
     $this->assertDatabaseHas('schools', [
         'npsn' => '12345678',
-        'name' => 'SMA Bina Bangsa'
+        'name' => 'SMA Bina Bangsa',
     ]);
 
     $school = School::where('npsn', '12345678')->first();
 
     $this->assertDatabaseHas('school_settings', [
         'school_id' => $school->id,
-        'kop_pusat' => 'Yayasan Bina Bangsa Pusat'
+        'kop_pusat' => 'Yayasan Bina Bangsa Pusat',
     ]);
 
     $this->assertDatabaseHas('users', [
         'school_id' => $school->id,
         'role' => 'school',
         'username' => '12345678',
-        'name' => 'Admin SMA Bina Bangsa'
+        'name' => 'Admin SMA Bina Bangsa',
     ]);
 
     $admin = User::where('school_id', $school->id)->where('role', 'school')->first();
@@ -60,9 +64,9 @@ test('owner dapat mendaftarkan sekolah baru sekaligus data kop surat dan admin o
 });
 
 test('aturan validasi form diterapkan dengan benar saat pendaftaran', function () {
-    $owner = User::factory()->create(['role' => 'owner']);
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
 
-    actingAs($owner);
+    actingAs($superadmin);
 
     Livewire::test(SchoolForm::class)
         ->set('npsn', 'tulisan-bukan-angka')
@@ -72,14 +76,14 @@ test('aturan validasi form diterapkan dengan benar saat pendaftaran', function (
         ->assertHasErrors([
             'npsn' => 'numeric',
             'name' => 'required',
-            'password' => 'min'
+            'password' => 'min',
         ]);
 });
 
 test('password wajib diisi saat create', function () {
-    $owner = User::factory()->create(['role' => 'owner']);
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
 
-    actingAs($owner);
+    actingAs($superadmin);
 
     Livewire::test(SchoolForm::class)
         ->set('npsn', '12345678')
@@ -93,27 +97,49 @@ test('password wajib diisi saat create', function () {
         ->assertHasErrors(['password' => 'required']);
 });
 
-test('owner dapat mengubah informasi sekolah dan kop surat yang sudah ada', function () {
-    $owner = User::factory()->create(['role' => 'owner']);
+test('validasi gagal menampilkan toast error agar pengguna tahu form belum lengkap', function () {
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
+
+    actingAs($superadmin);
+
+    Livewire::test(SchoolForm::class)
+        ->set('npsn', '12345678')
+        ->set('name', 'SMA Test')
+        ->set('address', 'Jl. Test')
+        ->set('phone_number', '0263123456')
+        ->set('status', 'active')
+        ->set('password', '')
+        ->set('kop_pusat', '')
+        ->set('kop_provinsi', '')
+        ->call('save')
+        ->assertHasErrors([
+            'password' => 'required',
+            'kop_pusat' => 'required',
+            'kop_provinsi' => 'required',
+        ]);
+});
+
+test('superadmin dapat mengubah informasi sekolah dan kop surat yang sudah ada', function () {
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
 
     $school = School::factory()->create([
         'npsn' => '87654321',
-        'name' => 'Nama Sekolah Lama'
+        'name' => 'Nama Sekolah Lama',
     ]);
 
     $setting = SchoolSetting::factory()->create([
         'school_id' => $school->id,
-        'kop_pusat' => 'Kop Pusat Lama'
+        'kop_pusat' => 'Kop Pusat Lama',
     ]);
 
     $admin = User::factory()->create([
         'school_id' => $school->id,
         'role' => 'school',
         'username' => '87654321',
-        'password' => Hash::make('oldpassword')
+        'password' => Hash::make('oldpassword'),
     ]);
 
-    actingAs($owner);
+    actingAs($superadmin);
 
     Livewire::test(SchoolForm::class, ['school' => $school])
         ->assertSet('name', 'Nama Sekolah Lama')
@@ -130,11 +156,11 @@ test('owner dapat mengubah informasi sekolah dan kop surat yang sudah ada', func
 });
 
 test('update password mengubah password admin', function () {
-    $owner = User::factory()->create(['role' => 'owner']);
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
 
     $school = School::factory()->create([
         'npsn' => '22222222',
-        'name' => 'Sekolah B'
+        'name' => 'Sekolah B',
     ]);
 
     SchoolSetting::factory()->create(['school_id' => $school->id]);
@@ -143,10 +169,10 @@ test('update password mengubah password admin', function () {
         'school_id' => $school->id,
         'role' => 'school',
         'username' => '22222222',
-        'password' => Hash::make('oldpass')
+        'password' => Hash::make('oldpass'),
     ]);
 
-    actingAs($owner);
+    actingAs($superadmin);
 
     Livewire::test(SchoolForm::class, ['school' => $school])
         ->set('npsn', '22222222')
@@ -163,11 +189,11 @@ test('update password mengubah password admin', function () {
 });
 
 test('update tanpa password mempertahankan password lama', function () {
-    $owner = User::factory()->create(['role' => 'owner']);
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
 
     $school = School::factory()->create([
         'npsn' => '33333333',
-        'name' => 'Sekolah C'
+        'name' => 'Sekolah C',
     ]);
 
     SchoolSetting::factory()->create(['school_id' => $school->id]);
@@ -176,10 +202,10 @@ test('update tanpa password mempertahankan password lama', function () {
         'school_id' => $school->id,
         'role' => 'school',
         'username' => '33333333',
-        'password' => Hash::make('oldpass')
+        'password' => Hash::make('oldpass'),
     ]);
 
-    actingAs($owner);
+    actingAs($superadmin);
 
     Livewire::test(SchoolForm::class, ['school' => $school])
         ->set('npsn', '33333333')
@@ -196,18 +222,18 @@ test('update tanpa password mempertahankan password lama', function () {
 });
 
 test('update sekolah yang tidak memiliki admin akan membuat admin jika password diisi', function () {
-    $owner = User::factory()->create(['role' => 'owner']);
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
 
     $school = School::factory()->create([
         'npsn' => '44444444',
-        'name' => 'Sekolah Tanpa Admin'
+        'name' => 'Sekolah Tanpa Admin',
     ]);
 
     SchoolSetting::factory()->create(['school_id' => $school->id]);
 
-    expect($school->admin)->toBeNull();
+    expect($school->account)->toBeNull();
 
-    actingAs($owner);
+    actingAs($superadmin);
 
     Livewire::test(SchoolForm::class, ['school' => $school])
         ->set('npsn', '44444444')
@@ -227,18 +253,18 @@ test('update sekolah yang tidak memiliki admin akan membuat admin jika password 
 });
 
 test('update sekolah tanpa admin dan password kosong tidak membuat admin', function () {
-    $owner = User::factory()->create(['role' => 'owner']);
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
 
     $school = School::factory()->create([
         'npsn' => '55555555',
-        'name' => 'Sekolah Tanpa Admin 2'
+        'name' => 'Sekolah Tanpa Admin 2',
     ]);
 
     SchoolSetting::factory()->create(['school_id' => $school->id]);
 
     expect($school->account)->toBeNull();
 
-    actingAs($owner);
+    actingAs($superadmin);
 
     Livewire::test(SchoolForm::class, ['school' => $school])
         ->set('npsn', '55555555')
@@ -255,7 +281,7 @@ test('update sekolah tanpa admin dan password kosong tidak membuat admin', funct
 });
 
 test('setiap sekolah hanya memiliki satu admin', function () {
-    $owner = User::factory()->create(['role' => 'owner']);
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
 
     $school = School::factory()->create(['npsn' => '66666666']);
     SchoolSetting::factory()->create(['school_id' => $school->id]);
@@ -263,13 +289,13 @@ test('setiap sekolah hanya memiliki satu admin', function () {
     User::factory()->create([
         'school_id' => $school->id,
         'role' => 'school',
-        'username' => '66666666'
+        'username' => '66666666',
     ]);
 
     $adminCount = User::where('school_id', $school->id)->where('role', 'school')->count();
     expect($adminCount)->toBe(1);
 
-    actingAs($owner);
+    actingAs($superadmin);
     Livewire::test(SchoolForm::class, ['school' => $school])
         ->set('npsn', '66666666')
         ->set('name', 'Sekolah 6')
@@ -282,4 +308,127 @@ test('setiap sekolah hanya memiliki satu admin', function () {
 
     $adminCountAfter = User::where('school_id', $school->id)->where('role', 'school')->count();
     expect($adminCountAfter)->toBe(1);
+});
+test('pengguna bukan superadmin tidak dapat membuka form sekolah', function () {
+    $nonSuperadmin = User::factory()->create(['role' => 'admin']);
+
+    actingAs($nonSuperadmin)
+        ->get(route('schools.create'))
+        ->assertStatus(403);
+});
+
+test('komponen form menolak non-superadmin meski dipanggil langsung', function () {
+    $nonSuperadmin = User::factory()->create(['role' => 'admin']);
+
+    Livewire::actingAs($nonSuperadmin)
+        ->test(SchoolForm::class)
+        ->assertStatus(403);
+});
+
+test('superadmin dapat menyimpan kepala sekolah beserta pembatasan sumber dana', function () {
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
+    $bos = FundingSource::factory()->create(['name' => 'BOS Reguler']);
+    $bop = FundingSource::factory()->create(['name' => 'BOP Khusus']);
+
+    actingAs($superadmin);
+
+    Livewire::test(SchoolForm::class)
+        ->set('npsn', '99998888')
+        ->set('name', 'SMA Kepala Terang')
+        ->set('address', 'Jl. Kenanga No. 9')
+        ->set('phone_number', '0263111222')
+        ->set('principal_name', 'Dra. Siti Aminah, M.Pd.')
+        ->set('principal_nip', '197001011994031005')
+        ->set('funding_source_ids', [$bos->id, $bop->id])
+        ->set('status', 'active')
+        ->set('kop_pusat', 'Kop Pusat')
+        ->set('kop_provinsi', 'Kop Provinsi')
+        ->set('password', 'rahasia123')
+        ->call('save')
+        ->assertRedirect(route('schools.index'));
+
+    $school = School::where('npsn', '99998888')->first();
+
+    expect($school->principal_name)->toBe('Dra. Siti Aminah, M.Pd.')
+        ->and($school->principal_nip)->toBe('197001011994031005')
+        ->and($school->fundingSources()->pluck('funding_sources.id')->sort()->values()->all())
+        ->toBe(collect([$bos->id, $bop->id])->sort()->values()->all());
+});
+
+test('update sekolah menyinkronkan sumber dana lama dan dapat dikosongkan', function () {
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
+    $school = School::factory()->create(['npsn' => '77777777']);
+    SchoolSetting::factory()->create(['school_id' => $school->id]);
+    $fsA = FundingSource::factory()->create();
+    $fsB = FundingSource::factory()->create();
+    $school->fundingSources()->attach([$fsA->id, $fsB->id]);
+
+    actingAs($superadmin);
+
+    Livewire::test(SchoolForm::class, ['school' => $school])
+        ->assertSet('funding_source_ids', [$fsA->id, $fsB->id])
+        ->set('npsn', '77777777')
+        ->set('name', 'SMA Sinkron')
+        ->set('address', 'Jl. Sinkron')
+        ->set('phone_number', '123')
+        ->set('kop_pusat', 'Kop')
+        ->set('kop_provinsi', 'Prov')
+        ->set('funding_source_ids', [])
+        ->set('password', '')
+        ->call('save')
+        ->assertRedirect(route('schools.index'));
+
+    expect($school->fundingSources()->count())->toBe(0);
+});
+
+test('sumber dana tidak valid memicu error validasi', function () {
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
+    FundingSource::factory()->create();
+
+    actingAs($superadmin);
+
+    Livewire::test(SchoolForm::class)
+        ->set('npsn', '12121212')
+        ->set('name', 'SMA Validasi')
+        ->set('address', 'Jl. Validasi')
+        ->set('phone_number', '123')
+        ->set('funding_source_ids', [999999])
+        ->set('status', 'active')
+        ->set('kop_pusat', 'Kop')
+        ->set('kop_provinsi', 'Prov')
+        ->set('password', 'rahasia123')
+        ->call('save')
+        ->assertHasErrors(['funding_source_ids.0' => 'exists']);
+});
+
+test('mengedit sekolah tidak mengubah dokumen final yang sudah digenerate', function () {
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
+    $school = School::factory()->create(['npsn' => '88881111', 'name' => 'SMA Dokumen Tetap']);
+    SchoolSetting::factory()->create(['school_id' => $school->id]);
+    $request = ProcurementRequest::factory()->create(['school_id' => $school->id]);
+    $document = GeneratedDocument::create([
+        'procurement_request_id' => $request->id,
+        'document_type' => 'purchase_order',
+        'file_path' => 'documents/po-88881111.pdf',
+        'download_token' => 'token-abc-123',
+        'generated_at' => now(),
+    ]);
+
+    actingAs($superadmin);
+
+    Livewire::test(SchoolForm::class, ['school' => $school])
+        ->set('npsn', '88881111')
+        ->set('name', 'SMA Nama Baru Setelah PO Terbit')
+        ->set('address', 'Jl. Diubah No. 1')
+        ->set('phone_number', '0263999999')
+        ->set('kop_pusat', 'Kop Baru Setelah PO')
+        ->set('kop_provinsi', 'Prov Baru')
+        ->set('password', '')
+        ->call('save')
+        ->assertRedirect(route('schools.index'));
+
+    $document->refresh();
+
+    expect($document->file_path)->toBe('documents/po-88881111.pdf')
+        ->and($document->download_token)->toBe('token-abc-123');
 });

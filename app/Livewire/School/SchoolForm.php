@@ -2,8 +2,10 @@
 
 namespace App\Livewire\School;
 
+use App\Models\FundingSource;
 use App\Models\School;
 use App\Services\SchoolService;
+use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
@@ -12,22 +14,41 @@ class SchoolForm extends Component
     use Toast;
 
     public ?School $school = null;
+
     public bool $isEdit = false;
 
     public string $npsn = '';
+
     public string $name = '';
+
     public string $address = '';
+
     public ?string $postal_code = null;
+
     public string $phone_number = '';
+
     public ?string $email = null;
+
     public string $status = 'active';
+
     public string $kop_pusat = '';
+
     public string $kop_provinsi = '';
+
     public string $kop_sub_wilayah = '';
+
     public string $password = '';
+
+    public ?string $principal_name = null;
+
+    public ?string $principal_nip = null;
+
+    public array $funding_source_ids = [];
 
     public function mount(?School $school = null)
     {
+        abort_unless(auth()->user()?->isSuperAdmin(), 403);
+
         if ($school && $school->exists) {
             $this->school = $school;
             $this->isEdit = true;
@@ -39,18 +60,24 @@ class SchoolForm extends Component
                 $this->kop_provinsi = $school->setting->kop_provinsi;
                 $this->kop_sub_wilayah = $school->setting->kop_sub_wilayah ?? '';
             }
+
+            $this->funding_source_ids = $school->fundingSources()->pluck('funding_sources.id')->all();
         }
     }
 
     protected function rules(): array
     {
         $rules = [
-            'npsn' => 'required|numeric|digits:8|unique:schools,npsn,' . ($this->school->id ?? 'NULL'),
+            'npsn' => 'required|numeric|digits:8|unique:schools,npsn,'.($this->school->id ?? 'NULL'),
             'name' => 'required|string|max:255',
             'address' => 'required|string',
             'postal_code' => 'nullable|string|max:10',
             'phone_number' => 'required|string|max:20',
             'email' => 'nullable|email|max:255',
+            'principal_name' => 'nullable|string|max:255',
+            'principal_nip' => 'nullable|string|max:30',
+            'funding_source_ids' => 'array',
+            'funding_source_ids.*' => 'exists:funding_sources,id',
             'status' => 'required|in:active,suspended',
             'kop_pusat' => 'required|string|max:255',
             'kop_provinsi' => 'required|string|max:255',
@@ -68,7 +95,16 @@ class SchoolForm extends Component
 
     public function save(SchoolService $service)
     {
-        $this->validate();
+        abort_unless(auth()->user()?->isSuperAdmin(), 403);
+
+        try {
+            $this->validate();
+        } catch (ValidationException $e) {
+            $this->toast('error', 'Data belum lengkap!', 'Periksa field yang ditandai merah.',
+                css: 'alert-error', icon: 'o-exclamation-circle');
+
+            throw $e;
+        }
 
         $data = [
             'npsn' => $this->npsn,
@@ -77,6 +113,9 @@ class SchoolForm extends Component
             'postal_code' => $this->postal_code,
             'phone_number' => $this->phone_number,
             'email' => $this->email,
+            'principal_name' => $this->principal_name,
+            'principal_nip' => $this->principal_nip,
+            'funding_source_ids' => $this->funding_source_ids,
             'status' => $this->status,
             'kop_pusat' => $this->kop_pusat,
             'kop_provinsi' => $this->kop_provinsi,
@@ -94,8 +133,11 @@ class SchoolForm extends Component
 
         $this->redirectRoute('schools.index', navigate: true);
     }
+
     public function render()
     {
-        return view('livewire.school.school-form')->title($this->isEdit ? 'Edit Sekolah' : 'Tambah Sekolah')->layout('layouts.app');
+        return view('livewire.school.school-form', [
+            'fundingSources' => FundingSource::where('is_active', true)->orderBy('name')->get(['id', 'name']),
+        ])->title($this->isEdit ? 'Edit Sekolah' : 'Tambah Sekolah')->layout('layouts.app');
     }
 }

@@ -11,12 +11,14 @@ class AuthController extends Controller
 {
     public function resetPassword(Request $request, User $user): RedirectResponse
     {
+        abort_if($user->isSuperAdmin(), 403, 'Kata sandi akun superadmin hanya dapat diubah melalui halaman profil masing-masing.');
+
         $validated = $request->validate([
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
         $user->update([
-            'password' => bcrypt($validated['password'])
+            'password' => bcrypt($validated['password']),
         ]);
 
         return back()->with('success', "Kata sandi untuk pengguna {$user->username} berhasil diperbarui.");

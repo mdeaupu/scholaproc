@@ -15,12 +15,19 @@ class LegalDocumentForm extends Component
     use Toast;
 
     public Supplier $supplier;
+
     public ?SupplierLegalDocument $document = null;
+
     public string $document_type = '';
+
     public string $document_number = '';
+
     public string $document_date = '';
+
     public ?string $notary_name = null;
+
     public ?string $issuer = null;
+
     public ?string $valid_until = null;
 
     public bool $isEdit = false;
@@ -29,7 +36,7 @@ class LegalDocumentForm extends Component
     {
         $existingTypes = $this->supplier->legalDocuments()
             ->pluck('document_type')
-            ->map(fn($type) => $type instanceof DocumentType ? $type->value : $type)
+            ->map(fn ($type) => $type instanceof DocumentType ? $type->value : $type)
             ->toArray();
 
         if ($this->isEdit && $this->document) {
@@ -42,7 +49,7 @@ class LegalDocumentForm extends Component
 
         $options = [];
         foreach (DocumentType::cases() as $case) {
-            if (!in_array($case->value, $existingTypes)) {
+            if (! in_array($case->value, $existingTypes)) {
                 $options[] = ['id' => $case->value, 'name' => $case->label()];
             }
         }
@@ -60,7 +67,7 @@ class LegalDocumentForm extends Component
             $this->document_date = $document->document_date ? Carbon::parse($document->document_date)->format('Y-m-d') : '';
             $this->valid_until = $document->valid_until ? Carbon::parse($document->valid_until)->format('Y-m-d') : null;
             $this->document_type = $document->document_type->value;
-            $this->document_number = $document->document_number;
+            $this->document_number = (string) $document->document_number;
             $this->notary_name = $document->notary_name;
             $this->issuer = $document->issuer;
         }
@@ -74,7 +81,7 @@ class LegalDocumentForm extends Component
                 Rule::enum(DocumentType::class),
                 Rule::unique('supplier_legal_documents', 'document_type')
                     ->where('supplier_id', $this->supplier->id)
-                    ->ignore($this->document?->id)
+                    ->ignore($this->document?->id),
             ],
             'document_number' => 'required|string|max:255',
             'document_date' => 'required|date',
@@ -86,11 +93,11 @@ class LegalDocumentForm extends Component
 
     public function save()
     {
-        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isAdmin()) {
+        if (! auth()->user()->isSuperAdmin() && ! auth()->user()->isAdmin()) {
             abort(403, 'Akses ditolak. Anda tidak memiliki otoritas untuk mengelola dokumen supplier.');
         }
 
-        if (trim($this->valid_until) === '') {
+        if ($this->valid_until !== null && trim($this->valid_until) === '') {
             $this->valid_until = null;
         }
 
@@ -98,21 +105,22 @@ class LegalDocumentForm extends Component
 
         if ($this->isEdit) {
             $this->document->update($validated);
-            $message = "Dokumen legal berhasil diperbarui.";
+            $message = 'Dokumen legal berhasil diperbarui.';
         } else {
             $this->supplier->legalDocuments()->create($validated);
             $message = "Dokumen legal berhasil ditambahkan ke supplier {$this->supplier->company_name}.";
         }
 
-        session()->flash('toast_success', $message);
+        $this->success($message);
 
-        $route = auth()->user()->isSuperAdmin() ? 'owner.suppliers.index' : 'cv.suppliers.index';
+        $route = auth()->user()->isSuperAdmin() ? 'superadmin.suppliers.index' : 'admin.suppliers.index';
+
         return $this->redirectRoute($route, navigate: true);
     }
 
     public function render()
     {
-        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isAdmin()) {
+        if (! auth()->user()->isSuperAdmin() && ! auth()->user()->isAdmin()) {
             abort(403);
         }
 

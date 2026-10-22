@@ -11,7 +11,7 @@ uses(RefreshDatabase::class);
 
 describe('LegalDocumentForm Livewire Component', function () {
     it('renders create form for authorized user', function () {
-        $user = User::factory()->create(['role' => 'owner']);
+        $user = User::factory()->create(['role' => 'superadmin']);
         $supplier = Supplier::factory()->create();
 
         $this->actingAs($user);
@@ -24,7 +24,7 @@ describe('LegalDocumentForm Livewire Component', function () {
     });
 
     it('renders edit form with existing document', function () {
-        $user = User::factory()->create(['role' => 'owner']);
+        $user = User::factory()->create(['role' => 'superadmin']);
         $supplier = Supplier::factory()->create();
 
         $this->actingAs($user);
@@ -41,7 +41,7 @@ describe('LegalDocumentForm Livewire Component', function () {
     });
 
     it('can store new legal document', function () {
-        $user = User::factory()->create(['role' => 'owner']);
+        $user = User::factory()->create(['role' => 'superadmin']);
         $supplier = Supplier::factory()->create();
 
         $this->actingAs($user);
@@ -61,7 +61,7 @@ describe('LegalDocumentForm Livewire Component', function () {
             ->set('issuer', $data['issuer'])
             ->set('valid_until', $data['valid_until'])
             ->call('save')
-            ->assertRedirect(route('owner.suppliers.index'));
+            ->assertRedirect(route('superadmin.suppliers.index'));
 
         $this->assertDatabaseHas('supplier_legal_documents', [
             'supplier_id' => $supplier->id,
@@ -70,7 +70,7 @@ describe('LegalDocumentForm Livewire Component', function () {
     });
 
     it('can update legal document', function () {
-        $user = User::factory()->create(['role' => 'owner']);
+        $user = User::factory()->create(['role' => 'superadmin']);
         $supplier = Supplier::factory()->create();
 
         $this->actingAs($user);
@@ -84,7 +84,7 @@ describe('LegalDocumentForm Livewire Component', function () {
         ])
             ->set('document_number', $newNumber)
             ->call('save')
-            ->assertRedirect(route('owner.suppliers.index'));
+            ->assertRedirect(route('superadmin.suppliers.index'));
 
         $this->assertDatabaseHas('supplier_legal_documents', [
             'id' => $doc->id,
@@ -93,7 +93,7 @@ describe('LegalDocumentForm Livewire Component', function () {
     });
 
     it('validates that valid_until must be after document_date', function () {
-        $user = User::factory()->create(['role' => 'owner']);
+        $user = User::factory()->create(['role' => 'superadmin']);
         $supplier = Supplier::factory()->create();
 
         $this->actingAs($user);

@@ -97,7 +97,7 @@ class User extends Authenticatable
 
     public function canManageSuppliers(): bool
     {
-        return $this->isSuperAdmin();
+        return $this->isSuperAdmin() || $this->isAdmin();
     }
 
     public function canProcessProcurement(): bool

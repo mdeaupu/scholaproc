@@ -9,14 +9,20 @@ use Mary\Traits\Toast;
 
 class SupplierIndex extends Component
 {
-    use WithPagination, Toast;
+    use Toast, WithPagination;
 
     public bool $confirmingDestroy = false;
+
     public ?int $targetSupplierId = null;
+
     public string $targetSupplierName = '';
+
     public string $search = '';
+
     public bool $detailModal = false;
+
     public ?Supplier $selectedSupplier = null;
+
     public array $supplierStats = [];
 
     public function mount(): void
@@ -33,17 +39,17 @@ class SupplierIndex extends Component
 
     public function render()
     {
-        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isAdmin()) {
+        if (! auth()->user()->isSuperAdmin() && ! auth()->user()->isAdmin()) {
             abort(403, 'Akses ditolak. Hanya Owner dan Admin CV yang dapat melihat halaman ini.');
         }
 
         $suppliers = Supplier::with('legalDocuments')
             ->when($this->search, function ($query) {
                 $query->where(function ($q) {
-                    $q->where('company_name', 'like', '%' . $this->search . '%')
-                        ->orWhere('pic_name', 'like', '%' . $this->search . '%')
-                        ->orWhere('npwp', 'like', '%' . $this->search . '%')
-                        ->orWhere('nib', 'like', '%' . $this->search . '%');
+                    $q->where('company_name', 'like', '%'.$this->search.'%')
+                        ->orWhere('pic_name', 'like', '%'.$this->search.'%')
+                        ->orWhere('npwp', 'like', '%'.$this->search.'%')
+                        ->orWhere('nib', 'like', '%'.$this->search.'%');
                 });
             })
             ->latest()
@@ -54,12 +60,12 @@ class SupplierIndex extends Component
             ['key' => 'pic_name', 'label' => 'Nama PIC'],
             ['key' => 'phone', 'label' => 'No. Telepon', 'sortable' => false],
             ['key' => 'npwp', 'label' => 'NPWP', 'class' => 'font-mono'],
-            ['key' => 'actions', 'label' => 'Aksi', 'class' => 'text-right w-48', 'sortable' => false]
+            ['key' => 'actions', 'label' => 'Aksi', 'class' => 'text-right w-48', 'sortable' => false],
         ];
 
         return view('livewire.supplier.supplier-index', [
             'suppliers' => $suppliers,
-            'headers' => $headers
+            'headers' => $headers,
         ])->layout('layouts.app');
     }
 
@@ -90,7 +96,7 @@ class SupplierIndex extends Component
             $supplier = Supplier::findOrFail($this->targetSupplierId);
             $supplier->delete();
 
-            $this->error("Supplier {$supplier->company_name} berhasil dihapus dari sistem.");
+            $this->success("Supplier {$supplier->company_name} berhasil dihapus dari sistem.");
 
             $this->confirmingDestroy = false;
             $this->targetSupplierId = null;

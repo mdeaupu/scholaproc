@@ -10,7 +10,7 @@ uses(RefreshDatabase::class);
 
 describe('SupplierForm Livewire Component', function () {
     it('renders create form for authorized user', function () {
-        $user = User::factory()->create(['role' => 'owner']);
+        $user = User::factory()->create(['role' => 'superadmin']);
 
         $this->actingAs($user);
 
@@ -21,7 +21,7 @@ describe('SupplierForm Livewire Component', function () {
     });
 
     it('renders edit form with existing data', function () {
-        $user = User::factory()->create(['role' => 'owner']);
+        $user = User::factory()->create(['role' => 'superadmin']);
 
         $this->actingAs($user);
 
@@ -34,7 +34,7 @@ describe('SupplierForm Livewire Component', function () {
     });
 
     it('can store new supplier', function () {
-        $user = User::factory()->create(['role' => 'owner']);
+        $user = User::factory()->create(['role' => 'superadmin']);
 
         $this->actingAs($user);
 
@@ -51,7 +51,7 @@ describe('SupplierForm Livewire Component', function () {
             ->set('email', $data['email'])
             ->set('address', $data['address'])
             ->call('save')
-            ->assertRedirect(route('owner.suppliers.index'));
+            ->assertRedirect(route('superadmin.suppliers.index'));
 
         $this->assertDatabaseHas('suppliers', [
             'company_name' => $data['company_name'],
@@ -60,7 +60,7 @@ describe('SupplierForm Livewire Component', function () {
     });
 
     it('can update existing supplier', function () {
-        $user = User::factory()->create(['role' => 'owner']);
+        $user = User::factory()->create(['role' => 'superadmin']);
 
         $this->actingAs($user);
 
@@ -70,7 +70,7 @@ describe('SupplierForm Livewire Component', function () {
         Livewire::test(SupplierForm::class, ['supplier' => $supplier])
             ->set('company_name', $newName)
             ->call('save')
-            ->assertRedirect(route('owner.suppliers.index'));
+            ->assertRedirect(route('superadmin.suppliers.index'));
 
         $this->assertDatabaseHas('suppliers', [
             'id' => $supplier->id,
@@ -79,7 +79,7 @@ describe('SupplierForm Livewire Component', function () {
     });
 
     it('validates uniqueness of npwp and nib', function () {
-        $user = User::factory()->create(['role' => 'owner']);
+        $user = User::factory()->create(['role' => 'superadmin']);
 
         $this->actingAs($user);
 
@@ -96,5 +96,39 @@ describe('SupplierForm Livewire Component', function () {
             ->set('address', 'Jl. Test')
             ->call('save')
             ->assertHasErrors(['npwp']);
+    });
+
+    it('admin cv can save supplier and is redirected to admin index', function () {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($user);
+
+        $data = Supplier::factory()->make()->toArray();
+
+        Livewire::test(SupplierForm::class)
+            ->set('company_name', $data['company_name'])
+            ->set('pic_name', $data['pic_name'])
+            ->set('director_name', $data['director_name'])
+            ->set('director_nik', $data['director_nik'])
+            ->set('npwp', $data['npwp'])
+            ->set('nib', $data['nib'])
+            ->set('phone', $data['phone'])
+            ->set('email', $data['email'])
+            ->set('address', $data['address'])
+            ->call('save')
+            ->assertRedirect(route('admin.suppliers.index'));
+
+        $this->assertDatabaseHas('suppliers', [
+            'company_name' => $data['company_name'],
+        ]);
+    });
+
+    it('school user cannot access supplier form', function () {
+        $user = User::factory()->create(['role' => 'school']);
+
+        $this->actingAs($user);
+
+        Livewire::test(SupplierForm::class)
+            ->assertStatus(403);
     });
 });

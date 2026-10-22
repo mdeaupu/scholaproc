@@ -12,22 +12,35 @@ class SupplierForm extends Component
     use Toast;
 
     public ?Supplier $supplier = null;
+
     public string $company_name = '';
+
     public string $pic_name = '';
+
     public string $npwp = '';
+
     public string $nib = '';
+
     public string $phone = '';
+
     public string $email = '';
+
     public string $address = '';
 
     public string $director_name = '';
+
     public string $director_nik = '';
+
     public ?string $director_npwp = null;
+
     public ?string $director_phone = null;
+
     public ?string $director_address = null;
 
     public ?string $commissioner_name = null;
+
     public ?string $commissioner_nik = null;
+
     public ?string $commissioner_address = null;
 
     public bool $isEdit = false;
@@ -66,20 +79,20 @@ class SupplierForm extends Component
                 'required',
                 'string',
                 'max:30',
-                Rule::unique('suppliers', 'npwp')->ignore($this->supplier?->id)
+                Rule::unique('suppliers', 'npwp')->ignore($this->supplier?->id),
             ],
             'nib' => [
                 'required',
                 'string',
                 'max:50',
-                Rule::unique('suppliers', 'nib')->ignore($this->supplier?->id)
+                Rule::unique('suppliers', 'nib')->ignore($this->supplier?->id),
             ],
             'phone' => 'required|string|max:20',
             'email' => [
                 'nullable',
                 'email',
                 'max:255',
-                Rule::unique('suppliers', 'email')->ignore($this->supplier?->id)
+                Rule::unique('suppliers', 'email')->ignore($this->supplier?->id),
             ],
             'address' => 'required|string',
 
@@ -97,7 +110,7 @@ class SupplierForm extends Component
 
     public function save()
     {
-        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isAdmin()) {
+        if (! auth()->user()->isSuperAdmin() && ! auth()->user()->isAdmin()) {
             abort(403, 'Akses ditolak. Anda tidak memiliki otoritas untuk mengelola data supplier.');
         }
 
@@ -111,15 +124,16 @@ class SupplierForm extends Component
             $message = "Supplier {$this->company_name} berhasil ditambahkan ke dalam sistem.";
         }
 
-        session()->flash('toast_success', $message);
+        $this->success($message);
 
-        $route = auth()->user()->isSuperAdmin() ? 'owner.suppliers.index' : 'cv.suppliers.index';
+        $route = auth()->user()->isSuperAdmin() ? 'superadmin.suppliers.index' : 'admin.suppliers.index';
+
         return $this->redirectRoute($route, navigate: true);
     }
 
     public function render()
     {
-        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isAdminCv()) {
+        if (! auth()->user()->isSuperAdmin() && ! auth()->user()->isAdmin()) {
             abort(403);
         }
 

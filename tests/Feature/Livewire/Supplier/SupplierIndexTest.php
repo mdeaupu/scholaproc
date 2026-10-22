@@ -2,6 +2,7 @@
 
 use App\Livewire\Supplier\SupplierIndex;
 use App\Models\Supplier;
+use App\Models\SupplierLegalDocument;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -10,7 +11,7 @@ uses(RefreshDatabase::class);
 
 describe('SupplierIndex Livewire Component', function () {
     it('renders successfully for authorized user', function () {
-        $user = User::factory()->create(['role' => 'owner']);
+        $user = User::factory()->create(['role' => 'superadmin']);
 
         $this->actingAs($user);
 
@@ -20,7 +21,7 @@ describe('SupplierIndex Livewire Component', function () {
     });
 
     it('aborts for unauthorized user', function () {
-        $user = User::factory()->create(['role' => 'admin_school']);
+        $user = User::factory()->create(['role' => 'school']);
         $this->actingAs($user);
 
         Livewire::test(SupplierIndex::class)
@@ -28,7 +29,7 @@ describe('SupplierIndex Livewire Component', function () {
     });
 
     it('can search suppliers', function () {
-        $user = User::factory()->create(['role' => 'owner']);
+        $user = User::factory()->create(['role' => 'superadmin']);
 
         $this->actingAs($user);
 
@@ -42,12 +43,12 @@ describe('SupplierIndex Livewire Component', function () {
     });
 
     it('can show supplier detail', function () {
-        $user = User::factory()->create(['role' => 'owner']);
+        $user = User::factory()->create(['role' => 'superadmin']);
 
         $this->actingAs($user);
 
         $supplier = Supplier::factory()->create();
-        $doc = \App\Models\SupplierLegalDocument::factory()->for($supplier)->deed()->create();
+        $doc = SupplierLegalDocument::factory()->for($supplier)->deed()->create();
 
         Livewire::test(SupplierIndex::class)
             ->call('show', $supplier->id)
@@ -58,7 +59,7 @@ describe('SupplierIndex Livewire Component', function () {
     });
 
     it('can confirm destroy', function () {
-        $user = User::factory()->create(['role' => 'owner']);
+        $user = User::factory()->create(['role' => 'superadmin']);
 
         $this->actingAs($user);
 
@@ -72,12 +73,12 @@ describe('SupplierIndex Livewire Component', function () {
     });
 
     it('can destroy supplier (soft delete)', function () {
-        $user = User::factory()->create(['role' => 'owner']);
+        $user = User::factory()->create(['role' => 'superadmin']);
 
         $this->actingAs($user);
 
         $supplier = Supplier::factory()->create();
-        $doc = \App\Models\SupplierLegalDocument::factory()->for($supplier)->create();
+        $doc = SupplierLegalDocument::factory()->for($supplier)->create();
 
         Livewire::test(SupplierIndex::class)
             ->call('confirmDestroy', $supplier->id, $supplier->company_name)

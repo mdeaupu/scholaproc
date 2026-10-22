@@ -49,10 +49,6 @@
                         <p class="font-bold text-base mt-0.5">{{ $selectedSupplier->company_name }}</p>
                     </div>
                     <div>
-                        <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Nama Direktur</p>
-                        <p class="font-semibold text-base mt-0.5">{{ $selectedSupplier->director_name }}</p>
-                    </div>
-                    <div>
                         <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Narahubung / PIC</p>
                         <p class="font-medium mt-0.5">{{ $selectedSupplier->pic_name }}</p>
                     </div>

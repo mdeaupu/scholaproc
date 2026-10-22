@@ -45,9 +45,17 @@ class SupplierForm extends Component
 
     public bool $isEdit = false;
 
+    public string $activeTab = 'umum';
+
     public function mount(?Supplier $supplier = null): void
     {
         if ($supplier && $supplier->exists) {
+            $supplier->load([
+                'legalDocuments',
+                'procurementRequests.packageCategory',
+                'procurementRequests.school',
+            ]);
+
             $this->supplier = $supplier;
             $this->isEdit = true;
             $this->company_name = $supplier->company_name;
@@ -68,6 +76,35 @@ class SupplierForm extends Component
             $this->commissioner_nik = $supplier->commissioner_nik;
             $this->commissioner_address = $supplier->commissioner_address;
         }
+    }
+
+    public function getLegalDocumentsProperty()
+    {
+        return $this->supplier?->legalDocuments ?? collect();
+    }
+
+    public function getProjectsProperty()
+    {
+        if (! $this->supplier) {
+            return collect();
+        }
+
+        return $this->supplier->procurementRequests
+            ->sortByDesc('created_at')
+            ->values();
+    }
+
+    public function getSummaryProperty(): array
+    {
+        if (! $this->supplier) {
+            return [];
+        }
+
+        return [
+            'total_projects' => $this->supplier->procurementRequests->count(),
+            'total_project_value' => $this->supplier->totalProjectValue(),
+            'is_complete' => $this->supplier->hasCompleteLegalDocuments(),
+        ];
     }
 
     protected function rules(): array
@@ -137,6 +174,10 @@ class SupplierForm extends Component
             abort(403);
         }
 
-        return view('livewire.supplier.supplier-form')->layout('layouts.app');
+        return view('livewire.supplier.supplier-form', [
+            'legalDocuments' => $this->legalDocuments,
+            'projects' => $this->projects,
+            'summary' => $this->summary,
+        ])->layout('layouts.app');
     }
 }

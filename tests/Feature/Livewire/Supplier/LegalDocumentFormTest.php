@@ -40,6 +40,19 @@ describe('LegalDocumentForm Livewire Component', function () {
             ->assertSet('document_number', $doc->document_number);
     });
 
+    it('returns 404 when editing a document that belongs to another supplier', function () {
+        $user = User::factory()->superAdmin()->create();
+        $supplierA = Supplier::factory()->create();
+        $supplierB = Supplier::factory()->create();
+
+        $this->actingAs($user);
+
+        $docB = SupplierLegalDocument::factory()->for($supplierB)->create();
+
+        $this->get(route('superadmin.suppliers.legal-documents.edit', [$supplierA->id, $docB->id]))
+            ->assertNotFound();
+    });
+
     it('can store new legal document', function () {
         $user = User::factory()->create(['role' => 'superadmin']);
         $supplier = Supplier::factory()->create();
@@ -61,7 +74,7 @@ describe('LegalDocumentForm Livewire Component', function () {
             ->set('issuer', $data['issuer'])
             ->set('valid_until', $data['valid_until'])
             ->call('save')
-            ->assertRedirect(route('superadmin.suppliers.index'));
+            ->assertRedirect(route('superadmin.suppliers.edit', $supplier->id));
 
         $this->assertDatabaseHas('supplier_legal_documents', [
             'supplier_id' => $supplier->id,
@@ -84,7 +97,7 @@ describe('LegalDocumentForm Livewire Component', function () {
         ])
             ->set('document_number', $newNumber)
             ->call('save')
-            ->assertRedirect(route('superadmin.suppliers.index'));
+            ->assertRedirect(route('superadmin.suppliers.edit', $supplier->id));
 
         $this->assertDatabaseHas('supplier_legal_documents', [
             'id' => $doc->id,
@@ -105,5 +118,73 @@ describe('LegalDocumentForm Livewire Component', function () {
             ->set('valid_until', now()->subDay()->format('Y-m-d'))
             ->call('save')
             ->assertHasErrors(['valid_until']);
+    });
+
+    it('renders supplier info, required documents and history sidebar', function () {
+        $user = User::factory()->create(['role' => 'superadmin']);
+        $supplier = Supplier::factory()->create();
+
+        $this->actingAs($user);
+
+        Livewire::test(LegalDocumentForm::class, ['supplier' => $supplier])
+            ->assertSee('Informasi Supplier')
+            ->assertSee('Dokumen yang Diperlukan')
+            ->assertSee('Riwayat Dokumen')
+            ->assertSee('Akta Perusahaan')
+            ->assertSee('Belum Ada');
+    });
+
+    it('noExpiry checkbox clears valid_until on save', function () {
+        $user = User::factory()->create(['role' => 'superadmin']);
+        $supplier = Supplier::factory()->create();
+
+        $this->actingAs($user);
+
+        Livewire::test(LegalDocumentForm::class, ['supplier' => $supplier])
+            ->set('document_type', 'business_permit')
+            ->set('document_number', 'NIB-999')
+            ->set('document_date', now()->format('Y-m-d'))
+            ->set('valid_until', now()->addYear()->format('Y-m-d'))
+            ->set('noExpiry', true)
+            ->call('save')
+            ->assertRedirect(route('superadmin.suppliers.edit', $supplier->id));
+
+        $this->assertDatabaseHas('supplier_legal_documents', [
+            'document_number' => 'NIB-999',
+            'valid_until' => null,
+        ]);
+    });
+
+    it('sets noExpiry true when editing document without valid_until', function () {
+        $user = User::factory()->create(['role' => 'superadmin']);
+        $supplier = Supplier::factory()->create();
+
+        $this->actingAs($user);
+
+        $doc = SupplierLegalDocument::factory()->for($supplier)->permanent()->create();
+
+        Livewire::test(LegalDocumentForm::class, [
+            'supplier' => $supplier,
+            'document' => $doc,
+        ])
+            ->assertSet('noExpiry', true)
+            ->assertSet('valid_until', null);
+    });
+
+    it('sets noExpiry false when editing document with valid_until', function () {
+        $user = User::factory()->create(['role' => 'superadmin']);
+        $supplier = Supplier::factory()->create();
+
+        $this->actingAs($user);
+
+        $doc = SupplierLegalDocument::factory()->for($supplier)
+            ->state(['valid_until' => now()->addYear()->format('Y-m-d')])
+            ->create();
+
+        Livewire::test(LegalDocumentForm::class, [
+            'supplier' => $supplier,
+            'document' => $doc,
+        ])
+            ->assertSet('noExpiry', false);
     });
 });

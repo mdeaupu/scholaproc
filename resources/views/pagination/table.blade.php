@@ -3,7 +3,7 @@
         class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
         <p class="text-sm text-gray-500">
             Menampilkan {{ $paginator->firstItem() }}&ndash;{{ $paginator->lastItem() }} dari
-            {{ $paginator->total() }} sekolah
+            {{ $paginator->total() }} {{ $label ?? 'sekolah' }}
         </p>
 
         <div class="flex items-center gap-1">

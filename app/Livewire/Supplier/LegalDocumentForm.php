@@ -30,11 +30,13 @@ class LegalDocumentForm extends Component
 
     public ?string $valid_until = null;
 
+    public bool $noExpiry = false;
+
     public bool $isEdit = false;
 
     public function getDocumentTypesProperty(): array
     {
-        $existingTypes = $this->supplier->legalDocuments()
+        $existingTypes = $this->supplier->legalDocuments
             ->pluck('document_type')
             ->map(fn ($type) => $type instanceof DocumentType ? $type->value : $type)
             ->toArray();
@@ -57,19 +59,69 @@ class LegalDocumentForm extends Component
         return $options;
     }
 
+    public function getRequiredDocumentsProperty(): array
+    {
+        $existingTypes = $this->supplier->legalDocuments
+            ->map(fn ($doc) => $doc->document_type instanceof DocumentType
+                ? $doc->document_type->value
+                : $doc->document_type)
+            ->toArray();
+
+        $descriptions = [
+            DocumentType::DEED->value => 'Dokumen legalitas perusahaan',
+            DocumentType::NPWP->value => 'Nomor Pokok Wajib Pajak',
+            DocumentType::BUSINESS_PERMIT->value => 'Surat izin usaha (NIB/SIUP)',
+            DocumentType::OTHER->value => 'Dokumen pendukung lainnya',
+        ];
+
+        $orderedTypes = [
+            DocumentType::DEED,
+            DocumentType::NPWP,
+            DocumentType::BUSINESS_PERMIT,
+            DocumentType::OTHER,
+        ];
+
+        return collect($orderedTypes)->map(fn (DocumentType $type) => [
+            'value' => $type->value,
+            'label' => $type->label(),
+            'description' => $descriptions[$type->value],
+            'exists' => in_array($type->value, $existingTypes),
+        ])->all();
+    }
+
+    public function getDocumentHistoryProperty()
+    {
+        return $this->supplier->legalDocuments
+            ->sortByDesc('created_at')
+            ->values();
+    }
+
     public function mount(Supplier $supplier, ?SupplierLegalDocument $document = null): void
     {
-        $this->supplier = $supplier;
+        if ($document && $document->exists && $document->supplier_id !== $supplier->id) {
+            abort(404);
+        }
+
+        $this->supplier = $supplier->load('legalDocuments');
 
         if ($document && $document->exists) {
             $this->document = $document;
             $this->isEdit = true;
             $this->document_date = $document->document_date ? Carbon::parse($document->document_date)->format('Y-m-d') : '';
             $this->valid_until = $document->valid_until ? Carbon::parse($document->valid_until)->format('Y-m-d') : null;
+            $this->noExpiry = is_null($document->valid_until);
             $this->document_type = $document->document_type->value;
             $this->document_number = (string) $document->document_number;
             $this->notary_name = $document->notary_name;
             $this->issuer = $document->issuer;
+        }
+    }
+
+    public function updatedNoExpiry(bool $value): void
+    {
+        if ($value) {
+            $this->valid_until = null;
+            $this->resetValidation('valid_until');
         }
     }
 
@@ -97,6 +149,10 @@ class LegalDocumentForm extends Component
             abort(403, 'Akses ditolak. Anda tidak memiliki otoritas untuk mengelola dokumen supplier.');
         }
 
+        if ($this->noExpiry) {
+            $this->valid_until = null;
+        }
+
         if ($this->valid_until !== null && trim($this->valid_until) === '') {
             $this->valid_until = null;
         }
@@ -113,9 +169,11 @@ class LegalDocumentForm extends Component
 
         $this->success($message);
 
-        $route = auth()->user()->isSuperAdmin() ? 'superadmin.suppliers.index' : 'admin.suppliers.index';
+        $url = auth()->user()->isSuperAdmin()
+            ? route('superadmin.suppliers.edit', $this->supplier->id)
+            : route('admin.suppliers.edit', $this->supplier->id);
 
-        return $this->redirectRoute($route, navigate: true);
+        return $this->redirect($url, navigate: true);
     }
 
     public function render()
@@ -124,6 +182,9 @@ class LegalDocumentForm extends Component
             abort(403);
         }
 
-        return view('livewire.supplier.legal-document-form')->layout('layouts.app');
+        return view('livewire.supplier.legal-document-form', [
+            'requiredDocuments' => $this->requiredDocuments,
+            'documentHistory' => $this->documentHistory,
+        ])->layout('layouts.app');
     }
 }

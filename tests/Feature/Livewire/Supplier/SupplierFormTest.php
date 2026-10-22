@@ -1,7 +1,9 @@
 <?php
 
 use App\Livewire\Supplier\SupplierForm;
+use App\Models\ProcurementRequest;
 use App\Models\Supplier;
+use App\Models\SupplierLegalDocument;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -31,6 +33,26 @@ describe('SupplierForm Livewire Component', function () {
             ->assertSet('isEdit', true)
             ->assertSet('company_name', $supplier->company_name)
             ->assertSet('npwp', $supplier->npwp);
+    });
+
+    it('renders edit form with legal documents and project history', function () {
+        $user = User::factory()->create(['role' => 'superadmin']);
+
+        $this->actingAs($user);
+
+        $supplier = Supplier::factory()->create();
+        SupplierLegalDocument::factory()->for($supplier)->businessPermit()->create();
+        SupplierLegalDocument::factory()->for($supplier)->deed()->create();
+        ProcurementRequest::factory()->for($supplier)->create();
+
+        Livewire::test(SupplierForm::class, ['supplier' => $supplier])
+            ->assertStatus(200)
+            ->assertSee('Informasi Dasar Supplier')
+            ->assertSee('Dokumen Legalitas')
+            ->assertSee('Ringkasan Supplier')
+            ->assertSee('Riwayat Proyek')
+            ->assertSee('NIB (Nomor Induk Berusaha)')
+            ->assertSee('Lengkap & Valid');
     });
 
     it('can store new supplier', function () {

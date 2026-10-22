@@ -67,6 +67,30 @@ test('navigation menu can be rendered', function () {
         ->assertSeeVolt('layout.navigation');
 });
 
+test('admin sidebar supplier menu links to admin suppliers index', function () {
+    $user = User::factory()->admin()->create();
+
+    $this->actingAs($user);
+
+    $component = Volt::test('layout.sidebar-menu');
+
+    $component
+        ->assertSee(route('admin.suppliers.index'), escape: false)
+        ->assertDontSee(route('superadmin.suppliers.index'), escape: false);
+});
+
+test('superadmin sidebar supplier menu links to superadmin suppliers index', function () {
+    $user = User::factory()->superAdmin()->create();
+
+    $this->actingAs($user);
+
+    $component = Volt::test('layout.sidebar-menu');
+
+    $component
+        ->assertSee(route('superadmin.suppliers.index'), escape: false)
+        ->assertDontSee(route('admin.suppliers.index'), escape: false);
+});
+
 test('users can logout', function () {
     $user = User::factory()->create();
 

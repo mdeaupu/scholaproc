@@ -52,7 +52,7 @@ new class extends Component {
                 :active="request()->routeIs('schools.*')" />
         @endif
         @if (auth()->user()?->isSuperAdmin() || auth()->user()?->isAdmin())
-            <x-mary-menu-item title="Manajemen Supplier" icon="o-truck" :route="request()->routeIs('admin.*') ? 'admin.suppliers.index' : 'superadmin.suppliers.index'"
+            <x-mary-menu-item title="Manajemen Supplier" icon="o-truck" :route="auth()->user()->isAdmin() ? 'admin.suppliers.index' : 'superadmin.suppliers.index'"
                 :active="request()->routeIs('*suppliers.*')" />
         @endif
         <x-mary-menu-item title="Profil" icon="o-user-circle" route="profile" />

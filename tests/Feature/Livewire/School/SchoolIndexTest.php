@@ -26,7 +26,31 @@ test('superadmin dapat membuka manajemen sekolah dan melihat daftar instansi', f
     Livewire::actingAs($superadmin)
         ->test(SchoolIndex::class)
         ->assertSee($school->name)
-        ->assertSee($school->npsn);
+        ->assertSee($school->npsn)
+        ->assertSee('badge-sm font-semibold', false)
+        ->assertDontSee('label="Aktif"', false);
+});
+
+test('superadmin dapat membuka modal detail sekolah', function () {
+    $school = School::factory()->create([
+        'name' => 'SMAN 1 Cianjur',
+        'address' => 'Jl. Merdeka No. 1, Cianjur',
+    ]);
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
+
+    Livewire::actingAs($superadmin)
+        ->test(SchoolIndex::class)
+        ->call('show', $school->id)
+        ->assertSet('detailModal', true)
+        ->assertSet('detailTab', 'pengguna')
+        ->assertSee('Detail Sekolah')
+        ->assertSee('Informasi Sekolah')
+        ->assertSee('Kepala Sekolah')
+        ->assertSee('Aksi Cepat')
+        ->assertSee('Akun Admin Sekolah')
+        ->assertSee('Total Pengajuan')
+        ->assertSee('Jl. Merdeka No. 1, Cianjur')
+        ->assertSee($school->name);
 });
 
 test('superadmin dapat mencari sekolah berdasarkan nama ataupun npsn', function () {
@@ -182,4 +206,67 @@ test('aksi akun gagal untuk sekolah yang belum memiliki akun admin', function ()
         ->test(SchoolIndex::class)
         ->call('confirmResetPassword', $school->id)
         ->assertStatus(404);
+});
+
+test('halaman menampilkan ringkasan statistik sekolah', function () {
+    School::factory()->count(2)->create(['status' => 'active']);
+    School::factory()->create(['status' => 'suspended']);
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
+
+    Livewire::actingAs($superadmin)
+        ->test(SchoolIndex::class)
+        ->assertSee('Total Sekolah')
+        ->assertSee('Sekolah Aktif')
+        ->assertSee('Sekolah Nonaktif')
+        ->assertSee('Total Akun Sekolah')
+        ->assertSee('66,7% dari total');
+});
+
+test('superadmin dapat mencari sekolah berdasarkan alamat', function () {
+    $school1 = School::factory()->create([
+        'name' => 'SMAN 1 Cianjur',
+        'npsn' => '10101010',
+        'address' => 'Jl. Melati No. 5, Bandung',
+    ]);
+    $school2 = School::factory()->create([
+        'name' => 'SMKN 2 Bandung',
+        'npsn' => '20202020',
+        'address' => 'Jl. Kenanga No. 8, Surabaya',
+    ]);
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
+
+    Livewire::actingAs($superadmin)
+        ->test(SchoolIndex::class)
+        ->set('search', 'Melati')
+        ->assertSee($school1->name)
+        ->assertDontSee($school2->name);
+});
+
+test('filter status hanya menampilkan sekolah dengan status terpilih', function () {
+    $activeSchool = School::factory()->create(['name' => 'SMAN 1 Jakarta', 'status' => 'active']);
+    $suspendedSchool = School::factory()->create(['name' => 'SMAN 2 Bandung', 'status' => 'suspended']);
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
+
+    Livewire::actingAs($superadmin)
+        ->test(SchoolIndex::class)
+        ->set('filterStatus', 'suspended')
+        ->assertSee($suspendedSchool->name)
+        ->assertDontSee($activeSchool->name);
+});
+
+test('superadmin dapat mengurutkan tabel dan nama kolom tidak dikenal jatuh ke urutan aman', function () {
+    School::factory()->create(['name' => 'SMAN 1 Cianjur', 'npsn' => '10101010']);
+    School::factory()->create(['name' => 'SMKN 2 Bandung', 'npsn' => '20202020']);
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
+
+    $component = Livewire::actingAs($superadmin)
+        ->test(SchoolIndex::class)
+        ->set('sortBy', ['column' => 'name', 'direction' => 'asc']);
+
+    expect($component->viewData('schools')->pluck('name')->all())
+        ->toBe(['SMAN 1 Cianjur', 'SMKN 2 Bandung']);
+
+    $component
+        ->set('sortBy', ['column' => 'name; drop table schools', 'direction' => 'asc'])
+        ->assertSee('SMAN 1 Cianjur');
 });

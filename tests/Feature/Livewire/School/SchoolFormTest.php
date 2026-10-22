@@ -97,6 +97,28 @@ test('password wajib diisi saat create', function () {
         ->assertHasErrors(['password' => 'required']);
 });
 
+test('validasi gagal menampilkan toast error agar pengguna tahu form belum lengkap', function () {
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
+
+    actingAs($superadmin);
+
+    Livewire::test(SchoolForm::class)
+        ->set('npsn', '12345678')
+        ->set('name', 'SMA Test')
+        ->set('address', 'Jl. Test')
+        ->set('phone_number', '0263123456')
+        ->set('status', 'active')
+        ->set('password', '')
+        ->set('kop_pusat', '')
+        ->set('kop_provinsi', '')
+        ->call('save')
+        ->assertHasErrors([
+            'password' => 'required',
+            'kop_pusat' => 'required',
+            'kop_provinsi' => 'required',
+        ]);
+});
+
 test('superadmin dapat mengubah informasi sekolah dan kop surat yang sudah ada', function () {
     $superadmin = User::factory()->create(['role' => 'superadmin']);
 

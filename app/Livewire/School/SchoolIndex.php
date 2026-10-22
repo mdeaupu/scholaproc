@@ -14,6 +14,8 @@ class SchoolIndex extends Component
 {
     use Toast, WithPagination;
 
+    private const SORTABLE_COLUMNS = ['name', 'npsn', 'address', 'status', 'created_at'];
+
     public bool $confirmingSuspend = false;
 
     public bool $confirmingDestroy = false;
@@ -36,7 +38,11 @@ class SchoolIndex extends Component
 
     public string $filterStatus = '';
 
+    public array $sortBy = ['column' => 'created_at', 'direction' => 'desc'];
+
     public bool $detailModal = false;
+
+    public string $detailTab = 'pengguna';
 
     public ?School $selectedSchool = null;
 
@@ -59,34 +65,76 @@ class SchoolIndex extends Component
         $this->resetPage();
     }
 
+    public function updatingFilterStatus(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatingSortBy(): void
+    {
+        $this->resetPage();
+    }
+
     public function render()
     {
         $this->authorizeSuperAdmin();
+
+        $sortColumn = in_array($this->sortBy['column'] ?? null, self::SORTABLE_COLUMNS, true)
+            ? $this->sortBy['column']
+            : 'created_at';
+        $sortDirection = ($this->sortBy['direction'] ?? null) === 'asc' ? 'asc' : 'desc';
 
         $schools = School::with(['setting', 'account'])
             ->when($this->search, function ($query) {
                 $query->where(function ($q) {
                     $q->where('name', 'like', '%'.$this->search.'%')
-                        ->orWhere('npsn', 'like', '%'.$this->search.'%');
+                        ->orWhere('npsn', 'like', '%'.$this->search.'%')
+                        ->orWhere('address', 'like', '%'.$this->search.'%');
                 });
             })
             ->when($this->filterStatus, function ($query) {
                 $query->where('status', $this->filterStatus);
             })
-            ->latest()
+            ->orderBy($sortColumn, $sortDirection)
             ->paginate(10);
 
+        $firstItem = $schools->firstItem();
+        if ($firstItem !== null) {
+            $schools->getCollection()->each(function (School $school, int $index) use ($firstItem) {
+                $school->setAttribute('row_no', $firstItem + $index);
+            });
+        }
+
+        $totalSchools = School::count();
+        $activeSchools = School::where('status', 'active')->count();
+        $suspendedSchools = School::where('status', 'suspended')->count();
+        $totalAccounts = User::where('role', 'school')->count();
+        $activeAccounts = User::where('role', 'school')->where('status', 'active')->count();
+
+        $percentage = fn (int $count): float => $totalSchools > 0 ? round($count * 100 / $totalSchools, 1) : 0.0;
+
         $headers = [
-            ['key' => 'npsn', 'label' => 'NPSN', 'class' => 'w-24 font-mono'],
+            ['key' => 'no', 'label' => 'No.', 'class' => 'w-12 text-center hidden md:table-cell', 'sortable' => false],
             ['key' => 'name', 'label' => 'Nama Sekolah'],
-            ['key' => 'phone_number', 'label' => 'No. Telepon', 'sortable' => false],
-            ['key' => 'status', 'label' => 'Status', 'class' => 'w-28'],
-            ['key' => 'actions', 'label' => 'Aksi', 'class' => 'text-right w-48', 'sortable' => false],
+            ['key' => 'npsn', 'label' => 'NPSN', 'class' => 'w-28 hidden md:table-cell'],
+            ['key' => 'address', 'label' => 'Alamat', 'class' => 'hidden md:table-cell'],
+            ['key' => 'status', 'label' => 'Status', 'class' => 'w-24'],
+            ['key' => 'akun', 'label' => 'Akun Sekolah', 'class' => 'w-24 text-center hidden xl:table-cell', 'sortable' => false],
+            ['key' => 'created_at', 'label' => 'Tanggal Bergabung', 'class' => 'w-36 hidden xl:table-cell'],
+            ['key' => 'actions', 'label' => 'Aksi', 'class' => 'w-14 text-right', 'sortable' => false],
         ];
 
         return view('livewire.school.school-index', [
             'schools' => $schools,
             'headers' => $headers,
+            'totalSchools' => $totalSchools,
+            'activeSchools' => $activeSchools,
+            'suspendedSchools' => $suspendedSchools,
+            'percentActive' => $percentage($activeSchools),
+            'percentSuspended' => $percentage($suspendedSchools),
+            'totalAccounts' => $totalAccounts,
+            'activeAccounts' => $activeAccounts,
+            'inactiveAccounts' => $totalAccounts - $activeAccounts,
         ])->layout('layouts.app');
     }
 
@@ -95,6 +143,7 @@ class SchoolIndex extends Component
         $this->authorizeSuperAdmin();
 
         $this->selectedSchool = School::with(['setting', 'account', 'fundingSources'])->findOrFail($id);
+        $this->detailTab = 'pengguna';
         $this->detailModal = true;
     }
 

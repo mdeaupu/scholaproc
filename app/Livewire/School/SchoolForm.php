@@ -5,6 +5,7 @@ namespace App\Livewire\School;
 use App\Models\FundingSource;
 use App\Models\School;
 use App\Services\SchoolService;
+use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
@@ -96,7 +97,14 @@ class SchoolForm extends Component
     {
         abort_unless(auth()->user()?->isSuperAdmin(), 403);
 
-        $this->validate();
+        try {
+            $this->validate();
+        } catch (ValidationException $e) {
+            $this->toast('error', 'Data belum lengkap!', 'Periksa field yang ditandai merah.',
+                css: 'alert-error', icon: 'o-exclamation-circle');
+
+            throw $e;
+        }
 
         $data = [
             'npsn' => $this->npsn,

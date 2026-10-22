@@ -98,6 +98,8 @@ class LegalDocumentForm extends Component
 
     public function mount(Supplier $supplier, ?SupplierLegalDocument $document = null): void
     {
+        abort_unless(auth()->user()?->isSuperAdmin(), 403);
+
         if ($document && $document->exists && $document->supplier_id !== $supplier->id) {
             abort(404);
         }
@@ -145,9 +147,7 @@ class LegalDocumentForm extends Component
 
     public function save()
     {
-        if (! auth()->user()->isSuperAdmin() && ! auth()->user()->isAdmin()) {
-            abort(403, 'Akses ditolak. Anda tidak memiliki otoritas untuk mengelola dokumen supplier.');
-        }
+        abort_unless(auth()->user()?->isSuperAdmin(), 403, 'Akses ditolak. Hanya Superadmin yang dapat mengelola dokumen supplier.');
 
         if ($this->noExpiry) {
             $this->valid_until = null;
@@ -169,18 +169,12 @@ class LegalDocumentForm extends Component
 
         $this->success($message);
 
-        $url = auth()->user()->isSuperAdmin()
-            ? route('superadmin.suppliers.edit', $this->supplier->id)
-            : route('admin.suppliers.edit', $this->supplier->id);
-
-        return $this->redirect($url, navigate: true);
+        return $this->redirectRoute('superadmin.suppliers.edit', ['supplier' => $this->supplier->id], navigate: true);
     }
 
     public function render()
     {
-        if (! auth()->user()->isSuperAdmin() && ! auth()->user()->isAdmin()) {
-            abort(403);
-        }
+        abort_unless(auth()->user()?->isSuperAdmin(), 403);
 
         return view('livewire.supplier.legal-document-form', [
             'requiredDocuments' => $this->requiredDocuments,

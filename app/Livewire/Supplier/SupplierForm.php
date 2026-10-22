@@ -49,6 +49,8 @@ class SupplierForm extends Component
 
     public function mount(?Supplier $supplier = null): void
     {
+        abort_unless(auth()->user()?->isSuperAdmin(), 403);
+
         if ($supplier && $supplier->exists) {
             $supplier->load([
                 'legalDocuments',
@@ -147,9 +149,7 @@ class SupplierForm extends Component
 
     public function save()
     {
-        if (! auth()->user()->isSuperAdmin() && ! auth()->user()->isAdmin()) {
-            abort(403, 'Akses ditolak. Anda tidak memiliki otoritas untuk mengelola data supplier.');
-        }
+        abort_unless(auth()->user()?->isSuperAdmin(), 403, 'Akses ditolak. Hanya Superadmin yang dapat mengelola data supplier.');
 
         $validated = $this->validate();
 
@@ -163,16 +163,12 @@ class SupplierForm extends Component
 
         $this->success($message);
 
-        $route = auth()->user()->isSuperAdmin() ? 'superadmin.suppliers.index' : 'admin.suppliers.index';
-
-        return $this->redirectRoute($route, navigate: true);
+        return $this->redirectRoute('superadmin.suppliers.index', navigate: true);
     }
 
     public function render()
     {
-        if (! auth()->user()->isSuperAdmin() && ! auth()->user()->isAdmin()) {
-            abort(403);
-        }
+        abort_unless(auth()->user()?->isSuperAdmin(), 403);
 
         return view('livewire.supplier.supplier-form', [
             'legalDocuments' => $this->legalDocuments,

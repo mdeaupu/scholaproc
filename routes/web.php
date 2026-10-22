@@ -49,10 +49,6 @@ Route::middleware('auth')->group(function () {
     Route::middleware('role:admin')->prefix('admin')->group(function () {
         Route::get('/dashboard', AdminDashboard::class)->name('dashboard.admin');
         Route::get('/suppliers', SupplierIndex::class)->name('admin.suppliers.index');
-        Route::get('/suppliers/create', SupplierForm::class)->name('admin.suppliers.create');
-        Route::get('/suppliers/{supplier}/edit', SupplierForm::class)->name('admin.suppliers.edit');
-        Route::get('/suppliers/{supplier}/legal-documents/create', LegalDocumentForm::class)->name('admin.suppliers.legal-documents.create');
-        Route::get('/suppliers/{supplier}/legal-documents/{document}/edit', LegalDocumentForm::class)->name('admin.suppliers.legal-documents.edit');
     });
 
     Route::middleware('role:school')->prefix('school')->group(function () {

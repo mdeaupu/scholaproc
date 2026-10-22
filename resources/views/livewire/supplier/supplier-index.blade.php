@@ -2,9 +2,11 @@
     <x-mary-header title="Manajemen Supplier"
         subtitle="Kelola data supplier, legalitas, dan riwayat proyek supplier.">
         <x-slot:actions>
-            <x-mary-button label="Tambah Supplier"
-                link="{{ auth()->user()->isSuperAdmin() ? route('superadmin.suppliers.create') : route('admin.suppliers.create') }}"
-                icon="o-plus" class="bg-[#0046FF] hover:bg-[#0046FF]/90 text-white border-none" wire:navigate />
+            @if (auth()->user()->isSuperAdmin())
+                <x-mary-button label="Tambah Supplier"
+                    link="{{ route('superadmin.suppliers.create') }}"
+                    icon="o-plus" class="bg-[#0046FF] hover:bg-[#0046FF]/90 text-white border-none" wire:navigate />
+            @endif
         </x-slot:actions>
     </x-mary-header>
 
@@ -121,10 +123,13 @@
 
                         <x-mary-menu-item title="Detail" icon="o-eye" class="cursor-pointer"
                             wire:click="show({{ $supplier->id }})" />
-                        <x-mary-menu-item title="Edit Data" icon="o-pencil-square"
-                            link="{{ auth()->user()->isSuperAdmin() ? route('superadmin.suppliers.edit', $supplier->id) : route('admin.suppliers.edit', $supplier->id) }}" />
-                        <x-mary-menu-item title="Hapus (Soft Delete)" icon="o-trash" class="cursor-pointer text-red-500"
-                            wire:click="confirmDestroy({{ $supplier->id }}, '{{ addslashes($supplier->company_name) }}')" />
+                        @if (auth()->user()->isSuperAdmin())
+                            <x-mary-menu-item title="Edit Data" icon="o-pencil-square"
+                                link="{{ route('superadmin.suppliers.edit', $supplier->id) }}" />
+                            <x-mary-menu-item title="Hapus (Soft Delete)" icon="o-trash"
+                                class="cursor-pointer text-red-500"
+                                wire:click="confirmDestroy({{ $supplier->id }}, '{{ addslashes($supplier->company_name) }}')" />
+                        @endif
                     </x-mary-dropdown>
                 </div>
             @endscope

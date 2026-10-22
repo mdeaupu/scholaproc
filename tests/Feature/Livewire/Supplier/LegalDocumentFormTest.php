@@ -53,6 +53,25 @@ describe('LegalDocumentForm Livewire Component', function () {
             ->assertNotFound();
     });
 
+    it('admin cv cannot access legal document form', function () {
+        $user = User::factory()->create(['role' => 'admin']);
+        $supplier = Supplier::factory()->create();
+
+        $this->actingAs($user);
+
+        Livewire::test(LegalDocumentForm::class, ['supplier' => $supplier])
+            ->assertStatus(403);
+    });
+
+    it('admin cv cannot access superadmin legal document create route', function () {
+        $user = User::factory()->admin()->create();
+        $supplier = Supplier::factory()->create();
+
+        $this->actingAs($user)
+            ->get(route('superadmin.suppliers.legal-documents.create', $supplier->id))
+            ->assertForbidden();
+    });
+
     it('can store new legal document', function () {
         $user = User::factory()->create(['role' => 'superadmin']);
         $supplier = Supplier::factory()->create();

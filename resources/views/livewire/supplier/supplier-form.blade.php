@@ -1,6 +1,6 @@
 <div>
     <x-mary-form wire:submit="save">
-        <a href="{{ auth()->user()->isSuperAdmin() ? route('superadmin.suppliers.index') : route('admin.suppliers.index') }}"
+        <a href="{{ route('superadmin.suppliers.index') }}"
             wire:navigate class="inline-flex items-center gap-1.5 text-sm font-medium text-[#0046FF] hover:underline mb-2">
             <x-mary-icon name="o-arrow-left" class="w-4 h-4" />
             Kembali ke Daftar Supplier
@@ -235,7 +235,7 @@
                                             </p>
                                         </div>
                                         <x-mary-button icon="o-pencil"
-                                            link="{{ auth()->user()->isSuperAdmin() ? route('superadmin.suppliers.legal-documents.edit', [$supplier->id, $document->id]) : route('admin.suppliers.legal-documents.edit', [$supplier->id, $document->id]) }}"
+                                            link="{{ route('superadmin.suppliers.legal-documents.edit', [$supplier->id, $document->id]) }}"
                                             class="btn-xs btn-circle btn-ghost text-[#0046FF]" tooltip="Edit Dokumen"
                                             wire:navigate />
                                     </div>
@@ -249,7 +249,7 @@
 
                         <div class="mt-4">
                             <x-mary-button label="Tambah Dokumen Legal"
-                                link="{{ auth()->user()->isSuperAdmin() ? route('superadmin.suppliers.legal-documents.create', $supplier->id) : route('admin.suppliers.legal-documents.create', $supplier->id) }}"
+                                link="{{ route('superadmin.suppliers.legal-documents.create', $supplier->id) }}"
                                 icon="o-document-plus" wire:navigate
                                 class="btn-sm w-full bg-white text-[#0046FF] border border-[#0046FF]/40 hover:bg-[#0046FF]/10" />
                         </div>

@@ -28,6 +28,31 @@ describe('SupplierIndex Livewire Component', function () {
             ->assertStatus(403);
     });
 
+    it('admin cv can view supplier index in read-only mode', function () {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($user);
+
+        Livewire::test(SupplierIndex::class)
+            ->assertStatus(200)
+            ->assertSee('Manajemen Supplier')
+            ->assertDontSee('Tambah Supplier');
+    });
+
+    it('admin cv cannot destroy supplier', function () {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($user);
+
+        $supplier = Supplier::factory()->create();
+
+        Livewire::test(SupplierIndex::class)
+            ->call('confirmDestroy', $supplier->id, $supplier->company_name)
+            ->assertStatus(403);
+
+        expect($supplier->fresh()->trashed())->toBeFalse();
+    });
+
     it('can search suppliers', function () {
         $user = User::factory()->create(['role' => 'superadmin']);
 

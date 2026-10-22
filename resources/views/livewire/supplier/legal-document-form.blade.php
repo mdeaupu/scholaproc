@@ -1,6 +1,6 @@
 <div>
     <x-mary-form wire:submit="save">
-        <a href="{{ auth()->user()->isSuperAdmin() ? route('superadmin.suppliers.edit', $supplier->id) : route('admin.suppliers.edit', $supplier->id) }}"
+        <a href="{{ route('superadmin.suppliers.edit', $supplier->id) }}"
             wire:navigate class="inline-flex items-center gap-1.5 text-sm font-medium text-[#0046FF] hover:underline mb-2">
             <x-mary-icon name="o-arrow-left" class="w-4 h-4" />
             Kembali ke Edit Data Supplier
@@ -153,7 +153,7 @@
                             <h3 class="font-bold text-[#0046FF]">Riwayat Dokumen</h3>
                         </div>
                         @if ($documentHistory->count() > 5)
-                            <a href="{{ auth()->user()->isSuperAdmin() ? route('superadmin.suppliers.edit', $supplier->id) : route('admin.suppliers.edit', $supplier->id) }}"
+                            <a href="{{ route('superadmin.suppliers.edit', $supplier->id) }}"
                                 wire:navigate class="text-xs font-medium text-[#0046FF] hover:underline">Lihat
                                 Semua</a>
                         @endif

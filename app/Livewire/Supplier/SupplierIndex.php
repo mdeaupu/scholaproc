@@ -156,6 +156,8 @@ class SupplierIndex extends Component
 
     public function confirmDestroy(int $id, string $name): void
     {
+        abort_unless(auth()->user()->isSuperAdmin(), 403);
+
         $this->targetSupplierId = $id;
         $this->targetSupplierName = $name;
         $this->confirmingDestroy = true;
@@ -163,6 +165,8 @@ class SupplierIndex extends Component
 
     public function destroy(): void
     {
+        abort_unless(auth()->user()->isSuperAdmin(), 403);
+
         if ($this->targetSupplierId) {
             $supplier = Supplier::findOrFail($this->targetSupplierId);
             $supplier->delete();

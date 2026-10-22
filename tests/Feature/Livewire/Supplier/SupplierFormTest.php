@@ -120,29 +120,29 @@ describe('SupplierForm Livewire Component', function () {
             ->assertHasErrors(['npwp']);
     });
 
-    it('admin cv can save supplier and is redirected to admin index', function () {
+    it('admin cv cannot access supplier form', function () {
         $user = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($user);
 
-        $data = Supplier::factory()->make()->toArray();
-
         Livewire::test(SupplierForm::class)
-            ->set('company_name', $data['company_name'])
-            ->set('pic_name', $data['pic_name'])
-            ->set('director_name', $data['director_name'])
-            ->set('director_nik', $data['director_nik'])
-            ->set('npwp', $data['npwp'])
-            ->set('nib', $data['nib'])
-            ->set('phone', $data['phone'])
-            ->set('email', $data['email'])
-            ->set('address', $data['address'])
-            ->call('save')
-            ->assertRedirect(route('admin.suppliers.index'));
+            ->assertStatus(403);
+    });
 
-        $this->assertDatabaseHas('suppliers', [
-            'company_name' => $data['company_name'],
-        ]);
+    it('admin cv cannot access superadmin supplier create route', function () {
+        $user = User::factory()->admin()->create();
+
+        $this->actingAs($user)
+            ->get(route('superadmin.suppliers.create'))
+            ->assertForbidden();
+    });
+
+    it('admin cv can view supplier index in read-only mode', function () {
+        $user = User::factory()->admin()->create();
+
+        $this->actingAs($user)
+            ->get(route('admin.suppliers.index'))
+            ->assertOk();
     });
 
     it('school user cannot access supplier form', function () {

@@ -1,14 +1,6 @@
 <div>
     <x-mary-header title="Manajemen Supplier"
-        subtitle="Kelola data supplier, legalitas, dan riwayat proyek supplier.">
-        <x-slot:actions>
-            @if (auth()->user()->isSuperAdmin())
-                <x-mary-button label="Tambah Supplier"
-                    link="{{ route('superadmin.suppliers.create') }}"
-                    icon="o-plus" class="bg-[#0046FF] hover:bg-[#0046FF]/90 text-white border-none" wire:navigate />
-            @endif
-        </x-slot:actions>
-    </x-mary-header>
+        subtitle="Kelola data supplier, legalitas, dan riwayat proyek supplier." />
 
     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
@@ -65,6 +57,11 @@
             <x-mary-select wire:model.live="filterLegalitas"
                 :options="[['id' => '', 'name' => 'Semua'], ['id' => 'lengkap', 'name' => 'Legalitas Lengkap'], ['id' => 'belum', 'name' => 'Belum Lengkap']]"
                 class="w-44" />
+            @if (auth()->user()->isSuperAdmin())
+                <x-mary-button label="Tambah Supplier" link="{{ route('superadmin.suppliers.create') }}"
+                    icon="o-plus"
+                    class="bg-[#0046FF] hover:bg-[#0046FF]/90 text-white border-none ml-auto" wire:navigate />
+            @endif
         </div>
     </x-mary-card>
 

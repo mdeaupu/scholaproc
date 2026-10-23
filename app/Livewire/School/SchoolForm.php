@@ -5,6 +5,7 @@ namespace App\Livewire\School;
 use App\Models\FundingSource;
 use App\Models\School;
 use App\Services\SchoolService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 use Mary\Traits\Toast;
@@ -30,6 +31,8 @@ class SchoolForm extends Component
     public ?string $email = null;
 
     public string $status = 'active';
+
+    public bool $confirmingStatusSuspend = false;
 
     public string $kop_pusat = '';
 
@@ -106,6 +109,59 @@ class SchoolForm extends Component
             throw $e;
         }
 
+        $this->persist($service);
+    }
+
+    public function confirmSuspend(): void
+    {
+        abort_unless(auth()->user()?->isSuperAdmin(), 403);
+
+        $this->confirmingStatusSuspend = true;
+    }
+
+    public function suspend(): void
+    {
+        abort_unless(auth()->user()?->isSuperAdmin(), 403);
+
+        $school = $this->school;
+
+        DB::transaction(function () use ($school) {
+            $school->update(['status' => 'suspended']);
+
+            if ($school->account) {
+                $school->account->update([
+                    'status' => 'suspended',
+                ]);
+            }
+        });
+
+        $this->status = 'suspended';
+        $this->confirmingStatusSuspend = false;
+        $this->warning("Sekolah {$school->name} dan akun admin sekolah berhasil dinonaktifkan.");
+    }
+
+    public function activate(): void
+    {
+        abort_unless(auth()->user()?->isSuperAdmin(), 403);
+
+        $school = $this->school;
+
+        DB::transaction(function () use ($school) {
+            $school->update(['status' => 'active']);
+
+            if ($school->account) {
+                $school->account->update([
+                    'status' => 'active',
+                ]);
+            }
+        });
+
+        $this->status = 'active';
+        $this->success("Sekolah {$school->name} dan akun admin sekolah kini aktif kembali.");
+    }
+
+    protected function persist(SchoolService $service): void
+    {
         $data = [
             'npsn' => $this->npsn,
             'name' => $this->name,

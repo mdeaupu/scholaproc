@@ -12,7 +12,7 @@ class EnsureUserIsActive
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if (Auth::check() && Auth::user() instanceof User && ! Auth::user()->isActive()) {
+        if (Auth::check() && Auth::user() instanceof User && ! Auth::user()->canLogin()) {
             Auth::guard('web')->logout();
 
             $request->session()->invalidate();

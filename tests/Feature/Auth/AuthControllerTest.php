@@ -26,7 +26,7 @@ class TestLoginComponent extends Component
 }
 
 test('user can log in with valid credentials via livewire form', function () {
-    $user = User::factory()->create([
+    $user = User::factory()->school()->create([
         'username' => 'admin_sekolah_1',
         'password' => bcrypt('password123'),
     ]);
@@ -99,7 +99,7 @@ test('superadmin cannot reset password of another superadmin', function () {
 });
 
 test('non-superadmin cannot reset password of another user', function () {
-    $userSchool = User::factory()->create(['role' => 'school']);
+    $userSchool = User::factory()->school()->create();
     $targetUser = User::factory()->create(['role' => 'admin']);
 
     Auth::login($userSchool);

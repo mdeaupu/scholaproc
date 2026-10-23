@@ -48,14 +48,16 @@ new class extends Component {
         <x-mary-menu-item title="Dashboard" icon="o-squares-2x2" route="dashboard"
             :active="request()->routeIs('dashboard*')" />
         @if (auth()->user()?->isSuperAdmin())
-            <x-mary-menu-item title="Manajemen Admin" icon="o-users" route="admins.index"
-                :active="request()->routeIs('admins.*')" />
             <x-mary-menu-item title="Manajemen Sekolah" icon="o-academic-cap" route="schools.index"
                 :active="request()->routeIs('schools.*')" />
         @endif
         @if (auth()->user()?->isSuperAdmin() || auth()->user()?->isAdmin())
             <x-mary-menu-item title="Manajemen Supplier" icon="o-truck" :route="auth()->user()->isAdmin() ? 'admin.suppliers.index' : 'superadmin.suppliers.index'"
                 :active="request()->routeIs('*suppliers.*')" />
+        @endif
+        @if (auth()->user()?->isSuperAdmin())
+            <x-mary-menu-item title="Manajemen Admin" icon="o-users" route="admins.index"
+                :active="request()->routeIs('admins.*')" />
         @endif
         <x-mary-menu-item title="Profil" icon="o-user-circle" route="profile" />
         {{-- Menu menyusul saat modul selesai: Pengadaan, Riwayat, Dokumen, Notifikasi --}}

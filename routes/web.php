@@ -1,6 +1,7 @@
 <?php
 
-use App\Http\Controllers\Auth\AuthController;
+use App\Livewire\Admin\AdminCreate;
+use App\Livewire\Admin\AdminEdit;
 use App\Livewire\Admin\AdminIndex;
 use App\Livewire\Dashboard\AdminDashboard;
 use App\Livewire\Dashboard\SchoolDashboard;
@@ -45,7 +46,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/suppliers/{supplier}/legal-documents/create', LegalDocumentForm::class)->name('superadmin.suppliers.legal-documents.create');
         Route::get('/suppliers/{supplier}/legal-documents/{document}/edit', LegalDocumentForm::class)->name('superadmin.suppliers.legal-documents.edit');
         Route::get('/admins', AdminIndex::class)->name('admins.index');
-        Route::put('/user/{user}/reset-password', [AuthController::class, 'resetPassword'])->name('auth.reset-password');
+        Route::get('/admins/create', AdminCreate::class)->name('admins.create');
+        Route::get('/admins/{user}/edit', AdminEdit::class)->name('admins.edit');
     });
 
     Route::middleware('role:admin')->prefix('admin')->group(function () {

@@ -3,9 +3,7 @@
 namespace App\Livewire\School;
 
 use App\Models\School;
-use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Mary\Traits\Toast;
@@ -16,23 +14,11 @@ class SchoolIndex extends Component
 
     private const SORTABLE_COLUMNS = ['name', 'npsn', 'address', 'status', 'created_at'];
 
-    public bool $confirmingSuspend = false;
-
     public bool $confirmingDestroy = false;
-
-    public bool $confirmingResetPassword = false;
-
-    public bool $confirmingToggleAccount = false;
 
     public ?int $targetSchoolId = null;
 
     public string $targetSchoolName = '';
-
-    public ?int $targetAccountId = null;
-
-    public string $targetAccountName = '';
-
-    public string $newPassword = '';
 
     public string $search = '';
 
@@ -41,8 +27,6 @@ class SchoolIndex extends Component
     public array $sortBy = ['column' => 'created_at', 'direction' => 'desc'];
 
     public bool $detailModal = false;
-
-    public string $detailTab = 'pengguna';
 
     public ?School $selectedSchool = null;
 
@@ -108,8 +92,6 @@ class SchoolIndex extends Component
         $totalSchools = School::count();
         $activeSchools = School::where('status', 'active')->count();
         $suspendedSchools = School::where('status', 'suspended')->count();
-        $totalAccounts = User::where('role', 'school')->count();
-        $activeAccounts = User::where('role', 'school')->where('status', 'active')->count();
 
         $percentage = fn (int $count): float => $totalSchools > 0 ? round($count * 100 / $totalSchools, 1) : 0.0;
 
@@ -119,7 +101,6 @@ class SchoolIndex extends Component
             ['key' => 'npsn', 'label' => 'NPSN', 'class' => 'w-28 hidden md:table-cell'],
             ['key' => 'address', 'label' => 'Alamat', 'class' => 'hidden md:table-cell'],
             ['key' => 'status', 'label' => 'Status', 'class' => 'w-24'],
-            ['key' => 'akun', 'label' => 'Akun Sekolah', 'class' => 'w-24 text-center hidden xl:table-cell', 'sortable' => false],
             ['key' => 'created_at', 'label' => 'Tanggal Bergabung', 'class' => 'w-36 hidden xl:table-cell'],
             ['key' => 'actions', 'label' => 'Aksi', 'class' => 'w-14 text-right', 'sortable' => false],
         ];
@@ -132,9 +113,6 @@ class SchoolIndex extends Component
             'suspendedSchools' => $suspendedSchools,
             'percentActive' => $percentage($activeSchools),
             'percentSuspended' => $percentage($suspendedSchools),
-            'totalAccounts' => $totalAccounts,
-            'activeAccounts' => $activeAccounts,
-            'inactiveAccounts' => $totalAccounts - $activeAccounts,
         ])->layout('layouts.app');
     }
 
@@ -143,60 +121,7 @@ class SchoolIndex extends Component
         $this->authorizeSuperAdmin();
 
         $this->selectedSchool = School::with(['setting', 'account', 'fundingSources'])->findOrFail($id);
-        $this->detailTab = 'pengguna';
         $this->detailModal = true;
-    }
-
-    public function activate(int $id): void
-    {
-        $this->authorizeSuperAdmin();
-
-        $school = School::findOrFail($id);
-
-        DB::transaction(function () use ($school) {
-            $school->update(['status' => 'active']);
-
-            if ($school->account) {
-                $school->account->update([
-                    'status' => 'active',
-                ]);
-            }
-        });
-
-        $this->success("Sekolah {$school->name} kini aktif kembali.");
-    }
-
-    public function confirmSuspend(int $id, string $name): void
-    {
-        $this->authorizeSuperAdmin();
-
-        $this->targetSchoolId = $id;
-        $this->targetSchoolName = $name;
-        $this->confirmingSuspend = true;
-    }
-
-    public function suspend(): void
-    {
-        $this->authorizeSuperAdmin();
-
-        if ($this->targetSchoolId) {
-            $school = School::findOrFail($this->targetSchoolId);
-
-            DB::transaction(function () use ($school) {
-                $school->suspend();
-
-                if ($school->account) {
-                    $school->account->update([
-                        'status' => 'suspended',
-                    ]);
-                }
-            });
-
-            $this->warning("Sekolah {$school->name} berhasil dibekukan sementara.");
-            $this->confirmingSuspend = false;
-            $this->targetSchoolId = null;
-            $this->targetSchoolName = '';
-        }
     }
 
     public function confirmDestroy(int $id, string $name): void
@@ -213,82 +138,22 @@ class SchoolIndex extends Component
         $this->authorizeSuperAdmin();
 
         if ($this->targetSchoolId) {
-            $school = School::findOrFail($this->targetSchoolId);
-            $school->delete();
+            $school = School::with('account')->findOrFail($this->targetSchoolId);
+
+            DB::transaction(function () use ($school) {
+                $school->delete();
+
+                if ($school->account) {
+                    $school->account->update([
+                        'status' => 'suspended',
+                    ]);
+                }
+            });
+
             $this->error("Sekolah {$school->name} berhasil dihapus dari sistem.");
 
             $this->confirmingDestroy = false;
             $this->targetSchoolId = null;
         }
-    }
-
-    public function confirmResetPassword(int $schoolId): void
-    {
-        $this->authorizeSuperAdmin();
-
-        $school = School::with('account')->findOrFail($schoolId);
-        abort_unless($school->account, 404);
-
-        $this->targetSchoolId = $school->id;
-        $this->targetSchoolName = $school->name;
-        $this->newPassword = '';
-        $this->confirmingResetPassword = true;
-    }
-
-    public function resetUserPassword(): void
-    {
-        $this->authorizeSuperAdmin();
-
-        if (! $this->targetSchoolId) {
-            return;
-        }
-
-        $school = School::with('account')->findOrFail($this->targetSchoolId);
-        abort_unless($school->account, 404);
-
-        $this->validate([
-            'newPassword' => 'required|string|min:8',
-        ]);
-
-        $school->account->update([
-            'password' => Hash::make($this->newPassword),
-        ]);
-
-        $this->success("Password admin sekolah {$school->name} berhasil direset.");
-        $this->confirmingResetPassword = false;
-        $this->newPassword = '';
-        $this->targetSchoolId = null;
-        $this->targetSchoolName = '';
-    }
-
-    public function confirmToggleAccount(int $schoolId): void
-    {
-        $this->authorizeSuperAdmin();
-
-        $school = School::with('account')->findOrFail($schoolId);
-        abort_unless($school->account, 404);
-
-        $this->targetAccountId = $school->account->id;
-        $this->targetAccountName = $school->account->name;
-        $this->confirmingToggleAccount = true;
-    }
-
-    public function toggleAccount(): void
-    {
-        $this->authorizeSuperAdmin();
-
-        if (! $this->targetAccountId) {
-            return;
-        }
-
-        $account = User::findOrFail($this->targetAccountId);
-        $account->update([
-            'status' => $account->status === 'active' ? 'suspended' : 'active',
-        ]);
-
-        $this->success("Akun \"{$account->name}\" kini berstatus {$account->status}.");
-        $this->confirmingToggleAccount = false;
-        $this->targetAccountId = null;
-        $this->targetAccountName = '';
     }
 }

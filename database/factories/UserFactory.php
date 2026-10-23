@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\School;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -48,7 +49,9 @@ class UserFactory extends Factory
 
     public function school(): static
     {
-        return $this->role('school');
+        return $this->role('school')->state(fn (array $attributes) => [
+            'school_id' => School::factory(),
+        ]);
     }
 
     public function inactive(): static

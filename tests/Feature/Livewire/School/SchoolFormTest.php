@@ -432,3 +432,102 @@ test('mengedit sekolah tidak mengubah dokumen final yang sudah digenerate', func
     expect($document->file_path)->toBe('documents/po-88881111.pdf')
         ->and($document->download_token)->toBe('token-abc-123');
 });
+
+test('menonaktifkan sekolah lewat tombol meminta konfirmasi lalu menyinkronkan status akun', function () {
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
+
+    $school = School::factory()->create([
+        'npsn' => '11223344',
+        'name' => 'SMAN 1 Konfirmasi Nonaktif',
+        'status' => 'active',
+    ]);
+
+    SchoolSetting::factory()->create(['school_id' => $school->id]);
+
+    $admin = User::factory()->create([
+        'school_id' => $school->id,
+        'role' => 'school',
+        'username' => '11223344',
+        'status' => 'active',
+    ]);
+
+    actingAs($superadmin);
+
+    Livewire::test(SchoolForm::class, ['school' => $school])
+        ->call('confirmSuspend')
+        ->assertSet('confirmingStatusSuspend', true)
+        ->assertNoRedirect();
+
+    expect($school->fresh()->status)->toBe('active')
+        ->and($admin->fresh()->status)->toBe('active');
+
+    Livewire::test(SchoolForm::class, ['school' => $school])
+        ->call('suspend')
+        ->assertSet('confirmingStatusSuspend', false)
+        ->assertSet('status', 'suspended')
+        ->assertNoRedirect();
+
+    expect($school->fresh()->status)->toBe('suspended')
+        ->and($admin->fresh()->status)->toBe('suspended');
+});
+
+test('membatalkan konfirmasi nonaktif tidak mengubah status sekolah maupun akun', function () {
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
+
+    $school = School::factory()->create([
+        'npsn' => '55667788',
+        'name' => 'SMAN 1 Batal Nonaktif',
+        'status' => 'active',
+    ]);
+
+    SchoolSetting::factory()->create(['school_id' => $school->id]);
+
+    $admin = User::factory()->create([
+        'school_id' => $school->id,
+        'role' => 'school',
+        'username' => '55667788',
+        'status' => 'active',
+    ]);
+
+    actingAs($superadmin);
+
+    Livewire::test(SchoolForm::class, ['school' => $school])
+        ->call('confirmSuspend')
+        ->assertSet('confirmingStatusSuspend', true)
+        ->set('confirmingStatusSuspend', false)
+        ->assertSet('confirmingStatusSuspend', false)
+        ->assertSet('status', 'active');
+
+    expect($school->fresh()->status)->toBe('active')
+        ->and($admin->fresh()->status)->toBe('active');
+});
+
+test('mengaktifkan kembali sekolah nonaktif langsung menyinkronkan status akun tanpa konfirmasi', function () {
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
+
+    $school = School::factory()->create([
+        'npsn' => '99887766',
+        'name' => 'SMAN 1 Aktif Kembali',
+        'status' => 'suspended',
+    ]);
+
+    SchoolSetting::factory()->create(['school_id' => $school->id]);
+
+    $admin = User::factory()->create([
+        'school_id' => $school->id,
+        'role' => 'school',
+        'username' => '99887766',
+        'status' => 'suspended',
+    ]);
+
+    actingAs($superadmin);
+
+    Livewire::test(SchoolForm::class, ['school' => $school])
+        ->call('activate')
+        ->assertSet('confirmingStatusSuspend', false)
+        ->assertSet('status', 'active')
+        ->assertNoRedirect();
+
+    expect($school->fresh()->status)->toBe('active')
+        ->and($admin->fresh()->status)->toBe('active');
+});

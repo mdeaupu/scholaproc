@@ -40,17 +40,32 @@ class LoginForm extends Form
 
         RateLimiter::clear($this->throttleKey());
 
-        if (! Auth::user()->isActive()) {
-            Auth::logout();
+        $user = Auth::user();
 
-            if (request()->hasSession()) {
-                request()->session()->invalidate();
-                request()->session()->regenerateToken();
-            }
+        if (! $user->isActive()) {
+            $this->rejectSession();
 
             throw ValidationException::withMessages([
                 'form.username' => 'Akun Anda telah dinonaktifkan. Hubungi administrator.',
             ]);
+        }
+
+        if ($user->isSchool() && ! $user->school?->isActive()) {
+            $this->rejectSession();
+
+            throw ValidationException::withMessages([
+                'form.username' => 'Sekolah Anda sedang nonaktif. Hubungi administrator CV.',
+            ]);
+        }
+    }
+
+    protected function rejectSession(): void
+    {
+        Auth::logout();
+
+        if (request()->hasSession()) {
+            request()->session()->invalidate();
+            request()->session()->regenerateToken();
         }
     }
 

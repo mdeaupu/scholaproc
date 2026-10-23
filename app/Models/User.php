@@ -90,6 +90,19 @@ class User extends Authenticatable
         return $this->status === 'active';
     }
 
+    public function canLogin(): bool
+    {
+        if (! $this->isActive()) {
+            return false;
+        }
+
+        if (! $this->isSchool()) {
+            return true;
+        }
+
+        return $this->school !== null && $this->school->isActive();
+    }
+
     public function canManageSchools(): bool
     {
         return $this->isSuperAdmin();

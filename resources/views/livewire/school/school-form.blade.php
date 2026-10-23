@@ -11,8 +11,6 @@
                 : 'Daftarkan sekolah baru beserta konfigurasi kop surat dan akun admin.'">
             <x-slot:actions>
                 <div class="flex items-center gap-2">
-                    <x-mary-button label="Batal" link="{{ route('schools.index') }}"
-                        class="btn-sm bg-white text-gray-700 border border-gray-200 hover:bg-base-200" wire:navigate />
                     <x-mary-button label="{{ $isEdit ? 'Simpan Perubahan' : 'Daftarkan Sekolah' }}" type="submit"
                         icon="o-check" class="btn-sm bg-[#0046FF] hover:bg-[#0046FF]/90 text-white border-none"
                         wire:loading.attr="disabled" />
@@ -36,14 +34,21 @@
                         <x-mary-input label="NPSN" wire:model="npsn" placeholder="Contoh: 10203040"
                             :required="true" :disabled="$isEdit" hint="8 digit nomor pokok sekolah nasional" />
                     </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                        <x-mary-select label="Status Sekolah" wire:model="status" :required="true" :options="[
-                            ['id' => 'active', 'name' => 'Aktif'],
-                            ['id' => 'suspended', 'name' => 'Ditangguhkan'],
-                        ]" />
-                        <x-mary-input label="Email Sekolah" wire:model="email" type="email"
-                            placeholder="info@sekolah.sch.id" />
-                    </div>
+                    @unless ($isEdit)
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                            <x-mary-select label="Status Sekolah dan Akses Login" wire:model="status" :required="true" :options="[
+                                ['id' => 'active', 'name' => 'Aktif'],
+                                ['id' => 'suspended', 'name' => 'Nonaktif'],
+                            ]" hint="Nonaktif: sekolah tidak dapat mengajukan pengadaan dan akun admin sekolah tidak bisa login." />
+                            <x-mary-input label="Email Sekolah" wire:model="email" type="email"
+                                placeholder="info@sekolah.sch.id" />
+                        </div>
+                    @else
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                            <x-mary-input label="Email Sekolah" wire:model="email" type="email"
+                                placeholder="info@sekolah.sch.id" />
+                        </div>
+                    @endunless
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                         <x-mary-input label="Telepon Sekolah" wire:model="phone_number"
                             placeholder="(0263) xxxxxxx" :required="true" />
@@ -79,33 +84,59 @@
                             class="w-9 h-9 rounded-xl bg-[#0046FF]/10 text-[#0046FF] flex items-center justify-center">
                             <x-mary-icon name="o-users" class="w-5 h-5" />
                         </span>
-                        <h3 class="font-bold text-[#0046FF]">Akun Admin Sekolah</h3>
+                        <h3 class="font-bold text-[#0046FF]">Akun Admin Sekolah (Reset Password)</h3>
                     </div>
                     @if ($isEdit && $school?->account)
-                        <div
-                            class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm mb-4 pb-4 border-b border-gray-100">
+                        <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm mb-4 pb-4 border-b border-gray-100">
                             <div class="flex items-center gap-2">
                                 <span class="text-gray-500">Username</span>
                                 <span class="font-mono font-bold text-gray-900">{{ $school->account->username }}</span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <span class="text-gray-500">Status</span>
-                                @if ($school->account->status === 'active')
-                                    <x-mary-badge value="Aktif"
-                                        class="bg-green-100 text-green-700 border-none badge-sm font-semibold" />
-                                @else
-                                    <x-mary-badge value="Nonaktif"
-                                        class="bg-red-100 text-red-600 border-none badge-sm font-semibold" />
-                                @endif
                             </div>
                         </div>
                     @endif
                     <x-mary-input label="Password Admin" wire:model="password" type="password" icon="o-key"
                         :required="!$isEdit"
                         :hint="$isEdit
-                            ? 'Kosongkan jika tidak ingin mengubah password. Username mengikuti NPSN.'
+                            ? 'Kosongkan jika tidak ingin mengubah/reset password akun admin sekolah. Username mengikuti NPSN.'
                             : 'Minimal 8 karakter. Username admin otomatis menggunakan NPSN.'" />
                 </x-mary-card>
+
+                @if ($isEdit && $school)
+                    <x-mary-card shadow class="border-t-4 border-[#0046FF]">
+                        <div class="flex items-center gap-2.5 mb-4">
+                            <span
+                                class="w-9 h-9 rounded-xl bg-[#0046FF]/10 text-[#0046FF] flex items-center justify-center">
+                                <x-mary-icon name="o-shield-check" class="w-5 h-5" />
+                            </span>
+                            <h3 class="font-bold text-[#0046FF]">Status Akun</h3>
+                        </div>
+                        <div class="flex items-center gap-2 mb-4">
+                            <span class="text-sm text-gray-500">Status saat ini</span>
+                            @if ($status === 'active')
+                                <x-mary-badge value="Aktif"
+                                    class="bg-green-100 text-green-700 border-none badge-sm font-semibold" />
+                            @else
+                                <x-mary-badge value="Nonaktif"
+                                    class="bg-red-100 text-red-600 border-none badge-sm font-semibold" />
+                            @endif
+                        </div>
+                        <div class="p-3 bg-[#FF8040]/10 border border-[#FF8040]/30 rounded-lg text-xs text-gray-700 flex gap-2 mb-4">
+                            <x-mary-icon name="o-exclamation-triangle" class="w-4 h-4 text-[#FF8040] shrink-0 mt-0.5" />
+                            <span><strong>Dampak penonaktifan:</strong> sekolah tidak dapat mengajukan pengadaan dan
+                                akun admin sekolah tidak dapat digunakan untuk login sampai status diaktifkan
+                                kembali.</span>
+                        </div>
+                        @if ($status === 'active')
+                            <x-mary-button label="Nonaktifkan" type="button" icon="o-no-symbol"
+                                wire:click="confirmSuspend"
+                                class="bg-[#FF8040] hover:bg-[#FF8040]/90 text-white border-none" />
+                        @else
+                            <x-mary-button label="Aktifkan" type="button" icon="o-check-badge"
+                                wire:click="activate"
+                                class="bg-green-600 hover:bg-green-700 text-white border-none" />
+                        @endif
+                    </x-mary-card>
+                @endif
             </div>
 
             <div class="lg:col-span-1 space-y-6">
@@ -164,4 +195,26 @@
             </div>
         </div>
     </x-mary-form>
+
+    <x-mary-modal wire:model="confirmingStatusSuspend" title="Nonaktifkan Sekolah" class="backdrop-blur"
+        title-class="text-[#FF8040]">
+        <div class="flex items-start gap-4">
+            <div class="p-3 bg-[#FF8040]/10 text-[#FF8040] rounded-full shrink-0">
+                <x-mary-icon name="o-lock-closed" class="w-7 h-7" />
+            </div>
+            <div>
+                <p class="font-semibold text-black">Nonaktifkan <span class="text-[#FF8040]">"{{ $name }}"</span>?</p>
+                <p class="text-sm text-gray-500 mt-1 leading-relaxed">
+                    Sekolah berstatus nonaktif tidak dapat mengajukan pengadaan, dan akun admin sekolah
+                    ini tidak dapat digunakan untuk login sampai status diaktifkan kembali.
+                </p>
+            </div>
+        </div>
+        <x-slot:actions>
+            <x-mary-button label="Batal" type="button" wire:click="$set('confirmingStatusSuspend', false)"
+                class="btn-ghost text-black" />
+            <x-mary-button label="Ya, Nonaktifkan" type="button" wire:click="suspend"
+                class="bg-[#FF8040] text-white border-none" />
+        </x-slot:actions>
+    </x-mary-modal>
 </div>

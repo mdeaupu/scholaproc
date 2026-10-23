@@ -56,7 +56,7 @@ test('email verified timestamp is unchanged when the email address is unchanged'
 });
 
 test('user can delete their account', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->admin()->create();
 
     $this->actingAs($user);
 
@@ -72,8 +72,24 @@ test('user can delete their account', function () {
     $this->assertSoftDeleted('users', ['id' => $user->id]);
 });
 
+test('superadmin cannot see or trigger self account deletion', function () {
+    $user = User::factory()->superAdmin()->create();
+
+    $this->actingAs($user)
+        ->get('/profile')
+        ->assertOk()
+        ->assertDontSeeVolt('profile.delete-user-form');
+
+    Volt::test('profile.delete-user-form')
+        ->set('password', 'password')
+        ->call('deleteUser')
+        ->assertStatus(403);
+
+    $this->assertNotSoftDeleted('users', ['id' => $user->id]);
+});
+
 test('correct password must be provided to delete account', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->admin()->create();
 
     $this->actingAs($user);
 

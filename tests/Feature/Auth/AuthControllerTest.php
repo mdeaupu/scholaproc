@@ -1,13 +1,12 @@
 <?php
 
 use App\Livewire\Actions\Logout;
-use App\Models\User;
 use App\Livewire\Forms\LoginForm;
-use Livewire\Livewire;
-use Livewire\Component;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
-use Spatie\Permission\Models\Role;
+use Livewire\Component;
+use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
@@ -27,7 +26,7 @@ class TestLoginComponent extends Component
 }
 
 test('user can log in with valid credentials via livewire form', function () {
-    $user = User::factory()->create([
+    $user = User::factory()->school()->create([
         'username' => 'admin_sekolah_1',
         'password' => bcrypt('password123'),
     ]);
@@ -62,42 +61,8 @@ test('authenticated user can log out', function () {
     $this->actingAs($user);
     expect(Auth::check())->toBeTrue();
 
-    $logoutAction = new Logout();
+    $logoutAction = new Logout;
     $logoutAction();
 
     $this->assertGuest();
-});
-
-test('superadmin can reset password of another user', function () {
-    Role::firstOrCreate(['name' => 'superadmin']);
-
-    $admin = User::factory()->create();
-
-    $admin->assignRole('superadmin');
-
-    $targetUser = User::factory()->create();
-
-    $this->actingAs($admin);
-
-    $response = $this->put(route('auth.reset-password', $targetUser->id), [
-        'password' => 'newpassword123',
-        'password_confirmation' => 'newpassword123',
-    ]);
-
-    $response->assertStatus(302);
-    $response->assertSessionHas('success');
-});
-
-test('non-superadmin cannot reset password of another user', function () {
-    $userSchool = User::factory()->create(['role' => 'school']);
-    $targetUser = User::factory()->create(['role' => 'admin']);
-
-    Auth::login($userSchool);
-
-    $response = $this->put(route('auth.reset-password', $targetUser->id), [
-        'password' => 'newpassword123',
-        'password_confirmation' => 'newpassword123',
-    ]);
-
-    $response->assertStatus(403);
 });

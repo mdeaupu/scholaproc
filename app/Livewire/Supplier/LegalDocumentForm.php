@@ -15,21 +15,30 @@ class LegalDocumentForm extends Component
     use Toast;
 
     public Supplier $supplier;
+
     public ?SupplierLegalDocument $document = null;
+
     public string $document_type = '';
+
     public string $document_number = '';
+
     public string $document_date = '';
+
     public ?string $notary_name = null;
+
     public ?string $issuer = null;
+
     public ?string $valid_until = null;
+
+    public bool $noExpiry = false;
 
     public bool $isEdit = false;
 
     public function getDocumentTypesProperty(): array
     {
-        $existingTypes = $this->supplier->legalDocuments()
+        $existingTypes = $this->supplier->legalDocuments
             ->pluck('document_type')
-            ->map(fn($type) => $type instanceof DocumentType ? $type->value : $type)
+            ->map(fn ($type) => $type instanceof DocumentType ? $type->value : $type)
             ->toArray();
 
         if ($this->isEdit && $this->document) {
@@ -42,7 +51,7 @@ class LegalDocumentForm extends Component
 
         $options = [];
         foreach (DocumentType::cases() as $case) {
-            if (!in_array($case->value, $existingTypes)) {
+            if (! in_array($case->value, $existingTypes)) {
                 $options[] = ['id' => $case->value, 'name' => $case->label()];
             }
         }
@@ -50,19 +59,71 @@ class LegalDocumentForm extends Component
         return $options;
     }
 
+    public function getRequiredDocumentsProperty(): array
+    {
+        $existingTypes = $this->supplier->legalDocuments
+            ->map(fn ($doc) => $doc->document_type instanceof DocumentType
+                ? $doc->document_type->value
+                : $doc->document_type)
+            ->toArray();
+
+        $descriptions = [
+            DocumentType::DEED->value => 'Dokumen legalitas perusahaan',
+            DocumentType::NPWP->value => 'Nomor Pokok Wajib Pajak',
+            DocumentType::BUSINESS_PERMIT->value => 'Surat izin usaha (NIB/SIUP)',
+            DocumentType::OTHER->value => 'Dokumen pendukung lainnya',
+        ];
+
+        $orderedTypes = [
+            DocumentType::DEED,
+            DocumentType::NPWP,
+            DocumentType::BUSINESS_PERMIT,
+            DocumentType::OTHER,
+        ];
+
+        return collect($orderedTypes)->map(fn (DocumentType $type) => [
+            'value' => $type->value,
+            'label' => $type->label(),
+            'description' => $descriptions[$type->value],
+            'exists' => in_array($type->value, $existingTypes),
+        ])->all();
+    }
+
+    public function getDocumentHistoryProperty()
+    {
+        return $this->supplier->legalDocuments
+            ->sortByDesc('created_at')
+            ->values();
+    }
+
     public function mount(Supplier $supplier, ?SupplierLegalDocument $document = null): void
     {
-        $this->supplier = $supplier;
+        abort_unless(auth()->user()?->isSuperAdmin(), 403);
+
+        if ($document && $document->exists && $document->supplier_id !== $supplier->id) {
+            abort(404);
+        }
+
+        $this->supplier = $supplier->load('legalDocuments');
 
         if ($document && $document->exists) {
             $this->document = $document;
             $this->isEdit = true;
             $this->document_date = $document->document_date ? Carbon::parse($document->document_date)->format('Y-m-d') : '';
             $this->valid_until = $document->valid_until ? Carbon::parse($document->valid_until)->format('Y-m-d') : null;
+            $this->noExpiry = is_null($document->valid_until);
             $this->document_type = $document->document_type->value;
-            $this->document_number = $document->document_number;
+            $this->document_number = (string) $document->document_number;
             $this->notary_name = $document->notary_name;
             $this->issuer = $document->issuer;
+        }
+    }
+
+    public function updatedNoExpiry(bool $value): void
+    {
+        if ($value) {
+            $this->valid_until = null;
+            $this->resetValidation('valid_until');
         }
     }
 
@@ -74,7 +135,7 @@ class LegalDocumentForm extends Component
                 Rule::enum(DocumentType::class),
                 Rule::unique('supplier_legal_documents', 'document_type')
                     ->where('supplier_id', $this->supplier->id)
-                    ->ignore($this->document?->id)
+                    ->ignore($this->document?->id),
             ],
             'document_number' => 'required|string|max:255',
             'document_date' => 'required|date',
@@ -86,11 +147,13 @@ class LegalDocumentForm extends Component
 
     public function save()
     {
-        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isAdmin()) {
-            abort(403, 'Akses ditolak. Anda tidak memiliki otoritas untuk mengelola dokumen supplier.');
+        abort_unless(auth()->user()?->isSuperAdmin(), 403, 'Akses ditolak. Hanya Superadmin yang dapat mengelola dokumen supplier.');
+
+        if ($this->noExpiry) {
+            $this->valid_until = null;
         }
 
-        if (trim($this->valid_until) === '') {
+        if ($this->valid_until !== null && trim($this->valid_until) === '') {
             $this->valid_until = null;
         }
 
@@ -98,24 +161,24 @@ class LegalDocumentForm extends Component
 
         if ($this->isEdit) {
             $this->document->update($validated);
-            $message = "Dokumen legal berhasil diperbarui.";
+            $message = 'Dokumen legal berhasil diperbarui.';
         } else {
             $this->supplier->legalDocuments()->create($validated);
             $message = "Dokumen legal berhasil ditambahkan ke supplier {$this->supplier->company_name}.";
         }
 
-        session()->flash('toast_success', $message);
+        $this->success($message);
 
-        $route = auth()->user()->isSuperAdmin() ? 'owner.suppliers.index' : 'cv.suppliers.index';
-        return $this->redirectRoute($route, navigate: true);
+        return $this->redirectRoute('superadmin.suppliers.edit', ['supplier' => $this->supplier->id], navigate: true);
     }
 
     public function render()
     {
-        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isAdmin()) {
-            abort(403);
-        }
+        abort_unless(auth()->user()?->isSuperAdmin(), 403);
 
-        return view('livewire.supplier.legal-document-form')->layout('layouts.app');
+        return view('livewire.supplier.legal-document-form', [
+            'requiredDocuments' => $this->requiredDocuments,
+            'documentHistory' => $this->documentHistory,
+        ])->layout('layouts.app');
     }
 }

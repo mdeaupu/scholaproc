@@ -5,8 +5,8 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Livewire;
-use Tests\TestCase;
-use function Pest\Laravel\{actingAs};
+
+use function Pest\Laravel\actingAs;
 
 uses(RefreshDatabase::class);
 
@@ -16,7 +16,7 @@ function createUser(string $role, array $attributes = []): User
 }
 
 test('owner dapat mengakses halaman manajemen admin CV', function () {
-    $owner = createUser('owner');
+    $owner = createUser('superadmin');
     actingAs($owner);
 
     Livewire::test(AdminIndex::class)
@@ -25,7 +25,7 @@ test('owner dapat mengakses halaman manajemen admin CV', function () {
 });
 
 test('admin_cv tidak dapat mengakses halaman dan mendapat 403', function () {
-    $adminCv = createUser('admin_cv');
+    $adminCv = createUser('admin');
     actingAs($adminCv);
 
     Livewire::test(AdminIndex::class)
@@ -38,36 +38,36 @@ test('guest tidak dapat mengakses halaman', function () {
 });
 
 test('halaman indeks menampilkan daftar admin CV dengan paginasi', function () {
-    $owner = createUser('owner');
+    $owner = createUser('superadmin');
     actingAs($owner);
 
-    User::factory()->count(5)->create(['role' => 'admin_cv']);
+    User::factory()->count(5)->create(['role' => 'admin']);
 
     Livewire::test(AdminIndex::class)
-        ->assertViewHas('admins', fn($admins) => $admins->total() >= 5);
+        ->assertViewHas('admins', fn ($admins) => $admins->total() >= 5);
 });
 
 test('pencarian berdasarkan nama atau username berfungsi', function () {
-    $owner = createUser('owner');
+    $owner = createUser('superadmin');
     actingAs($owner);
 
     $specific = User::factory()->create([
-        'role' => 'admin_cv',
+        'role' => 'admin',
         'name' => 'Joko Widodo',
-        'username' => 'jokowi_cv'
+        'username' => 'jokowi_cv',
     ]);
 
     Livewire::test(AdminIndex::class)
         ->set('search', 'Joko')
-        ->assertViewHas('admins', fn($admins) => $admins->contains($specific));
+        ->assertViewHas('admins', fn ($admins) => $admins->contains($specific));
 
     Livewire::test(AdminIndex::class)
         ->set('search', 'jokowi')
-        ->assertViewHas('admins', fn($admins) => $admins->contains($specific));
+        ->assertViewHas('admins', fn ($admins) => $admins->contains($specific));
 });
 
 test('tombol create membuka modal form dengan properti kosong', function () {
-    $owner = createUser('owner');
+    $owner = createUser('superadmin');
     actingAs($owner);
 
     Livewire::test(AdminIndex::class)
@@ -81,7 +81,7 @@ test('tombol create membuka modal form dengan properti kosong', function () {
 });
 
 test('store berhasil menambahkan admin CV baru', function () {
-    $owner = createUser('owner');
+    $owner = createUser('superadmin');
     actingAs($owner);
 
     Livewire::test(AdminIndex::class)
@@ -98,15 +98,15 @@ test('store berhasil menambahkan admin CV baru', function () {
         'username' => 'admin_baru',
         'name' => 'Admin Baru',
         'email' => 'baru@example.com',
-        'role' => 'admin_cv',
+        'role' => 'admin',
     ]);
 });
 
 test('validasi store: username wajib dan unik', function () {
-    $owner = createUser('owner');
+    $owner = createUser('superadmin');
     actingAs($owner);
 
-    User::factory()->create(['username' => 'sama', 'role' => 'admin_cv']);
+    User::factory()->create(['username' => 'sama', 'role' => 'admin']);
 
     Livewire::test(AdminIndex::class)
         ->set('username', 'sama')
@@ -117,7 +117,7 @@ test('validasi store: username wajib dan unik', function () {
 });
 
 test('validasi store: password minimal 6 karakter', function () {
-    $owner = createUser('owner');
+    $owner = createUser('superadmin');
     actingAs($owner);
 
     Livewire::test(AdminIndex::class)
@@ -129,10 +129,10 @@ test('validasi store: password minimal 6 karakter', function () {
 });
 
 test('show menampilkan detail admin di modal', function () {
-    $owner = createUser('owner');
+    $owner = createUser('superadmin');
     actingAs($owner);
 
-    $admin = User::factory()->create(['role' => 'admin_cv']);
+    $admin = User::factory()->create(['role' => 'admin']);
 
     Livewire::test(AdminIndex::class)
         ->call('show', $admin->id)
@@ -141,14 +141,14 @@ test('show menampilkan detail admin di modal', function () {
 });
 
 test('edit mengisi form dengan data admin yang dipilih', function () {
-    $owner = createUser('owner');
+    $owner = createUser('superadmin');
     actingAs($owner);
 
     $admin = User::factory()->create([
-        'role' => 'admin_cv',
+        'role' => 'admin',
         'name' => 'Lama',
         'username' => 'lama_cv',
-        'email' => 'lama@example.com'
+        'email' => 'lama@example.com',
     ]);
 
     Livewire::test(AdminIndex::class)
@@ -163,10 +163,10 @@ test('edit mengisi form dengan data admin yang dipilih', function () {
 });
 
 test('update berhasil mengubah data admin tanpa password', function () {
-    $owner = createUser('owner');
+    $owner = createUser('superadmin');
     actingAs($owner);
 
-    $admin = User::factory()->create(['role' => 'admin_cv']);
+    $admin = User::factory()->create(['role' => 'admin']);
 
     Livewire::test(AdminIndex::class)
         ->set('userId', $admin->id)
@@ -186,10 +186,10 @@ test('update berhasil mengubah data admin tanpa password', function () {
 });
 
 test('update berhasil mengganti password jika diisi', function () {
-    $owner = createUser('owner');
+    $owner = createUser('superadmin');
     actingAs($owner);
 
-    $admin = User::factory()->create(['role' => 'admin_cv', 'password' => bcrypt('oldpass')]);
+    $admin = User::factory()->create(['role' => 'admin', 'password' => bcrypt('oldpass')]);
 
     Livewire::test(AdminIndex::class)
         ->set('userId', $admin->id)
@@ -205,11 +205,11 @@ test('update berhasil mengganti password jika diisi', function () {
 });
 
 test('validasi update: username dan email harus unik kecuali dirinya sendiri', function () {
-    $owner = createUser('owner');
+    $owner = createUser('superadmin');
     actingAs($owner);
 
-    $admin = User::factory()->create(['role' => 'admin_cv', 'username' => 'admin1']);
-    $other = User::factory()->create(['role' => 'admin_cv', 'username' => 'admin2', 'email' => 'other@example.com']);
+    $admin = User::factory()->create(['role' => 'admin', 'username' => 'admin1']);
+    $other = User::factory()->create(['role' => 'admin', 'username' => 'admin2', 'email' => 'other@example.com']);
 
     Livewire::test(AdminIndex::class)
         ->set('userId', $admin->id)
@@ -221,10 +221,10 @@ test('validasi update: username dan email harus unik kecuali dirinya sendiri', f
 });
 
 test('suspend membekukan admin yang aktif via modal konfirmasi', function () {
-    $owner = createUser('owner');
+    $owner = createUser('superadmin');
     actingAs($owner);
 
-    $admin = User::factory()->create(['role' => 'admin_cv', 'status' => 'active']);
+    $admin = User::factory()->create(['role' => 'admin', 'status' => 'active']);
 
     Livewire::test(AdminIndex::class)
         ->call('confirmSuspend', $admin->id, $admin->name)
@@ -238,10 +238,10 @@ test('suspend membekukan admin yang aktif via modal konfirmasi', function () {
 });
 
 test('activate mengaktifkan kembali admin yang dibekukan secara langsung', function () {
-    $owner = createUser('owner');
+    $owner = createUser('superadmin');
     actingAs($owner);
 
-    $admin = User::factory()->create(['role' => 'admin_cv', 'status' => 'suspended']);
+    $admin = User::factory()->create(['role' => 'admin', 'status' => 'suspended']);
 
     Livewire::test(AdminIndex::class)
         ->call('activate', $admin->id)
@@ -251,10 +251,10 @@ test('activate mengaktifkan kembali admin yang dibekukan secara langsung', funct
 });
 
 test('resetPasswordAction mereset password ke default via modal konfirmasi', function () {
-    $owner = createUser('owner');
+    $owner = createUser('superadmin');
     actingAs($owner);
 
-    $admin = User::factory()->create(['role' => 'admin_cv', 'password' => bcrypt('old')]);
+    $admin = User::factory()->create(['role' => 'admin', 'password' => bcrypt('old')]);
 
     Livewire::test(AdminIndex::class)
         ->call('confirmReset', $admin->id, $admin->name)
@@ -268,10 +268,10 @@ test('resetPasswordAction mereset password ke default via modal konfirmasi', fun
 });
 
 test('destroy menghapus admin (soft delete) via modal konfirmasi', function () {
-    $owner = createUser('owner');
+    $owner = createUser('superadmin');
     actingAs($owner);
 
-    $admin = User::factory()->create(['role' => 'admin_cv']);
+    $admin = User::factory()->create(['role' => 'admin']);
 
     Livewire::test(AdminIndex::class)
         ->call('confirmDestroy', $admin->id, $admin->name)

@@ -10,36 +10,48 @@ use Mary\Traits\Toast;
 
 class AdminIndex extends Component
 {
-    use WithPagination, Toast;
+    use Toast, WithPagination;
 
     public string $search = '';
+
     public string $filterStatus = '';
+
     public ?int $userId = null;
+
     public string $username = '';
+
     public string $name = '';
+
     public string $email = '';
+
     public string $password = '';
 
     public bool $isFormModalOpen = false;
+
     public bool $isDetailModalOpen = false;
+
     public bool $isEditMode = false;
+
     public ?User $selectedUser = null;
 
     public bool $confirmingReset = false;
+
     public bool $confirmingSuspend = false;
+
     public bool $confirmingDestroy = false;
 
     public ?int $targetAdminId = null;
+
     public string $targetAdminName = '';
 
     protected $queryString = [
         'search' => ['except' => ''],
-        'filterStatus' => ['except' => '']
+        'filterStatus' => ['except' => ''],
     ];
 
     public function mount(): void
     {
-        if (!auth()->check() || !auth()->user()->isSuperAdmin()) {
+        if (! auth()->check() || ! auth()->user()->isSuperAdmin()) {
             abort(403, 'Hanya Owner/Superadmin yang memiliki hak akses ke halaman ini.');
         }
     }
@@ -60,15 +72,15 @@ class AdminIndex extends Component
             ->admin()
             ->when($this->search, function ($query) {
                 $query->where(function ($q) {
-                    $q->where('name', 'like', '%' . $this->search . '%')
-                        ->orWhere('username', 'like', '%' . $this->search . '%');
+                    $q->where('name', 'like', '%'.$this->search.'%')
+                        ->orWhere('username', 'like', '%'.$this->search.'%');
                 });
             })
             ->when($this->filterStatus === 'active', function ($query) {
-                $query->where('status', true);
+                $query->where('status', 'active');
             })
             ->when($this->filterStatus === 'suspended', function ($query) {
-                $query->where('status', false);
+                $query->where('status', 'suspended');
             })
             ->latest()
             ->paginate(10);
@@ -104,14 +116,15 @@ class AdminIndex extends Component
         $this->success('Akun Admin CV berhasil didaftarkan.');
     }
 
-    public function show(User $user): void
+    public function show(int $id): void
     {
-        $this->selectedUser = $user;
+        $this->selectedUser = User::findOrFail($id);
         $this->isDetailModalOpen = true;
     }
 
-    public function edit(User $user): void
+    public function edit(int $id): void
     {
+        $user = User::findOrFail($id);
         $this->resetValidation();
         $this->userId = $user->id;
         $this->username = $user->username;
@@ -140,7 +153,7 @@ class AdminIndex extends Component
             'email' => $validated['email'],
         ];
 
-        if (!empty($validated['password'])) {
+        if (! empty($validated['password'])) {
             $updateData['password'] = $validated['password'];
         }
 
@@ -192,7 +205,7 @@ class AdminIndex extends Component
         }
     }
 
-    public function resetPasswordAction(User $user): void
+    public function resetPasswordAction(): void
     {
         if ($this->targetAdminId) {
             $user = User::findOrFail($this->targetAdminId);
@@ -203,7 +216,7 @@ class AdminIndex extends Component
         }
     }
 
-    public function destroy(User $user): void
+    public function destroy(): void
     {
         if ($this->targetAdminId) {
             $user = User::findOrFail($this->targetAdminId);

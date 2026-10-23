@@ -12,29 +12,52 @@ class SupplierForm extends Component
     use Toast;
 
     public ?Supplier $supplier = null;
+
     public string $company_name = '';
+
     public string $pic_name = '';
+
     public string $npwp = '';
+
     public string $nib = '';
+
     public string $phone = '';
+
     public string $email = '';
+
     public string $address = '';
 
     public string $director_name = '';
+
     public string $director_nik = '';
+
     public ?string $director_npwp = null;
+
     public ?string $director_phone = null;
+
     public ?string $director_address = null;
 
     public ?string $commissioner_name = null;
+
     public ?string $commissioner_nik = null;
+
     public ?string $commissioner_address = null;
 
     public bool $isEdit = false;
 
+    public string $activeTab = 'umum';
+
     public function mount(?Supplier $supplier = null): void
     {
+        abort_unless(auth()->user()?->isSuperAdmin(), 403);
+
         if ($supplier && $supplier->exists) {
+            $supplier->load([
+                'legalDocuments',
+                'procurementRequests.packageCategory',
+                'procurementRequests.school',
+            ]);
+
             $this->supplier = $supplier;
             $this->isEdit = true;
             $this->company_name = $supplier->company_name;
@@ -57,6 +80,35 @@ class SupplierForm extends Component
         }
     }
 
+    public function getLegalDocumentsProperty()
+    {
+        return $this->supplier?->legalDocuments ?? collect();
+    }
+
+    public function getProjectsProperty()
+    {
+        if (! $this->supplier) {
+            return collect();
+        }
+
+        return $this->supplier->procurementRequests
+            ->sortByDesc('created_at')
+            ->values();
+    }
+
+    public function getSummaryProperty(): array
+    {
+        if (! $this->supplier) {
+            return [];
+        }
+
+        return [
+            'total_projects' => $this->supplier->procurementRequests->count(),
+            'total_project_value' => $this->supplier->totalProjectValue(),
+            'is_complete' => $this->supplier->hasCompleteLegalDocuments(),
+        ];
+    }
+
     protected function rules(): array
     {
         return [
@@ -66,20 +118,20 @@ class SupplierForm extends Component
                 'required',
                 'string',
                 'max:30',
-                Rule::unique('suppliers', 'npwp')->ignore($this->supplier?->id)
+                Rule::unique('suppliers', 'npwp')->ignore($this->supplier?->id),
             ],
             'nib' => [
                 'required',
                 'string',
                 'max:50',
-                Rule::unique('suppliers', 'nib')->ignore($this->supplier?->id)
+                Rule::unique('suppliers', 'nib')->ignore($this->supplier?->id),
             ],
             'phone' => 'required|string|max:20',
             'email' => [
                 'nullable',
                 'email',
                 'max:255',
-                Rule::unique('suppliers', 'email')->ignore($this->supplier?->id)
+                Rule::unique('suppliers', 'email')->ignore($this->supplier?->id),
             ],
             'address' => 'required|string',
 
@@ -97,9 +149,7 @@ class SupplierForm extends Component
 
     public function save()
     {
-        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isAdmin()) {
-            abort(403, 'Akses ditolak. Anda tidak memiliki otoritas untuk mengelola data supplier.');
-        }
+        abort_unless(auth()->user()?->isSuperAdmin(), 403, 'Akses ditolak. Hanya Superadmin yang dapat mengelola data supplier.');
 
         $validated = $this->validate();
 
@@ -111,18 +161,19 @@ class SupplierForm extends Component
             $message = "Supplier {$this->company_name} berhasil ditambahkan ke dalam sistem.";
         }
 
-        session()->flash('toast_success', $message);
+        $this->success($message);
 
-        $route = auth()->user()->isSuperAdmin() ? 'owner.suppliers.index' : 'cv.suppliers.index';
-        return $this->redirectRoute($route, navigate: true);
+        return $this->redirectRoute('superadmin.suppliers.index', navigate: true);
     }
 
     public function render()
     {
-        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isAdminCv()) {
-            abort(403);
-        }
+        abort_unless(auth()->user()?->isSuperAdmin(), 403);
 
-        return view('livewire.supplier.supplier-form')->layout('layouts.app');
+        return view('livewire.supplier.supplier-form', [
+            'legalDocuments' => $this->legalDocuments,
+            'projects' => $this->projects,
+            'summary' => $this->summary,
+        ])->layout('layouts.app');
     }
 }

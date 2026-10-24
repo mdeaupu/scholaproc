@@ -12,26 +12,26 @@ test('login screen can be rendered', function () {
 });
 
 test('users can authenticate using the login screen', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->school()->create();
 
     $component = Volt::test('pages.auth.login')
-        ->set('form.email', $user->email)
+        ->set('form.username', $user->username)
         ->set('form.password', 'password');
 
     $component->call('login');
 
     $component
         ->assertHasNoErrors()
-        ->assertRedirect(route('dashboard', absolute: false));
+        ->assertRedirect(route('dashboard.school', absolute: false));
 
     $this->assertAuthenticated();
 });
 
 test('users can not authenticate with invalid password', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->school()->create();
 
     $component = Volt::test('pages.auth.login')
-        ->set('form.email', $user->email)
+        ->set('form.username', $user->username)
         ->set('form.password', 'wrong-password');
 
     $component->call('login');
@@ -43,16 +43,52 @@ test('users can not authenticate with invalid password', function () {
     $this->assertGuest();
 });
 
+test('login redirects superadmin to the superadmin dashboard', function () {
+    $user = User::factory()->superAdmin()->create();
+
+    $component = Volt::test('pages.auth.login')
+        ->set('form.username', $user->username)
+        ->set('form.password', 'password');
+
+    $component->call('login');
+
+    $component->assertRedirect(route('dashboard.superadmin', absolute: false));
+});
+
 test('navigation menu can be rendered', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->school()->create();
 
     $this->actingAs($user);
 
-    $response = $this->get('/dashboard');
+    $response = $this->followingRedirects()->get('/dashboard');
 
     $response
         ->assertOk()
         ->assertSeeVolt('layout.navigation');
+});
+
+test('admin sidebar supplier menu links to admin suppliers index', function () {
+    $user = User::factory()->admin()->create();
+
+    $this->actingAs($user);
+
+    $component = Volt::test('layout.sidebar-menu');
+
+    $component
+        ->assertSee(route('admin.suppliers.index'), escape: false)
+        ->assertDontSee(route('superadmin.suppliers.index'), escape: false);
+});
+
+test('superadmin sidebar supplier menu links to superadmin suppliers index', function () {
+    $user = User::factory()->superAdmin()->create();
+
+    $this->actingAs($user);
+
+    $component = Volt::test('layout.sidebar-menu');
+
+    $component
+        ->assertSee(route('superadmin.suppliers.index'), escape: false)
+        ->assertDontSee(route('admin.suppliers.index'), escape: false);
 });
 
 test('users can logout', function () {
@@ -60,7 +96,7 @@ test('users can logout', function () {
 
     $this->actingAs($user);
 
-    $component = Volt::test('layout.navigation');
+    $component = Volt::test('layout.sidebar-menu');
 
     $component->call('logout');
 

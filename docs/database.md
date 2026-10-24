@@ -1,4 +1,33 @@
-# Struktur Database Pengadaan Barang Sekolah (Revisi)
+# Status dokumen dan batas penggunaan
+
+**Dokumen ini adalah spesifikasi database yang diusulkan, bukan hasil verifikasi database yang sedang berjalan.** Pengguna telah menyampaikan bahwa database dan tech stack sudah tersedia, tetapi file yang diberikan menjelaskan rancangan tabel/kolom; ia bukan dump skema aktual atau bukti bahwa migration tersebut sudah diterapkan.
+
+## Tech stack acuan yang diberikan
+- Laravel 12, PHP 8.3, MySQL
+- Tailwind CSS, AlpineJS, Livewire, Mary UI, Blade Icons
+- Laravel Breeze, Spatie Permissions
+- DOMPDF, Fast-Excel
+- Spatie Activity Log, Media Library, Backup
+- Simple-QRCode, HTML5-QRCode
+- WhatsApp HTTP API/WAHA, Laravel Mail, Laravel Queue
+- Postman, Docker untuk WAHA, Git
+
+## Prinsip penyelarasan
+1. PRD Clean v1.1 menjadi acuan kebutuhan bisnis; MVC Architecture Terpadu menjadi acuan tanggung jawab domain dan implementasi.
+2. Struktur di bawah tidak boleh otomatis dianggap sama dengan database aktual. Audit migration dan database terlebih dahulu.
+3. Tidak ada perubahan schema yang boleh diterapkan hanya karena dokumen ini mencatat gap. Setiap perubahan membutuhkan analisis dampak, rencana migrasi/rollback, pengujian, dan persetujuan.
+4. Model/domain object yang disebut dalam MVC Architecture tidak otomatis berarti harus dibuat tabel baru.
+5. Nilai status dan aturan bisnis yang belum selaras harus diselesaikan sebelum implementasi.
+
+## Ringkasan hasil review
+- **Selaras:** model satu CV sebagai pihak transaksi; role sekolah dan internal CV; master data; negosiasi per item; metadata dokumen; file bukti; audit history; penomoran dokumen.
+- **Perlu koreksi spesifikasi:** status transaksi, persetujuan negosiasi dua pihak, aturan penguncian snapshot harga, asumsi tarif pajak default.
+- **Gap terhadap PRD:** pencatatan kuantitas/kondisi per penerimaan, pencatatan pembayaran dan status invoice/pembayaran, serta pembatasan sumber dana per sekolah.
+- **Perlu keputusan:** katalog barang sebagai master data; representasi persetujuan CV; detail versi/snapshot dokumen; kebutuhan delivery/receipt records; penyesuaian skema aktual setelah audit.
+
+---
+
+# Struktur Database Pengadaan Barang Sekolah — Revisi Selaras PRD & MVC Architecture
 
 Perubahan dari versi awal:
 - Semua kolom `ENUM` diganti `VARCHAR` (nilai valid di-hardcode di aplikasi, bukan di level DB).
@@ -11,7 +40,7 @@ Perubahan dari versi awal:
 - Hasil review terhadap format dokumen output (Dokumen Perencanaan, Hasil Nego, Surat Pesanan, Surat Hasil Pemeriksaan, BAST, Faktur, Kuitansi, Cover, Identitas Penyedia):
   - Tambah `director_address`, `commissioner_address`, `director_share_percentage`, `commissioner_share_percentage` di `suppliers`.
   - Tambah `supplier_declaration` ke daftar `document_type` untuk dokumen "Identitas Penyedia".
-  - Kolom "Jumlah Diterima" & "Kondisi Barang" di Surat Hasil Pemeriksaan/BAST **sengaja tidak dibuatkan tabel** — data itu diisi manual di kertas fisik saat serah terima, bukan lewat web, jadi cukup dicetak sebagai kolom kosong di dokumen (nama barang + jumlah pesanan saja yang perlu ditarik dari `procurement_request_items`).
+  - Catatan awal bahwa "Jumlah Diterima" dan "Kondisi Barang" diisi manual pada kertas fisik **belum memenuhi PRD terbaru**. PRD mensyaratkan sistem mencatat kuantitas dan kondisi setiap penerimaan, termasuk penerimaan parsial. Karena itu, diperlukan pencatatan penerimaan terstruktur atau keputusan eksplisit untuk mengubah kebutuhan PRD; lihat bagian gap di akhir dokumen.
 - Ditambahkan fitur **verifikasi penerimaan barang**: tabel baru `procurement_verification_files` (upload foto barang & scan dokumen bertanda tangan, one-to-many per transaksi) + kolom `verified_at`/`verified_by` di `procurement_requests` (konfirmasi status verified, terpisah dari proses upload bukti).
 - Ditambahkan fitur **penomoran dokumen otomatis**: tabel baru `document_number_sequences` (counter per sekolah + tahun anggaran + jenis dokumen) agar nomor surat resmi tidak diketik manual — mencegah nomor bentrok/loncat antar transaksi.
 - Keputusan final (bukan gap, sudah dipertimbangkan lalu sengaja tidak diambil):
@@ -542,3 +571,161 @@ Columns:
   - FOREIGN KEY (procurement_request_id) REFERENCES procurement_requests(id)
   - INDEX (status)
   - INDEX (channel)
+
+---
+
+# Penyelarasan Status dan Gap Fungsional
+
+Bagian ini menjelaskan perbedaan antara rancangan database dalam dokumen ini, kebutuhan PRD, dan domain object yang disebut MVC Architecture. Bagian ini **bukan migration plan dan bukan izin untuk langsung menambah tabel**.
+
+## A. Pemetaan status transaksi
+
+PRD menggunakan status konseptual:
+- `Draft`
+- `Submitted`
+- `Needs Revision`
+- `Verified`
+- `Negotiation`
+- `Price Agreed`
+- `Processing`
+- `Partially Received`
+- `Received`
+- `Invoiced`
+- `Payment Pending`
+- `Completed`
+- `Disputed`
+- `Rejected`
+- `Cancelled`
+
+Rancangan tabel `procurement_requests.status` dan `procurement_request_histories.status` masih mencantumkan status lama seperti `supplier_assigned` dan `items_prepared`, dan belum mencakup beberapa status PRD. Karena kolom menggunakan `VARCHAR`, validasi nilai berada di aplikasi; tetapi perubahan tetap perlu dipetakan agar data lama tidak rusak.
+
+**Tindakan sebelum implementasi:**
+1. Ekstrak nilai status yang benar-benar ada di database.
+2. Cari seluruh pemakaian status pada model, controller, Livewire, query dashboard, laporan, notifikasi, dan dokumen.
+3. Buat mapping status lama → status PRD yang disepakati.
+4. Tentukan transisi yang diizinkan dan aktor yang boleh melakukan transisi.
+5. Uji data historis serta semua alur sebelum mengubah kode/status tersimpan.
+
+Jangan membuat mapping otomatis yang menganggap `verified` pada skema lama sama dengan `Verified` pada PRD tanpa memastikan makna bisnisnya.
+
+## B. Negosiasi dan persetujuan harga dua pihak
+
+Tabel `procurement_negotiations` cocok untuk menyimpan riwayat tawaran per item. Namun, narasi awal bahwa keputusan terima/tolak hanya dilakukan sekolah belum cukup untuk kebutuhan PRD: harga final hanya terbentuk setelah persetujuan sisi sekolah dan CV tercatat.
+
+Sebelum perubahan schema, audit apakah tabel/relasi yang ada dapat menyimpan:
+- pihak yang menawarkan;
+- user yang melakukan tindakan;
+- harga dan waktu;
+- status tiap putaran;
+- persetujuan sekolah;
+- persetujuan CV;
+- waktu dan aktor persetujuan masing-masing.
+
+Jika skema sekarang tidak dapat merepresentasikan dua persetujuan secara jelas, usulkan opsi perubahan minimal dengan analisis dampak. Jangan sekadar menyamakan `accepted` pada satu putaran dengan persetujuan kedua pihak.
+
+## C. Penerimaan bertahap — gap prioritas tinggi
+
+PRD dan MVC Architecture mensyaratkan penerimaan per pengiriman dengan tanggal, item, jumlah diterima, kondisi, catatan, dan petugas pencatat. Rancangan saat ini hanya mempunyai:
+- `procurement_verification_files` untuk foto/scan;
+- `procurement_requests.verified_at` dan `verified_by` untuk konfirmasi tingkat transaksi.
+
+Keduanya **tidak cukup untuk menyimpan jumlah dan kondisi setiap penerimaan**. Unggahan bukti dan satu timestamp verifikasi tidak dapat menggantikan catatan penerimaan per item/per kejadian.
+
+Rekomendasi: audit dahulu apakah database aktual sudah memiliki tabel receipt/delivery yang tidak tercantum dalam file ini. Jika tidak ada, ajukan rancangan minimal untuk mencatat setiap kejadian penerimaan dan baris item yang diterima. Nama/struktur tabel belum ditetapkan di sini. Desain harus mendukung:
+- tanggal penerimaan;
+- transaksi dan pengiriman terkait bila dimodelkan;
+- item yang diterima;
+- kuantitas diterima;
+- kondisi (misalnya baik, rusak, kurang/tidak sesuai) beserta catatan;
+- petugas pencatat dan waktu;
+- bukti file yang terkait;
+- jumlah kumulatif dan sisa yang belum diterima;
+- koreksi yang terlacak, tanpa menghapus sejarah penerimaan.
+
+Jangan menjadikan `procurement_requests.verified_at` sebagai satu-satunya sumber kebenaran penerimaan. Kolom tersebut dapat tetap menjadi ringkasan/konfirmasi transaksi jika diperlukan dan disetujui.
+
+## D. Invoice dan pembayaran — gap prioritas tinggi
+
+PRD memisahkan penerimaan, invoice, pembayaran, dan kuitansi. MVC Architecture juga menyebut domain `Invoice` dan `PaymentRecord` sebagai kandidat domain object. Rancangan saat ini memiliki `generated_documents` untuk metadata PDF, tetapi belum terlihat pencatatan bisnis invoice dan pembayaran yang memadai.
+
+Metadata PDF tidak sama dengan data transaksi finansial. Audit database aktual untuk memastikan apakah ada tabel atau kolom pembayaran/invoice lain. Jika tidak ada, tentukan rancangan minimal yang dapat mencatat:
+- nomor/tanggal invoice dan statusnya;
+- nilai invoice yang konsisten dengan snapshot harga/pajak tervalidasi;
+- pembayaran (tanggal, jumlah, metode/referensi, status konfirmasi, petugas, bukti bila digunakan);
+- kemungkinan pembayaran sebagian jika memang didukung proses bisnis;
+- kuitansi hanya setelah pembayaran dikonfirmasi;
+- riwayat koreksi dan audit.
+
+Jangan menganggap `Completed` hanya dari keberadaan file invoice atau kuitansi. Jangan menganggap sistem harus mendukung cicilan sebelum aturan bisnisnya dikonfirmasi.
+
+## E. Sumber dana yang dibatasi per sekolah
+
+Rancangan memiliki `funding_sources`, tetapi PRD mengharuskan pilihan sumber dana dapat dibatasi per sekolah. Tabel `funding_sources` saja belum menunjukkan relasi pembatasan sekolah.
+
+Audit apakah pembatasan sudah disimpan pada tabel/konfigurasi lain. Jika belum, ajukan desain relasi sekolah–sumber dana setelah mengonfirmasi apakah pilihan sumber dana memang berbeda antar sekolah dan bagaimana perilaku saat master dinonaktifkan.
+
+## F. Master data barang
+
+MVC Architecture menyebut `Item` sebagai kandidat domain object/katalog barang bila digunakan. PRD menyebut master data barang dan satuan, sedangkan rancangan ini mempunyai `item_units` dan `procurement_request_items.item_name` sebagai teks bebas, tanpa tabel katalog barang yang tampak.
+
+Konfirmasikan apakah barang memang harus menjadi katalog master atau nama barang bebas sesuai pengajuan sekolah. Jangan menambahkan tabel barang hanya berdasarkan nama model kandidat. Bila katalog dipilih, pastikan item historis tetap menyimpan deskripsi/spesifikasi yang digunakan pada saat transaksi.
+
+## G. Snapshot harga dan pajak
+
+Kolom snapshot (`subtotal`, `tax_amount`, `grand_total`, `totals_locked_at`) membantu menjaga konsistensi dokumen historis, tetapi titik penguncian dalam rancangan awal masih ambigu (“saat status naik ke verified atau saat dokumen pertama digenerate”).
+
+Penyelarasan:
+- Harga final baru tersedia setelah persetujuan sekolah dan CV tercatat.
+- Snapshot final harus diambil pada titik workflow yang telah disetujui dan sebelum nilai final digunakan pada dokumen resmi yang memerlukan harga tersebut.
+- Perubahan setelah penguncian hanya melalui revisi/koreksi resmi dengan audit trail.
+- Jangan menyamakan status `verified` dengan persetujuan harga atau verifikasi penerimaan tanpa memastikan definisinya.
+
+Kolom pajak memiliki default tarif pada rancangan awal. Ini bertentangan dengan PRD yang melarang asumsi tarif/perlakuan pajak. Tarif dan status pajak harus berasal dari konfigurasi transaksi yang divalidasi. Perubahan default/nullable hanya boleh dilakukan setelah audit skema aktual dan persetujuan.
+
+## H. Dokumen dan penomoran
+
+`procurement_documents`, `generated_documents`, `procurement_signatories`, dan `document_number_sequences` memiliki fungsi yang berbeda:
+- metadata nomor/tanggal dokumen;
+- metadata file PDF hasil generate;
+- snapshot/identitas penandatangan;
+- counter penomoran.
+
+Pastikan tidak ada nomor ganda ketika ada request bersamaan; counter perlu transaksi database dan locking yang sesuai. Pastikan dokumen final historis tidak berubah ketika profil sekolah, data supplier, master data, atau harga berubah. Audit apakah aplikasi menyimpan snapshot isi dokumen atau hanya membuat ulang PDF dari data terbaru.
+
+Jenis dokumen harus mengikuti PRD dan prosedur yang disetujui. Keberadaan `supplier_declaration` pada skema adalah detail tambahan yang perlu dipastikan dengan kebutuhan dokumen final.
+
+## I. Notifikasi dan audit
+
+`notifications` dapat mencatat antrean/hasil pengiriman WA/email, sedangkan `spatie/laravel-activitylog` pada tech stack dapat mencatat aktivitas. Keduanya bukan hal yang sama:
+- notifikasi menyimpan pesan/tujuan/status pengiriman;
+- activity log mencatat aksi/perubahan model sesuai konfigurasi.
+
+Audit retensi isi pesan, akses terhadap nomor/email, penyamaran data sensitif, retry, dan pencegahan notifikasi ganda. Jangan menyimpan secret integrasi di tabel notifikasi atau log.
+
+## J. Checklist sebelum database dianggap siap untuk coding
+
+- [ ] Bandingkan file ini dengan migration dan schema database aktual.
+- [ ] Daftar status aktual diekstrak dan dipetakan ke PRD.
+- [ ] Persetujuan harga dua pihak dapat direpresentasikan.
+- [ ] Penerimaan bertahap per item dengan kuantitas dan kondisi dapat direpresentasikan.
+- [ ] Invoice dan pembayaran dapat ditelusuri terpisah dari PDF.
+- [ ] Pilihan sumber dana per sekolah dapat dibatasi sesuai aturan.
+- [ ] Pajak tidak memakai tarif asumsi.
+- [ ] Snapshot dokumen/harga historis konsisten.
+- [ ] Relasi foreign key, unique constraint, indeks, dan soft delete telah diverifikasi.
+- [ ] Setiap perubahan skema memiliki analisis dampak, migration/rollback, tes, dan persetujuan.
+
+## K. Perubahan yang tidak boleh dilakukan otomatis oleh AI
+
+AI tidak boleh langsung:
+- membuat atau menghapus tabel/kolom;
+- mengganti enum/status data historis;
+- mengubah default pajak;
+- mengubah relasi foreign key atau cascade delete;
+- mengunci harga pada status yang belum terdefinisi;
+- menambahkan model/tabel hanya karena tercantum sebagai kandidat arsitektur;
+- menganggap file unggahan sebagai bukti bahwa penerimaan sudah lengkap;
+- menandai transaksi selesai hanya karena PDF invoice/kuitansi tersedia.
+
+Setiap perubahan harus diawali audit repository dan database aktual, lalu diajukan dengan opsi, dampak, tes, dan rencana rollback.
+

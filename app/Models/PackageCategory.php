@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class PackageCategory extends Model
 {
     use HasFactory;
+
     protected $fillable = [
         'name',
         'is_active',

@@ -3,45 +3,46 @@
 namespace App\Livewire\Admin;
 
 use App\Models\User;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Mary\Traits\Toast;
+use Spatie\Activitylog\Models\Activity;
 
 class AdminIndex extends Component
 {
-    use WithPagination, Toast;
+    use Toast, WithPagination;
 
     public string $search = '';
-    public string $filterStatus = '';
-    public ?int $userId = null;
-    public string $username = '';
-    public string $name = '';
-    public string $email = '';
-    public string $password = '';
 
-    public bool $isFormModalOpen = false;
+    public string $filterStatus = '';
+
     public bool $isDetailModalOpen = false;
-    public bool $isEditMode = false;
+
     public ?User $selectedUser = null;
 
-    public bool $confirmingReset = false;
-    public bool $confirmingSuspend = false;
+    public string $detailTab = 'umum';
+
+    public ?int $selectedLastActivity = null;
+
+    /** @var array<int, array{description: string, label: string, causer: string, created_at: string}> */
+    public array $selectedActivities = [];
+
     public bool $confirmingDestroy = false;
 
     public ?int $targetAdminId = null;
+
     public string $targetAdminName = '';
 
     protected $queryString = [
         'search' => ['except' => ''],
-        'filterStatus' => ['except' => '']
+        'filterStatus' => ['except' => ''],
     ];
 
     public function mount(): void
     {
-        if (!auth()->check() || !auth()->user()->isSuperAdmin()) {
-            abort(403, 'Hanya Owner/Superadmin yang memiliki hak akses ke halaman ini.');
-        }
+        Gate::authorize('viewAny', User::class);
     }
 
     public function updatingSearch(): void
@@ -56,170 +57,158 @@ class AdminIndex extends Component
 
     public function render()
     {
-        $admins = User::query()
-            ->admin()
+        Gate::authorize('viewAny', User::class);
+
+        $managedQuery = User::query()->where('role', 'admin');
+
+        $stats = [
+            'total' => (clone $managedQuery)->count(),
+            'active' => (clone $managedQuery)->where('status', 'active')->count(),
+            'inactive' => (clone $managedQuery)->where('status', 'suspended')->count(),
+        ];
+
+        $stats['active_percent'] = $stats['total'] > 0
+            ? (int) round(($stats['active'] / $stats['total']) * 100)
+            : 0;
+
+        $stats['inactive_percent'] = $stats['total'] > 0
+            ? (int) round(($stats['inactive'] / $stats['total']) * 100)
+            : 0;
+
+        $admins = (clone $managedQuery)
             ->when($this->search, function ($query) {
                 $query->where(function ($q) {
-                    $q->where('name', 'like', '%' . $this->search . '%')
-                        ->orWhere('username', 'like', '%' . $this->search . '%');
+                    $q->where('name', 'like', '%'.$this->search.'%')
+                        ->orWhere('username', 'like', '%'.$this->search.'%')
+                        ->orWhere('email', 'like', '%'.$this->search.'%');
                 });
             })
             ->when($this->filterStatus === 'active', function ($query) {
-                $query->where('status', true);
+                $query->where('status', 'active');
             })
             ->when($this->filterStatus === 'suspended', function ($query) {
-                $query->where('status', false);
+                $query->where('status', 'suspended');
             })
+            ->withCount(['histories', 'negotiations', 'verifiedRequests', 'verificationFiles'])
             ->latest()
             ->paginate(10);
 
-        return view('livewire.admin.admin-index', compact('admins'))->layout('layouts.app');
+        $adminIds = $admins->pluck('id');
+
+        $lastActivities = config('session.driver') === 'database'
+            ? DB::table(config('session.table', 'sessions'))
+                ->select('user_id', DB::raw('MAX(last_activity) as last_activity'))
+                ->whereIn('user_id', $adminIds)
+                ->groupBy('user_id')
+                ->pluck('last_activity', 'user_id')
+            : collect();
+
+        $causerActivityIds = Activity::query()
+            ->where('causer_type', (new User)->getMorphClass())
+            ->whereIn('causer_id', $adminIds)
+            ->distinct()
+            ->pluck('causer_id')
+            ->flip();
+
+        if ($admins->firstItem() !== null) {
+            $admins->getCollection()->each(function (User $admin, int $index) use ($admins, $lastActivities, $causerActivityIds) {
+                $admin->setAttribute('row_no', $admins->firstItem() + $index);
+                $admin->setAttribute('last_activity', $lastActivities[$admin->id] ?? null);
+                $admin->setAttribute(
+                    'has_activity_history',
+                    $admin->histories_count > 0
+                        || $admin->negotiations_count > 0
+                        || $admin->verified_requests_count > 0
+                        || $admin->verification_files_count > 0
+                        || $causerActivityIds->has($admin->id)
+                );
+            });
+        }
+
+        return view('livewire.admin.admin-index', compact('admins', 'stats'))->layout('layouts.app');
     }
 
-    public function create(): void
+    private function findManagedUser(int $id): User
     {
-        $this->resetValidation();
-        $this->resetForm();
-        $this->isEditMode = false;
-        $this->isFormModalOpen = true;
+        return User::query()
+            ->where('role', 'admin')
+            ->findOrFail($id);
     }
 
-    public function store(): void
+    public function show(int $id): void
     {
-        $validated = $this->validate([
-            'username' => 'required|string|max:50|unique:users,username',
-            'name' => 'required|string|max:255',
-            'email' => 'nullable|email|max:255|unique:users,email',
-            'password' => 'required|string|min:6',
-        ]);
+        $user = $this->findManagedUser($id);
+        Gate::authorize('view', $user);
 
-        $validated['role'] = 'admin';
-        $validated['status'] = 'active';
-
-        User::create($validated);
-
-        $this->isFormModalOpen = false;
-        $this->resetForm();
-
-        $this->success('Akun Admin CV berhasil didaftarkan.');
-    }
-
-    public function show(User $user): void
-    {
         $this->selectedUser = $user;
+        $this->detailTab = 'umum';
+        $this->selectedLastActivity = config('session.driver') === 'database'
+            ? DB::table(config('session.table', 'sessions'))
+                ->where('user_id', $user->id)
+                ->max('last_activity')
+            : null;
+
+        $this->selectedActivities = Activity::query()
+            ->with('causer')
+            ->where('subject_type', User::class)
+            ->where('subject_id', $user->id)
+            ->latest()
+            ->limit(8)
+            ->get()
+            ->map(fn (Activity $activity) => [
+                'description' => $activity->description,
+                'label' => $this->activityLabel($activity->description),
+                'causer' => $activity->causer?->name ?? 'Sistem',
+                'created_at' => $activity->created_at?->format('d M Y, H:i') ?? '-',
+            ])
+            ->all();
+
         $this->isDetailModalOpen = true;
     }
 
-    public function edit(User $user): void
+    private function activityLabel(string $description): string
     {
-        $this->resetValidation();
-        $this->userId = $user->id;
-        $this->username = $user->username;
-        $this->name = $user->name;
-        $this->email = $user->email ?? '';
-        $this->password = '';
-
-        $this->isEditMode = true;
-        $this->isFormModalOpen = true;
+        return match ($description) {
+            'admin-created' => 'Akun admin dibuat',
+            'admin-updated' => 'Data admin diperbarui',
+            'admin-role-updated' => 'Hak akses admin diperbarui',
+            'admin-activated' => 'Akun admin diaktifkan',
+            'admin-suspended' => 'Akun admin dinonaktifkan',
+            'admin-deleted' => 'Akun admin dihapus',
+            'admin-password-reset' => 'Reset Kata Sandi',
+            default => str($description)->replace(['-', '_'], ' ')->title()->toString(),
+        };
     }
 
-    public function update(): void
+    public function confirmDestroy(int $id): void
     {
-        $user = User::findOrFail($this->userId);
+        $user = $this->findManagedUser($id);
+        Gate::authorize('delete', $user);
 
-        $validated = $this->validate([
-            'username' => ['required', 'string', 'max:50', Rule::unique('users')->ignore($user->id)],
-            'name' => 'required|string|max:255',
-            'email' => ['nullable', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
-            'password' => 'nullable|string|min:6',
-        ]);
-
-        $updateData = [
-            'username' => $validated['username'],
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-        ];
-
-        if (!empty($validated['password'])) {
-            $updateData['password'] = $validated['password'];
-        }
-
-        $user->update($updateData);
-
-        $this->isFormModalOpen = false;
-        $this->resetForm();
-
-        $this->success('Profil Admin CV berhasil diubah.');
-    }
-
-    public function confirmReset(int $id, string $name): void
-    {
-        $this->targetAdminId = $id;
-        $this->targetAdminName = $name;
-        $this->confirmingReset = true;
-    }
-
-    public function confirmSuspend(int $id, string $name): void
-    {
-        $this->targetAdminId = $id;
-        $this->targetAdminName = $name;
-        $this->confirmingSuspend = true;
-    }
-
-    public function confirmDestroy(int $id, string $name): void
-    {
-        $this->targetAdminId = $id;
-        $this->targetAdminName = $name;
+        $this->targetAdminId = $user->id;
+        $this->targetAdminName = $user->name;
         $this->confirmingDestroy = true;
     }
 
-    public function activate(int $id): void
+    public function destroy(): void
     {
-        $user = User::findOrFail($id);
-        $user->activate();
-
-        $this->success("Status akun {$user->name} kembali aktif.");
-    }
-
-    public function suspend(): void
-    {
-        if ($this->targetAdminId) {
-            $user = User::findOrFail($this->targetAdminId);
-            $user->deactivate();
-            $this->confirmingSuspend = false;
-
-            $this->warning("Status akun {$user->name} berhasil dibekukan.");
+        if (! $this->targetAdminId) {
+            return;
         }
-    }
 
-    public function resetPasswordAction(User $user): void
-    {
-        if ($this->targetAdminId) {
-            $user = User::findOrFail($this->targetAdminId);
-            $user->resetPassword('Password123!');
-            $this->confirmingReset = false;
+        $user = $this->findManagedUser($this->targetAdminId);
+        Gate::authorize('delete', $user);
 
-            $this->success("Password untuk {$user->name} di-reset ke default: Password123!");
-        }
-    }
+        activity('admin')
+            ->causedBy(auth()->user())
+            ->performedOn($user)
+            ->withProperties(['username' => $user->username])
+            ->log('admin-deleted');
 
-    public function destroy(User $user): void
-    {
-        if ($this->targetAdminId) {
-            $user = User::findOrFail($this->targetAdminId);
-            $user->delete();
-            $this->confirmingDestroy = false;
+        $user->terminateSessions();
+        $user->delete();
+        $this->confirmingDestroy = false;
 
-            $this->error("Akun Admin CV {$user->name} berhasil dihapus.");
-        }
-    }
-
-    private function resetForm(): void
-    {
-        $this->userId = null;
-        $this->username = '';
-        $this->name = '';
-        $this->email = '';
-        $this->password = '';
+        $this->error("Akun Admin CV {$user->name} berhasil dihapus.");
     }
 }

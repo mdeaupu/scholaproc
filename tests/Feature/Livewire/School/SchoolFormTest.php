@@ -401,6 +401,26 @@ test('sumber dana tidak valid memicu error validasi', function () {
         ->assertHasErrors(['funding_source_ids.0' => 'exists']);
 });
 
+test('sumber dana nonaktif ditolak saat menyimpan sekolah', function () {
+    $superadmin = User::factory()->create(['role' => 'superadmin']);
+    $inactiveFundingSource = FundingSource::factory()->create(['is_active' => false]);
+
+    actingAs($superadmin);
+
+    Livewire::test(SchoolForm::class)
+        ->set('npsn', '12121212')
+        ->set('name', 'SMA Validasi')
+        ->set('address', 'Jl. Validasi')
+        ->set('phone_number', '123')
+        ->set('funding_source_ids', [$inactiveFundingSource->id])
+        ->set('status', 'active')
+        ->set('kop_pusat', 'Kop')
+        ->set('kop_provinsi', 'Prov')
+        ->set('password', 'rahasia123')
+        ->call('save')
+        ->assertHasErrors(['funding_source_ids.0' => 'exists']);
+});
+
 test('mengedit sekolah tidak mengubah dokumen final yang sudah digenerate', function () {
     $superadmin = User::factory()->create(['role' => 'superadmin']);
     $school = School::factory()->create(['npsn' => '88881111', 'name' => 'SMA Dokumen Tetap']);

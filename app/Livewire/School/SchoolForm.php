@@ -6,6 +6,7 @@ use App\Models\FundingSource;
 use App\Models\School;
 use App\Services\SchoolService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 use Mary\Traits\Toast;
@@ -80,7 +81,9 @@ class SchoolForm extends Component
             'principal_name' => 'nullable|string|max:255',
             'principal_nip' => 'nullable|string|max:30',
             'funding_source_ids' => 'array',
-            'funding_source_ids.*' => 'exists:funding_sources,id',
+            'funding_source_ids.*' => [
+                Rule::exists('funding_sources', 'id')->where('is_active', true),
+            ],
             'status' => 'required|in:active,suspended',
             'kop_pusat' => 'required|string|max:255',
             'kop_provinsi' => 'required|string|max:255',

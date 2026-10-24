@@ -3,6 +3,7 @@
 namespace App\Livewire\Master;
 
 use App\Models\BudgetYear;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -16,91 +17,129 @@ class BudgetYearIndex extends Component
     public bool $modal = false;
     public ?BudgetYear $budgetYear = null;
 
-    public string $name = '';
-    public string $start_date = '';
-    public string $end_date = '';
+    public string $search = '';
 
-    public function mount()
+    public string $filterStatus = '';
+
+    public string $tahun = '';
+
+    public string $tanggal_mulai = '';
+
+    public string $tanggal_selesai = '';
+
+    public bool $is_active = false;
+
+    public function mount(): void
     {
-        abort_unless(auth()->user()->role === 'superadmin' || auth()->user()->role === 'admin', 403);
+        $this->authorizeSuperAdmin();
     }
 
-    public function openModal(?BudgetYear $budgetYear = null)
+    public function updatingSearch(): void
     {
+        $this->resetPage();
+    }
+
+    public function updatingFilterStatus(): void
+    {
+        $this->resetPage();
+    }
+
+    public function openModal(?BudgetYear $budgetYear = null): void
+    {
+        $this->authorizeSuperAdmin();
         $this->resetValidation();
         $this->budgetYear = $budgetYear;
 
         if ($budgetYear && $budgetYear->exists) {
-            $this->name = $budgetYear->name;
-            $this->start_date = $budgetYear->start_date
+            $this->tahun = $budgetYear->name;
+            $this->tanggal_mulai = $budgetYear->start_date
                 ? Carbon::parse($budgetYear->start_date)->format('Y-m-d')
                 : '';
-            $this->end_date = $budgetYear->end_date
+            $this->tanggal_selesai = $budgetYear->end_date
                 ? Carbon::parse($budgetYear->end_date)->format('Y-m-d')
                 : '';
+            $this->is_active = $budgetYear->is_active;
         } else {
-            $this->reset(['name', 'start_date', 'end_date']);
+            $this->reset(['tahun', 'tanggal_mulai', 'tanggal_selesai', 'is_active']);
         }
 
         $this->modal = true;
     }
 
-    public function save()
+    public function save(): void
     {
+        $this->authorizeSuperAdmin();
+
         $this->validate([
-            'name' => [
+            'tahun' => [
                 'required',
                 'string',
                 'max:20',
                 Rule::unique('budget_years', 'name')->ignore($this->budgetYear?->id),
             ],
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after:start_date',
+            'tanggal_mulai' => 'required|date',
+            'tanggal_selesai' => 'required|date|after:tanggal_mulai',
+            'is_active' => 'boolean',
         ]);
 
         $isOverlapping = (new BudgetYear)->overlapsWith(
-            $this->start_date,
-            $this->end_date,
+            $this->tanggal_mulai,
+            $this->tanggal_selesai,
             $this->budgetYear?->id
         );
 
         if ($isOverlapping) {
-            $this->addError('start_date', 'Rentang tanggal ini tumpang tindih dengan tahun anggaran lain.');
+            $this->addError('tanggal_mulai', 'Rentang tanggal ini tumpang tindih dengan tahun anggaran lain.');
+
             return;
         }
 
-        if ($this->budgetYear && $this->budgetYear->exists) {
-            $this->budgetYear->update([
-                'name' => $this->name,
-                'start_date' => $this->start_date,
-                'end_date' => $this->end_date,
-            ]);
+        $data = [
+            'name' => (string) $this->tahun,
+            'start_date' => $this->tanggal_mulai,
+            'end_date' => $this->tanggal_selesai,
+            'is_active' => false,
+        ];
+
+        if ($this->budgetYear?->exists) {
+            $this->budgetYear->update($data);
+
+            if ($this->is_active) {
+                $this->budgetYear->activate();
+            }
+
             $this->success('Tahun Anggaran berhasil diperbarui.');
         } else {
-            BudgetYear::create([
-                'name' => $this->name,
-                'start_date' => $this->start_date,
-                'end_date' => $this->end_date,
-                'is_active' => false,
-            ]);
+            $budgetYear = BudgetYear::create($data);
+
+            if ($this->is_active) {
+                $budgetYear->activate();
+            }
+
             $this->success('Tahun Anggaran baru berhasil ditambahkan.');
         }
 
         $this->modal = false;
+        $this->reset(['tahun', 'tanggal_mulai', 'tanggal_selesai', 'is_active']);
     }
 
-    public function activateYear(BudgetYear $budgetYear)
+    public function activateYear(BudgetYear $budgetYear): void
     {
+        $this->authorizeSuperAdmin();
+
         if (!$budgetYear->isCurrentlyActive()) {
             $budgetYear->activate();
             $this->success("Tahun Anggaran {$budgetYear->name} sekarang aktif.");
         }
     }
 
-    public function delete(BudgetYear $budgetYear)
+    public function delete(BudgetYear $budgetYear): void
     {
+        $this->authorizeSuperAdmin();
+
         if ($budgetYear->procurementRequests()->exists() || $budgetYear->documentNumberSequences()->exists()) {
             $this->error('Data gagal dihapus karena sudah dipakai dalam transaksi atau sequence dokumen.');
+
             return;
         }
 
@@ -110,17 +149,52 @@ class BudgetYearIndex extends Component
 
     public function render()
     {
+        $this->authorizeSuperAdmin();
+
+        $baseQuery = BudgetYear::query();
+        $stats = [
+            'total' => (clone $baseQuery)->count(),
+            'active' => (clone $baseQuery)->where('is_active', true)->count(),
+            'inactive' => (clone $baseQuery)->where('is_active', false)->count(),
+        ];
+
+        $budgetYears = (clone $baseQuery)
+            ->when($this->search, function (Builder $query) {
+                $query->where(function (Builder $query) {
+                    $query->where('name', 'like', '%' . $this->search . '%')
+                        ->orWhereDate('start_date', $this->search)
+                        ->orWhereDate('end_date', $this->search);
+                });
+            })
+            ->when($this->filterStatus === 'active', fn(Builder $query) => $query->where('is_active', true))
+            ->when($this->filterStatus === 'inactive', fn(Builder $query) => $query->where('is_active', false))
+            ->orderByDesc('start_date')
+            ->paginate(10);
+
+        if ($budgetYears->firstItem() !== null) {
+            $budgetYears->getCollection()->each(function (BudgetYear $year, int $index) use ($budgetYears) {
+                $year->setAttribute('row_no', $budgetYears->firstItem() + $index);
+            });
+        }
+
         $headers = [
-            ['key' => 'name', 'label' => 'Periode Anggaran'],
-            ['key' => 'start_date', 'label' => 'Mulai'],
-            ['key' => 'end_date', 'label' => 'Selesai'],
+            ['key' => 'row_no', 'label' => 'No.', 'class' => 'w-14'],
+            ['key' => 'name', 'label' => 'Tahun Anggaran'],
+            ['key' => 'start_date', 'label' => 'Tanggal Mulai'],
+            ['key' => 'end_date', 'label' => 'Tanggal Selesai'],
             ['key' => 'is_active', 'label' => 'Status'],
-            ['key' => 'actions', 'label' => 'Aksi', 'sortable' => false],
+            ['key' => 'actions', 'label' => 'Aksi', 'class' => 'text-right w-16'],
         ];
 
         return view('livewire.master.budget-year-index', [
-            'budgetYears' => BudgetYear::orderBy('start_date', 'desc')->paginate(10),
-            'headers' => $headers
+            'budgetYears' => $budgetYears,
+            'headers' => $headers,
+            'stats' => $stats,
         ])->layout('layouts.app');
+    }
+
+    private function authorizeSuperAdmin(): void
+    {
+        abort_unless(auth()->user()?->isSuperAdmin(), 403);
     }
 }

@@ -53,7 +53,7 @@ new class extends Component {
         @if (auth()->user()?->isSuperAdmin())
             <x-mary-menu-item title="Manajemen Admin" icon="o-users" route="admins.index" :active="request()->routeIs('admins.*')" />
         @endif
-        @if (auth()->user()?->isSuperAdmin() || auth()->user()?->isAdmin())
+        @if (auth()->user()?->isSuperAdmin())
             <x-mary-menu-sub title="Master Data" icon="o-circle-stack" :open="request()->routeIs('master.*')">
                 <x-mary-menu-item title="Kategori Paket" icon="o-tag" route="master.package-categories"
                     :active="request()->routeIs('master.package-categories')" />

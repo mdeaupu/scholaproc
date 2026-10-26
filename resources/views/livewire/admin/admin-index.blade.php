@@ -12,12 +12,14 @@
 
     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
         <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
-            <span class="shrink-0 w-12 h-12 rounded-full bg-[#0046FF]/10 text-[#0046FF] flex items-center justify-center">
+            <span
+                class="shrink-0 w-12 h-12 rounded-full bg-[#0046FF]/10 text-[#0046FF] flex items-center justify-center">
                 <x-mary-icon name="o-users" class="w-6 h-6" />
             </span>
             <div class="min-w-0">
                 <p class="text-sm text-gray-500">Total Admin</p>
-                <p class="text-2xl sm:text-3xl font-extrabold text-gray-900 leading-tight mt-0.5">{{ $stats['total'] }}</p>
+                <p class="text-2xl sm:text-3xl font-extrabold text-gray-900 leading-tight mt-0.5">{{ $stats['total'] }}
+                </p>
                 <p class="text-xs text-gray-400 mt-1">
                     {{ $stats['active'] }} aktif | {{ $stats['inactive'] }} nonaktif</p>
             </div>
@@ -29,7 +31,8 @@
             </span>
             <div class="min-w-0">
                 <p class="text-sm text-gray-500">Admin Aktif</p>
-                <p class="text-2xl sm:text-3xl font-extrabold text-gray-900 leading-tight mt-0.5">{{ $stats['active'] }}</p>
+                <p class="text-2xl sm:text-3xl font-extrabold text-gray-900 leading-tight mt-0.5">{{ $stats['active'] }}
+                </p>
                 <p class="text-xs text-gray-400 mt-1">{{ $stats['active_percent'] }}% dari total</p>
             </div>
         </div>
@@ -40,7 +43,8 @@
             </span>
             <div class="min-w-0">
                 <p class="text-sm text-gray-500">Admin Nonaktif</p>
-                <p class="text-2xl sm:text-3xl font-extrabold text-gray-900 leading-tight mt-0.5">{{ $stats['inactive'] }}</p>
+                <p class="text-2xl sm:text-3xl font-extrabold text-gray-900 leading-tight mt-0.5">
+                    {{ $stats['inactive'] }}</p>
                 <p class="text-xs text-gray-400 mt-1">{{ $stats['inactive_percent'] }}% dari total</p>
             </div>
         </div>
@@ -51,9 +55,11 @@
         <div class="flex flex-wrap items-center gap-3">
             <x-mary-input placeholder="Cari nama, email, atau username..." wire:model.live.debounce.300ms="search"
                 icon="o-magnifying-glass" clearable class="w-full sm:w-80 lg:w-[28rem]" />
-            <x-mary-select wire:model.live="filterStatus"
-                :options="[['id' => '', 'name' => 'Semua Status'], ['id' => 'active', 'name' => 'Aktif'], ['id' => 'suspended', 'name' => 'Nonaktif']]"
-                class="w-full sm:w-44" />
+            <x-mary-select wire:model.live="filterStatus" :options="[
+                ['id' => '', 'name' => 'Semua'],
+                ['id' => 'active', 'name' => 'Aktif'],
+                ['id' => 'suspended', 'name' => 'Nonaktif'],
+            ]" class="w-full sm:w-44" />
             <x-mary-button label="Tambah Admin" link="{{ route('admins.create') }}" icon="o-plus"
                 class="bg-[#0046FF] hover:bg-[#0046FF]/90 text-white border-none w-full sm:w-auto sm:ml-auto" />
         </div>
@@ -72,8 +78,7 @@
     @endphp
 
     <x-mary-card title="Daftar Admin" separator shadow>
-        <x-mary-table :headers="$headers" :rows="$admins" container-class="overflow-visible"
-            class="w-full">
+        <x-mary-table :headers="$headers" :rows="$admins" container-class="overflow-visible" class="w-full">
             @scope('cell_row_no', $admin)
                 <span class="text-sm text-gray-400">{{ $admin->row_no }}</span>
             @endscope
@@ -81,12 +86,12 @@
                 @php
                     $nameParts = preg_split('/\s+/', trim((string) $admin->name));
                     $initials = mb_strtoupper(
-                        mb_substr($nameParts[0] ?? '', 0, 1).mb_substr($nameParts[1] ?? '', 0, 1),
+                        mb_substr($nameParts[0] ?? '', 0, 1) . mb_substr($nameParts[1] ?? '', 0, 1),
                     );
                 @endphp
-                <x-mary-avatar
-                    :image="$admin->avatar_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($admin->avatar_path) : ''"
-                    :placeholder="$initials" :title="$admin->name" subtitle="Admin"
+                <x-mary-avatar :image="$admin->avatar_path
+                    ? \Illuminate\Support\Facades\Storage::disk('public')->url($admin->avatar_path)
+                    : ''" :placeholder="$initials" :title="$admin->name" subtitle="Admin"
                     class="!w-9 !h-9 !bg-[#64748B] text-white" />
             @endscope
             @scope('cell_username', $admin)
@@ -97,11 +102,9 @@
             @endscope
             @scope('cell_status', $admin)
                 @if ($admin->isActive())
-                    <x-mary-badge value="Aktif"
-                        class="bg-green-100 text-green-700 border-none badge-sm font-semibold" />
+                    <x-mary-badge value="Aktif" class="bg-green-100 text-green-700 border-none badge-sm font-semibold" />
                 @else
-                    <x-mary-badge value="Nonaktif"
-                        class="bg-red-100 text-red-600 border-none badge-sm font-semibold" />
+                    <x-mary-badge value="Nonaktif" class="bg-red-100 text-red-600 border-none badge-sm font-semibold" />
                 @endif
             @endscope
             @scope('cell_last_activity', $admin)
@@ -126,8 +129,7 @@
 
                         <x-mary-menu-item title="Lihat Detail" icon="o-eye" class="cursor-pointer"
                             wire:click="show({{ $admin->id }})" />
-                        <x-mary-menu-item title="Edit Data" icon="o-pencil-square" route="admins.edit"
-                            :route-params="['user' => $admin->id]" />
+                        <x-mary-menu-item title="Edit Data" icon="o-pencil-square" route="admins.edit" :route-params="['user' => $admin->id]" />
                         @can('delete', $admin)
                             <x-mary-menu-item title="Hapus" icon="o-trash" class="cursor-pointer text-red-500"
                                 wire:click="confirmDestroy({{ $admin->id }})" />
@@ -142,15 +144,12 @@
         @endif
     </x-mary-card>
 
-    <x-mary-modal wire:model="isDetailModalOpen" title="Detail Admin"
-        subtitle="Informasi akun administrator CV" class="backdrop-blur text-black"
-        box-class="max-w-3xl" title-class="text-[#0046FF]">
+    <x-mary-modal wire:model="isDetailModalOpen" title="Detail Admin" subtitle="Informasi akun administrator CV"
+        class="backdrop-blur text-black" box-class="max-w-3xl" title-class="text-[#0046FF]">
         @if ($selectedUser)
             @php
                 $nameParts = preg_split('/\s+/', trim((string) $selectedUser->name));
-                $initials = mb_strtoupper(
-                    mb_substr($nameParts[0] ?? '', 0, 1).mb_substr($nameParts[1] ?? '', 0, 1),
-                );
+                $initials = mb_strtoupper(mb_substr($nameParts[0] ?? '', 0, 1) . mb_substr($nameParts[1] ?? '', 0, 1));
                 $permissions = [
                     'Memverifikasi dan memproses pengajuan kebutuhan sekolah.',
                     'Membuat penawaran harga dan menangani negosiasi.',
@@ -162,9 +161,9 @@
             <div class="space-y-6">
                 <div class="p-5 rounded-2xl border border-gray-100 bg-gradient-to-br from-[#0046FF]/5 to-gray-50">
                     <div class="flex items-center gap-4">
-                        <x-mary-avatar
-                            :image="$selectedUser->avatar_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($selectedUser->avatar_path) : ''"
-                            :placeholder="$initials" :alt="$selectedUser->name"
+                        <x-mary-avatar :image="$selectedUser->avatar_path
+                            ? \Illuminate\Support\Facades\Storage::disk('public')->url($selectedUser->avatar_path)
+                            : ''" :placeholder="$initials" :alt="$selectedUser->name"
                             class="!w-16 !h-16 !bg-[#0046FF] text-white !text-2xl font-bold" />
 
                         <div class="min-w-0">
@@ -307,8 +306,7 @@
                             <div class="space-y-4">
                                 @foreach ($selectedActivities as $activity)
                                     <div class="flex items-start gap-3">
-                                        <span
-                                            class="p-2 bg-[#0046FF]/10 text-[#0046FF] rounded-full shrink-0 mt-0.5">
+                                        <span class="p-2 bg-[#0046FF]/10 text-[#0046FF] rounded-full shrink-0 mt-0.5">
                                             <x-mary-icon name="o-clipboard-document-list" class="w-4 h-4" />
                                         </span>
                                         <div class="flex-1 min-w-0">

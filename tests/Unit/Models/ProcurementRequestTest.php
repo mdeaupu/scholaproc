@@ -3,7 +3,7 @@
 use App\Models\ProcurementRequest;
 use App\Models\ProcurementRequestItem;
 use App\Models\School;
-use App\Models\Supplier;
+use App\Models\Subsidiary;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -290,16 +290,16 @@ test('throws exception when verifying non-submitted request', function () {
     expect(fn () => $procurement->verify($admin))
         ->toThrow(Exception::class, 'Hanya pengajuan berstatus submitted yang dapat diverifikasi.');
 });
-test('hasSupplier mengembalikan nilai boolean yang tepat', function () {
+test('hasSubsidiary mengembalikan nilai boolean yang tepat', function () {
     $procurement = ProcurementRequest::factory()->create([
-        'supplier_id' => null,
+        'subsidiary_id' => null,
     ]);
-    expect($procurement->hasSupplier())->toBeFalse();
+    expect($procurement->hasSubsidiary())->toBeFalse();
 
-    $supplier = Supplier::factory()->create();
-    $procurement->update(['supplier_id' => $supplier->id]);
+    $subsidiary = Subsidiary::factory()->create();
+    $procurement->assignSubsidiary($subsidiary, User::factory()->admin()->create());
 
-    expect($procurement->refresh()->hasSupplier())->toBeTrue();
+    expect($procurement->refresh()->hasSubsidiary())->toBeTrue();
 });
 
 test('hasOfficialPrices mengecek apakah semua item memiliki harga resmi', function () {
@@ -327,7 +327,7 @@ test('hasSignatories mengecek ketersediaan penandatangan', function () {
 });
 
 test('isReadyForDocumentGeneration tervalidasi jika semua syarat terpenuhi', function () {
-    $procurement = ProcurementRequest::factory()->create(['supplier_id' => null]);
+    $procurement = ProcurementRequest::factory()->create(['subsidiary_id' => null]);
 
     $item = ProcurementRequestItem::factory()->create([
         'procurement_request_id' => $procurement->id,
@@ -336,8 +336,8 @@ test('isReadyForDocumentGeneration tervalidasi jika semua syarat terpenuhi', fun
 
     expect($procurement->isReadyForDocumentGeneration())->toBeFalse();
 
-    $supplier = Supplier::factory()->create();
-    $procurement->update(['supplier_id' => $supplier->id]);
+    $subsidiary = Subsidiary::factory()->create();
+    $procurement->assignSubsidiary($subsidiary, User::factory()->admin()->create());
 
     $item->update(['official_price' => 50000]);
 
@@ -353,8 +353,8 @@ test('generateOfficialDocuments membuat dokumen terkait', function () {
         'status' => ProcurementRequest::STATUS_PROCESSING,
     ]);
 
-    $supplier = Supplier::factory()->create();
-    $procurement->update(['supplier_id' => $supplier->id]);
+    $subsidiary = Subsidiary::factory()->create();
+    $procurement->assignSubsidiary($subsidiary, User::factory()->admin()->create());
 
     ProcurementRequestItem::factory()->create([
         'procurement_request_id' => $procurement->id,

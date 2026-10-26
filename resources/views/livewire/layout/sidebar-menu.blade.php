@@ -27,7 +27,7 @@ new class extends Component {
                 ->join('');
             $roleLabel = match (true) {
                 $user?->isSuperAdmin() => 'Superadmin',
-                $user?->isAdmin() => 'Admin CV',
+                $user?->isAdmin() => 'Admin Pusat',
                 default => 'Sekolah',
             };
         @endphp
@@ -44,13 +44,16 @@ new class extends Component {
 
     <x-mary-menu activate-by-route>
         <x-mary-menu-item title="Dashboard" icon="o-squares-2x2" route="dashboard" :active="request()->routeIs('dashboard*')" />
-        <x-mary-menu-item title="Pengajuan Pengadaan" icon="o-shopping-cart" route="procurement.index"
-            :active="request()->routeIs('procurement.*')" />
+        @if (! auth()->user()?->isSuperAdmin())
+            <x-mary-menu-item title="Pengajuan Pengadaan" icon="o-shopping-cart" route="procurement.index"
+                :active="request()->routeIs('procurement.*')" />
+        @endif
         @if (auth()->user()?->isSuperAdmin())
             <x-mary-menu-item title="Manajemen Sekolah" icon="o-academic-cap" route="schools.index" :active="request()->routeIs('schools.*')" />
         @endif
-        @if (auth()->user()?->isSuperAdmin() || auth()->user()?->isAdmin())
-            <x-mary-menu-item title="Manajemen Supplier" icon="o-truck" :route="auth()->user()->isAdmin() ? 'admin.suppliers.index' : 'superadmin.suppliers.index'" :active="request()->routeIs('*suppliers.*')" />
+        @if (auth()->user()?->isSuperAdmin())
+            <x-mary-menu-item title="Manajemen Anak Perusahaan" icon="o-building-office-2" route="superadmin.subsidiaries.index"
+                :active="request()->routeIs('superadmin.subsidiaries.*')" />
         @endif
         @if (auth()->user()?->isSuperAdmin())
             <x-mary-menu-item title="Manajemen Admin" icon="o-users" route="admins.index" :active="request()->routeIs('admins.*')" />
@@ -65,6 +68,8 @@ new class extends Component {
                     :active="request()->routeIs('master.budget-years')" />
                 <x-mary-menu-item title="Satuan Barang" icon="o-scale" route="master.item-units" :active="request()->routeIs('master.item-units')" />
             </x-mary-menu-sub>
+            <x-mary-menu-item title="Pengajuan Pengadaan" icon="o-shopping-cart" route="procurement.index"
+                :active="request()->routeIs('procurement.*')" />
         @endif
         <x-mary-menu-item title="Profil" icon="o-user-circle" route="profile" />
     </x-mary-menu>

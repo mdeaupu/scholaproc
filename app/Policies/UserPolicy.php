@@ -42,7 +42,7 @@ class UserPolicy
     {
         return $this->isManagedAdmin($actor, $target)
             && $actor->id !== $target->id
-            && ! $target->hasActivityHistory();
+            && ! $target->hasTransactionalHistory();
     }
 
     private function isManagedAdmin(User $actor, User $target): bool

@@ -131,7 +131,7 @@ test('destroy menghapus admin (soft delete) via modal konfirmasi', function () {
     $this->assertDatabaseHas('activity_log', ['log_name' => 'admin', 'description' => 'admin-deleted']);
 });
 
-test('admin yang menjadi causer activity log tidak dapat dihapus', function () {
+test('admin dengan activity log sebagai causer dapat dihapus jika tidak memiliki transaksi', function () {
     $owner = createUser('superadmin');
     $admin = createUser('admin');
     actingAs($owner);
@@ -141,17 +141,17 @@ test('admin yang menjadi causer activity log tidak dapat dihapus', function () {
         ->performedOn($owner)
         ->log('admin-updated');
 
-    expect($admin->hasActivityHistory())->toBeTrue();
-
     Livewire::test(AdminIndex::class)
-        ->assertDontSeeHtml('confirmDestroy(' . $admin->id)
+        ->assertSeeHtml('confirmDestroy(' . $admin->id)
         ->call('confirmDestroy', $admin->id)
-        ->assertStatus(403);
+        ->assertSet('confirmingDestroy', true)
+        ->call('destroy')
+        ->assertStatus(200);
 
-    $this->assertNotSoftDeleted('users', ['id' => $admin->id]);
+    $this->assertSoftDeleted('users', ['id' => $admin->id]);
 });
 
-test('admin baru dengan activity log sebagai subject tidak dapat dihapus', function () {
+test('admin baru dengan activity log sebagai subject dapat dihapus', function () {
     $owner = createUser('superadmin');
     $admin = createUser('admin');
     actingAs($owner);
@@ -161,14 +161,14 @@ test('admin baru dengan activity log sebagai subject tidak dapat dihapus', funct
         ->performedOn($admin)
         ->log('admin-created');
 
-    expect($admin->hasActivityHistory())->toBeTrue();
-
     Livewire::test(AdminIndex::class)
-        ->assertDontSeeHtml('confirmDestroy(' . $admin->id)
+        ->assertSeeHtml('confirmDestroy(' . $admin->id)
         ->call('confirmDestroy', $admin->id)
-        ->assertStatus(403);
+        ->assertSet('confirmingDestroy', true)
+        ->call('destroy')
+        ->assertStatus(200);
 
-    $this->assertNotSoftDeleted('users', ['id' => $admin->id]);
+    $this->assertSoftDeleted('users', ['id' => $admin->id]);
 });
 
 test('destroy menolak penghapusan dan menyembunyikan tombol jika admin punya riwayat', function () {
@@ -192,7 +192,7 @@ test('destroy menolak penghapusan dan menyembunyikan tombol jika admin punya riw
     $this->assertNotSoftDeleted('users', ['id' => $admin->id]);
 });
 
-test('riwayat verifikasi pengajuan juga menghalangi penghapusan admin', function () {
+test('riwayat verifikasi pengajuan menghalangi penghapusan admin', function () {
     $owner = createUser('superadmin');
     actingAs($owner);
 
@@ -202,7 +202,7 @@ test('riwayat verifikasi pengajuan juga menghalangi penghapusan admin', function
     Livewire::test(AdminIndex::class)
         ->assertDontSeeHtml('confirmDestroy(' . $admin->id);
 
-    expect($admin->hasActivityHistory())->toBeTrue();
+    expect($admin->hasTransactionalHistory())->toBeTrue();
 });
 
 test('aksi admin tidak dapat menyasar akun superadmin walau id dimanipulasi', function () {

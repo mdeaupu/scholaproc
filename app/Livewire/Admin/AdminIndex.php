@@ -89,7 +89,6 @@ class AdminIndex extends Component
             ->when($this->filterStatus === 'suspended', function ($query) {
                 $query->where('status', 'suspended');
             })
-            ->withCount(['histories', 'negotiations', 'verifiedRequests', 'verificationFiles'])
             ->latest()
             ->paginate(10);
 
@@ -103,25 +102,10 @@ class AdminIndex extends Component
                 ->pluck('last_activity', 'user_id')
             : collect();
 
-        $causerActivityIds = Activity::query()
-            ->where('causer_type', (new User)->getMorphClass())
-            ->whereIn('causer_id', $adminIds)
-            ->distinct()
-            ->pluck('causer_id')
-            ->flip();
-
         if ($admins->firstItem() !== null) {
-            $admins->getCollection()->each(function (User $admin, int $index) use ($admins, $lastActivities, $causerActivityIds) {
+            $admins->getCollection()->each(function (User $admin, int $index) use ($admins, $lastActivities) {
                 $admin->setAttribute('row_no', $admins->firstItem() + $index);
                 $admin->setAttribute('last_activity', $lastActivities[$admin->id] ?? null);
-                $admin->setAttribute(
-                    'has_activity_history',
-                    $admin->histories_count > 0
-                        || $admin->negotiations_count > 0
-                        || $admin->verified_requests_count > 0
-                        || $admin->verification_files_count > 0
-                        || $causerActivityIds->has($admin->id)
-                );
             });
         }
 

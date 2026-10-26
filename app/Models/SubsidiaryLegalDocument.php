@@ -8,12 +8,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class SupplierLegalDocument extends Model
+class SubsidiaryLegalDocument extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'supplier_id',
+        'subsidiary_id',
         'document_type',
         'document_number',
         'document_date',
@@ -31,9 +31,9 @@ class SupplierLegalDocument extends Model
         ];
     }
 
-    public function supplier(): BelongsTo
+    public function subsidiary(): BelongsTo
     {
-        return $this->belongsTo(Supplier::class);
+        return $this->belongsTo(Subsidiary::class);
     }
 
     public function isExpired(): bool

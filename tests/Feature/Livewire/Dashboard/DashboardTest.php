@@ -11,7 +11,7 @@ use App\Models\ProcurementNegotiation;
 use App\Models\ProcurementRequest;
 use App\Models\ProcurementRequestItem;
 use App\Models\School;
-use App\Models\Supplier;
+use App\Models\Subsidiary;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Livewire\Livewire;
@@ -523,28 +523,22 @@ test('school dashboard groups procurement requests by package category', functio
         ->assertViewHas('totalRequests', 3);
 });
 
-test('school dashboard lists pending negotiation items with item and supplier details', function () {
+test('school dashboard lists pending negotiation items with item and subsidiary details', function () {
     $school = School::factory()->create();
     $otherSchool = School::factory()->create();
     $user = User::factory()->create(['role' => 'school', 'school_id' => $school->id]);
     $cvStaff = User::factory()->create(['role' => 'admin']);
-    $supplier = Supplier::create([
-        'company_name' => 'PT Maju Jaya',
-        'pic_name' => 'Budi',
-        'email' => 'dummy@majujaya.test',
-        'phone' => '0263000000',
-        'address' => 'Jl. Dummy No. 1',
+    $subsidiary = Subsidiary::create([
+        'name' => 'PT Maju Jaya',
         'npwp' => '00.000.000.0-000.000',
-        'nib' => '1234567890',
         'director_name' => 'Direktur Dummy',
-        'director_nik' => '1234567890123456',
     ]);
 
     $request = ProcurementRequest::factory()->create([
         'school_id' => $school->id,
         'status' => 'negotiation',
-        'supplier_id' => $supplier->id,
     ]);
+    $request->assignSubsidiary($subsidiary, $cvStaff);
     $item = ProcurementRequestItem::factory()->create([
         'procurement_request_id' => $request->id,
         'item_name' => 'Laptop',
@@ -579,12 +573,12 @@ test('school dashboard lists pending negotiation items with item and supplier de
     Livewire::actingAs($user)
         ->test(SchoolDashboard::class)
         ->assertViewHas('negotiationWaitingCount', 1)
-        ->assertViewHas('pendingNegotiationItems', function ($items) use ($request, $item, $supplier) {
+        ->assertViewHas('pendingNegotiationItems', function ($items) use ($request, $item, $subsidiary) {
             return $items->count() === 1
                 && $items->first()->id === $items->first()->id
                 && $items->first()->procurementRequestItem->id === $item->id
                 && $items->first()->procurementRequestItem->item_name === 'Laptop'
                 && $items->first()->procurementRequest->id === $request->id
-                && $items->first()->procurementRequest->supplier->company_name === $supplier->company_name;
+                && $items->first()->procurementRequest->subsidiary->name === $subsidiary->name;
         });
 });

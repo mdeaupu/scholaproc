@@ -1,22 +1,22 @@
 <?php
 
-namespace App\Livewire\Supplier;
+namespace App\Livewire\Subsidiary;
 
 use App\Enums\DocumentType;
-use App\Models\Supplier;
-use App\Models\SupplierLegalDocument;
+use App\Models\Subsidiary;
+use App\Models\SubsidiaryLegalDocument;
 use Carbon\Carbon;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
-class LegalDocumentForm extends Component
+class SubsidiaryLegalDocumentForm extends Component
 {
     use Toast;
 
-    public Supplier $supplier;
+    public Subsidiary $subsidiary;
 
-    public ?SupplierLegalDocument $document = null;
+    public ?SubsidiaryLegalDocument $document = null;
 
     public string $document_type = '';
 
@@ -36,7 +36,7 @@ class LegalDocumentForm extends Component
 
     public function getDocumentTypesProperty(): array
     {
-        $existingTypes = $this->supplier->legalDocuments
+        $existingTypes = $this->subsidiary->legalDocuments
             ->pluck('document_type')
             ->map(fn ($type) => $type instanceof DocumentType ? $type->value : $type)
             ->toArray();
@@ -49,39 +49,29 @@ class LegalDocumentForm extends Component
             $existingTypes = array_diff($existingTypes, [$currentType]);
         }
 
-        $options = [];
-        foreach (DocumentType::cases() as $case) {
-            if (! in_array($case->value, $existingTypes)) {
-                $options[] = ['id' => $case->value, 'name' => $case->label()];
-            }
-        }
-
-        return $options;
+        return collect(DocumentType::cases())
+            ->reject(fn (DocumentType $type) => in_array($type->value, $existingTypes))
+            ->map(fn (DocumentType $type) => ['id' => $type->value, 'name' => $type->label()])
+            ->values()
+            ->all();
     }
 
     public function getRequiredDocumentsProperty(): array
     {
-        $existingTypes = $this->supplier->legalDocuments
-            ->map(fn ($doc) => $doc->document_type instanceof DocumentType
-                ? $doc->document_type->value
-                : $doc->document_type)
+        $existingTypes = $this->subsidiary->legalDocuments
+            ->map(fn ($document) => $document->document_type instanceof DocumentType
+                ? $document->document_type->value
+                : $document->document_type)
             ->toArray();
 
         $descriptions = [
-            DocumentType::DEED->value => 'Dokumen legalitas perusahaan',
-            DocumentType::NPWP->value => 'Nomor Pokok Wajib Pajak',
-            DocumentType::BUSINESS_PERMIT->value => 'Surat izin usaha (NIB/SIUP)',
-            DocumentType::OTHER->value => 'Dokumen pendukung lainnya',
+            DocumentType::DEED->value => 'Identitas hukum tambahan bila dibutuhkan.',
+            DocumentType::NPWP->value => 'Dokumen pendukung data perpajakan bila dibutuhkan.',
+            DocumentType::BUSINESS_PERMIT->value => 'Nomor izin usaha seperti NIB bila dibutuhkan.',
+            DocumentType::OTHER->value => 'Dokumen legal pendukung lainnya.',
         ];
 
-        $orderedTypes = [
-            DocumentType::DEED,
-            DocumentType::NPWP,
-            DocumentType::BUSINESS_PERMIT,
-            DocumentType::OTHER,
-        ];
-
-        return collect($orderedTypes)->map(fn (DocumentType $type) => [
+        return collect(DocumentType::cases())->map(fn (DocumentType $type) => [
             'value' => $type->value,
             'label' => $type->label(),
             'description' => $descriptions[$type->value],
@@ -91,26 +81,30 @@ class LegalDocumentForm extends Component
 
     public function getDocumentHistoryProperty()
     {
-        return $this->supplier->legalDocuments
+        return $this->subsidiary->legalDocuments
             ->sortByDesc('created_at')
             ->values();
     }
 
-    public function mount(Supplier $supplier, ?SupplierLegalDocument $document = null): void
+    public function mount(Subsidiary $subsidiary, ?SubsidiaryLegalDocument $document = null): void
     {
         abort_unless(auth()->user()?->isSuperAdmin(), 403);
 
-        if ($document && $document->exists && $document->supplier_id !== $supplier->id) {
+        if ($document && $document->exists && $document->subsidiary_id !== $subsidiary->id) {
             abort(404);
         }
 
-        $this->supplier = $supplier->load('legalDocuments');
+        $this->subsidiary = $subsidiary->load('legalDocuments');
 
         if ($document && $document->exists) {
             $this->document = $document;
             $this->isEdit = true;
-            $this->document_date = $document->document_date ? Carbon::parse($document->document_date)->format('Y-m-d') : '';
-            $this->valid_until = $document->valid_until ? Carbon::parse($document->valid_until)->format('Y-m-d') : null;
+            $this->document_date = $document->document_date
+                ? Carbon::parse($document->document_date)->format('Y-m-d')
+                : '';
+            $this->valid_until = $document->valid_until
+                ? Carbon::parse($document->valid_until)->format('Y-m-d')
+                : null;
             $this->noExpiry = is_null($document->valid_until);
             $this->document_type = $document->document_type->value;
             $this->document_number = (string) $document->document_number;
@@ -133,8 +127,8 @@ class LegalDocumentForm extends Component
             'document_type' => [
                 'required',
                 Rule::enum(DocumentType::class),
-                Rule::unique('supplier_legal_documents', 'document_type')
-                    ->where('supplier_id', $this->supplier->id)
+                Rule::unique('subsidiary_legal_documents', 'document_type')
+                    ->where('subsidiary_id', $this->subsidiary->id)
                     ->ignore($this->document?->id),
             ],
             'document_number' => 'required|string|max:255',
@@ -147,13 +141,9 @@ class LegalDocumentForm extends Component
 
     public function save()
     {
-        abort_unless(auth()->user()?->isSuperAdmin(), 403, 'Akses ditolak. Hanya Superadmin yang dapat mengelola dokumen supplier.');
+        abort_unless(auth()->user()?->isSuperAdmin(), 403, 'Hanya Superadmin yang dapat mengelola legalitas Anak Perusahaan.');
 
-        if ($this->noExpiry) {
-            $this->valid_until = null;
-        }
-
-        if ($this->valid_until !== null && trim($this->valid_until) === '') {
+        if ($this->noExpiry || ($this->valid_until !== null && trim($this->valid_until) === '')) {
             $this->valid_until = null;
         }
 
@@ -161,22 +151,26 @@ class LegalDocumentForm extends Component
 
         if ($this->isEdit) {
             $this->document->update($validated);
-            $message = 'Dokumen legal berhasil diperbarui.';
+            $message = 'Data legalitas berhasil diperbarui.';
         } else {
-            $this->supplier->legalDocuments()->create($validated);
-            $message = "Dokumen legal berhasil ditambahkan ke supplier {$this->supplier->company_name}.";
+            $this->subsidiary->legalDocuments()->create($validated);
+            $message = "Data legalitas Anak Perusahaan {$this->subsidiary->name} berhasil ditambahkan.";
         }
 
         $this->success($message);
 
-        return $this->redirectRoute('superadmin.suppliers.edit', ['supplier' => $this->supplier->id], navigate: true);
+        return $this->redirectRoute(
+            'superadmin.subsidiaries.edit',
+            ['subsidiary' => $this->subsidiary->id],
+            navigate: true
+        );
     }
 
     public function render()
     {
         abort_unless(auth()->user()?->isSuperAdmin(), 403);
 
-        return view('livewire.supplier.legal-document-form', [
+        return view('livewire.subsidiary.subsidiary-legal-document-form', [
             'requiredDocuments' => $this->requiredDocuments,
             'documentHistory' => $this->documentHistory,
         ])->layout('layouts.app');

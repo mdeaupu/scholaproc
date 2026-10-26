@@ -246,7 +246,7 @@
                                 <tr class="bg-gray-50 text-left text-xs text-gray-500">
                                     <th class="px-5 py-3 font-medium">No. Pengajuan</th>
                                     <th class="px-5 py-3 font-medium">Nama Barang</th>
-                                    <th class="px-5 py-3 font-medium">Supplier (diwakili Admin)</th>
+                                    <th class="px-5 py-3 font-medium">Anak Perusahaan (diwakili Admin Pusat)</th>
                                     <th class="px-5 py-3 font-medium">Harga Negosiasi Terakhir</th>
                                     <th class="px-5 py-3 font-medium text-right">Aksi</th>
                                 </tr>
@@ -261,7 +261,7 @@
                                             {{ $negotiation->procurementRequestItem?->item_name ?? '-' }}
                                         </td>
                                         <td class="px-5 py-3 text-gray-600">
-                                            {{ $negotiation->procurementRequest?->supplier?->company_name ?? '-' }}
+                                            {{ $negotiation->procurementRequest?->subsidiary?->name ?? '-' }}
                                         </td>
                                         <td class="px-5 py-3 font-semibold text-gray-900 whitespace-nowrap">
                                             Rp {{ number_format((float) $negotiation->offered_price, 0, ',', '.') }}
@@ -306,7 +306,7 @@
                             @else
                                 <p class="text-sm text-gray-600 mt-1 leading-relaxed">
                                     Semua negosiasi harga sudah Anda putuskan. Pengajuan yang telah disepakati akan
-                                    diproses oleh Admin CV.
+                                    diproses oleh Admin Pusat.
                                 </p>
                             @endif
                         </div>

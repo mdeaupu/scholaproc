@@ -211,7 +211,7 @@ class SchoolDashboard extends Component
                 ? ProcurementNegotiation::pending()
                     ->offeredBy(ProcurementNegotiation::OFFERED_BY_CV)
                     ->whereHas('procurementRequest', fn ($query) => $query->where('school_id', $school->id))
-                    ->with(['procurementRequestItem', 'procurementRequest.supplier'])
+                    ->with(['procurementRequestItem', 'procurementRequest.subsidiary'])
                     ->latest()
                     ->take(5)
                     ->get()

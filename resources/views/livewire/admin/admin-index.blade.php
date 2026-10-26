@@ -129,10 +129,8 @@
                         <x-mary-menu-item title="Edit Data" icon="o-pencil-square" route="admins.edit"
                             :route-params="['user' => $admin->id]" />
                         @can('delete', $admin)
-                            @if (! $admin->has_activity_history)
-                                <x-mary-menu-item title="Hapus" icon="o-trash" class="cursor-pointer text-red-500"
-                                    wire:click="confirmDestroy({{ $admin->id }})" />
-                            @endif
+                            <x-mary-menu-item title="Hapus" icon="o-trash" class="cursor-pointer text-red-500"
+                                wire:click="confirmDestroy({{ $admin->id }})" />
                         @endcan
                     </x-mary-dropdown>
                 </div>

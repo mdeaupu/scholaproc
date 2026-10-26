@@ -44,7 +44,7 @@
             <x-mary-input placeholder="Cari tahun atau tanggal..." wire:model.live.debounce.300ms="search"
                 icon="o-magnifying-glass" clearable class="w-full sm:w-80 lg:w-[28rem]" />
             <x-mary-select wire:model.live="filterStatus" :options="[
-                ['id' => '', 'name' => 'Semua Status'],
+                ['id' => '', 'name' => 'Semua'],
                 ['id' => 'active', 'name' => 'Aktif'],
                 ['id' => 'inactive', 'name' => 'Nonaktif'],
             ]" class="w-full sm:w-44" />

@@ -158,7 +158,7 @@ class User extends Authenticatable
         return $this->isSuperAdmin();
     }
 
-    public function canManageSuppliers(): bool
+    public function canManageSubsidiaries(): bool
     {
         return $this->isSuperAdmin();
     }
@@ -168,23 +168,12 @@ class User extends Authenticatable
         return $this->isAdmin() || $this->isSuperAdmin();
     }
 
-    public function hasActivityHistory(): bool
+    public function hasTransactionalHistory(): bool
     {
         return $this->histories()->exists()
             || $this->negotiations()->exists()
             || $this->verifiedRequests()->exists()
-            || $this->verificationFiles()->exists()
-            || Activity::query()
-                ->where(function ($query) {
-                    $query->where(function ($query) {
-                        $query->where('causer_type', $this->getMorphClass())
-                            ->where('causer_id', $this->getKey());
-                    })->orWhere(function ($query) {
-                        $query->where('subject_type', self::class)
-                            ->where('subject_id', $this->getKey());
-                    });
-                })
-                ->exists();
+            || $this->verificationFiles()->exists();
     }
 
     public function canDecideNegotiation(ProcurementRequest $request): bool

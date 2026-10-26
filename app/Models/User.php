@@ -108,7 +108,7 @@ class User extends Authenticatable
         return $this->isSuperAdmin();
     }
 
-    public function canManageSuppliers(): bool
+    public function canManageSubsidiaries(): bool
     {
         return $this->isSuperAdmin();
     }

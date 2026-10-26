@@ -1,14 +1,14 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthController;
-use App\Livewire\Dashboard\SuperAdminDashboard;
 use App\Livewire\Dashboard\AdminDashboard;
 use App\Livewire\Dashboard\SchoolDashboard;
+use App\Livewire\Dashboard\SuperAdminDashboard;
 use App\Livewire\School\SchoolForm;
 use App\Livewire\School\SchoolIndex;
-use App\Livewire\Supplier\LegalDocumentForm;
-use App\Livewire\Supplier\SupplierForm;
-use App\Livewire\Supplier\SupplierIndex;
+use App\Livewire\Subsidiary\SubsidiaryForm;
+use App\Livewire\Subsidiary\SubsidiaryIndex;
+use App\Livewire\Subsidiary\SubsidiaryLegalDocumentForm;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 
@@ -38,17 +38,16 @@ Route::middleware('auth')->group(function () {
         Route::get('/schools', SchoolIndex::class)->name('schools.index');
         Route::get('/schools/create', SchoolForm::class)->name('schools.create');
         Route::get('/schools/{school}/edit', SchoolForm::class)->name('schools.edit');
-        Route::get('/suppliers', SupplierIndex::class)->name('superadmin.suppliers.index');
-        Route::get('/suppliers/create', SupplierForm::class)->name('superadmin.suppliers.create');
-        Route::get('/suppliers/{supplier}/edit', SupplierForm::class)->name('superadmin.suppliers.edit');
-        Route::get('/suppliers/{supplier}/legal-documents/create', LegalDocumentForm::class)->name('superadmin.suppliers.legal-documents.create');
-        Route::get('/suppliers/{supplier}/legal-documents/{document}/edit', LegalDocumentForm::class)->name('superadmin.suppliers.legal-documents.edit');
+        Route::get('/subsidiaries', SubsidiaryIndex::class)->name('superadmin.subsidiaries.index');
+        Route::get('/subsidiaries/create', SubsidiaryForm::class)->name('superadmin.subsidiaries.create');
+        Route::get('/subsidiaries/{subsidiary}/edit', SubsidiaryForm::class)->name('superadmin.subsidiaries.edit');
+        Route::get('/subsidiaries/{subsidiary}/legal-documents/create', SubsidiaryLegalDocumentForm::class)->name('superadmin.subsidiaries.legal-documents.create');
+        Route::get('/subsidiaries/{subsidiary}/legal-documents/{document}/edit', SubsidiaryLegalDocumentForm::class)->name('superadmin.subsidiaries.legal-documents.edit');
         Route::put('/user/{user}/reset-password', [AuthController::class, 'resetPassword'])->name('auth.reset-password');
     });
 
     Route::middleware('role:admin')->prefix('admin')->group(function () {
         Route::get('/dashboard', AdminDashboard::class)->name('dashboard.admin');
-        Route::get('/suppliers', SupplierIndex::class)->name('admin.suppliers.index');
     });
 
     Route::middleware('role:school')->prefix('school')->group(function () {

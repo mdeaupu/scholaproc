@@ -10,7 +10,7 @@ use App\Livewire\Master\BudgetYearIndex;
 use App\Livewire\Master\FundingSourceIndex;
 use App\Livewire\Master\ItemUnitIndex;
 use App\Livewire\Master\PackageCategoryIndex;
-use App\Livewire\Procurement\ProcurementProcessPanel;
+use App\Livewire\Procurement\ProcurementRequestDetail;
 use App\Livewire\Procurement\ProcurementRequestForm;
 use App\Livewire\Procurement\ProcurementRequestList;
 use App\Livewire\School\SchoolForm;
@@ -79,7 +79,7 @@ Route::middleware('auth')->group(function () {
             Route::get('/create', ProcurementRequestForm::class)->name('create');
             Route::get('/{id}/edit', ProcurementRequestForm::class)->name('edit');
         });
-        Route::get('/{procurementRequest}', ProcurementProcessPanel::class)->name('show');
+        Route::get('/{procurementRequest}', ProcurementRequestDetail::class)->name('show');
     });
 
     Route::view('profile', 'profile')->name('profile');

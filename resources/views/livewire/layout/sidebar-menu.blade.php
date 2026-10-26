@@ -44,6 +44,8 @@ new class extends Component {
 
     <x-mary-menu activate-by-route>
         <x-mary-menu-item title="Dashboard" icon="o-squares-2x2" route="dashboard" :active="request()->routeIs('dashboard*')" />
+        <x-mary-menu-item title="Pengajuan Pengadaan" icon="o-shopping-cart" route="procurement.index"
+            :active="request()->routeIs('procurement.*')" />
         @if (auth()->user()?->isSuperAdmin())
             <x-mary-menu-item title="Manajemen Sekolah" icon="o-academic-cap" route="schools.index" :active="request()->routeIs('schools.*')" />
         @endif
@@ -65,7 +67,6 @@ new class extends Component {
             </x-mary-menu-sub>
         @endif
         <x-mary-menu-item title="Profil" icon="o-user-circle" route="profile" />
-        {{-- Menu menyusul saat modul selesai: Pengadaan, Riwayat, Dokumen, Notifikasi --}}
     </x-mary-menu>
 
     <div class="mt-auto p-3">

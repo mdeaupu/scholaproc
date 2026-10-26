@@ -81,6 +81,11 @@ class User extends Authenticatable
         return $this->hasMany(ProcurementRequest::class, 'verified_by');
     }
 
+    public function reviewedRequests(): HasMany
+    {
+        return $this->hasMany(ProcurementRequest::class, 'reviewed_by');
+    }
+
     public function verificationFiles(): HasMany
     {
         return $this->hasMany(ProcurementVerificationFile::class, 'uploaded_by');

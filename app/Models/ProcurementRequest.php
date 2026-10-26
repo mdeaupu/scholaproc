@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Exception;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -14,7 +15,7 @@ use Illuminate\Support\Str;
 
 class ProcurementRequest extends Model
 {
-    use SoftDeletes, HasFactory;
+    use HasFactory, SoftDeletes;
 
     /**
      * Kosakata status mengikuti PRD bagian 6 (Status Transaksi).
@@ -22,10 +23,6 @@ class ProcurementRequest extends Model
     public const STATUS_DRAFT = 'draft';
 
     public const STATUS_SUBMITTED = 'submitted';
-
-    public const STATUS_SUPPLIER_ASSIGNED = 'supplier_assigned';
-
-    public const STATUS_ITEMS_PREPARED = 'items_prepared';
 
     public const STATUS_NEEDS_REVISION = 'needs_revision';
 
@@ -53,11 +50,11 @@ class ProcurementRequest extends Model
 
     public const STATUS_CANCELLED = 'cancelled';
 
+    public const MINIMUM_ITEMS = 1;
+
     public const STATUS_LABELS = [
         self::STATUS_DRAFT => 'Draft',
         self::STATUS_SUBMITTED => 'Menunggu Verifikasi',
-        self::STATUS_SUPPLIER_ASSIGNED => 'Supplier Ditentukan',
-        self::STATUS_ITEMS_PREPARED => 'Barang Disiapkan',
         self::STATUS_NEEDS_REVISION => 'Perlu Revisi',
         self::STATUS_VERIFIED => 'Terverifikasi',
         self::STATUS_NEGOTIATION => 'Negosiasi Harga',
@@ -76,8 +73,6 @@ class ProcurementRequest extends Model
     public const STATUS_PILL_CLASSES = [
         self::STATUS_DRAFT => 'bg-gray-100 text-gray-700',
         self::STATUS_SUBMITTED => 'bg-yellow-100 text-yellow-800',
-        self::STATUS_SUPPLIER_ASSIGNED => 'bg-indigo-100 text-indigo-800',
-        self::STATUS_ITEMS_PREPARED => 'bg-indigo-100 text-indigo-800',
         self::STATUS_NEEDS_REVISION => 'bg-orange-100 text-orange-800',
         self::STATUS_VERIFIED => 'bg-blue-100 text-blue-800',
         self::STATUS_NEGOTIATION => 'bg-yellow-100 text-yellow-800',
@@ -98,8 +93,6 @@ class ProcurementRequest extends Model
      */
     public const ACTIVE_STATUSES = [
         self::STATUS_SUBMITTED,
-        self::STATUS_SUPPLIER_ASSIGNED,
-        self::STATUS_ITEMS_PREPARED,
         self::STATUS_NEEDS_REVISION,
         self::STATUS_VERIFIED,
         self::STATUS_NEGOTIATION,
@@ -141,8 +134,12 @@ class ProcurementRequest extends Model
         'totals_locked_at',
         'cv_notes',
         'requested_at',
+        'reviewed_at',
+        'reviewed_by',
         'verified_at',
         'verified_by',
+        'payment_confirmed_at',
+        'payment_confirmed_by',
     ];
 
     protected static function booted()
@@ -169,8 +166,10 @@ class ProcurementRequest extends Model
             'start_date' => 'date',
             'end_date' => 'date',
             'requested_at' => 'datetime',
+            'reviewed_at' => 'datetime',
             'totals_locked_at' => 'datetime',
             'verified_at' => 'datetime',
+            'payment_confirmed_at' => 'datetime',
         ];
     }
 
@@ -204,6 +203,16 @@ class ProcurementRequest extends Model
     public function verifiedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'verified_by');
+    }
+
+    public function reviewedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    public function paymentConfirmedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'payment_confirmed_by');
     }
 
     public function signatories(): HasMany
@@ -258,16 +267,6 @@ class ProcurementRequest extends Model
         return $query->where('status', self::STATUS_VERIFIED);
     }
 
-    public function scopeAssigned(Builder $query): Builder
-    {
-        return $query->where('status', self::STATUS_SUPPLIER_ASSIGNED);
-    }
-
-    public function scopePrepared(Builder $query): Builder
-    {
-        return $query->where('status', self::STATUS_ITEMS_PREPARED);
-    }
-
     public function scopeCompleted(Builder $query): Builder
     {
         return $query->where('status', self::STATUS_COMPLETED);
@@ -307,7 +306,7 @@ class ProcurementRequest extends Model
         if ($to !== null && $to !== '') {
             $query->whereDate('created_at', '<=', $to);
         }
-        return $query;
+
         return $query;
     }
 
@@ -322,7 +321,8 @@ class ProcurementRequest extends Model
 
     public function canSubmit(): bool
     {
-        return $this->status === self::STATUS_DRAFT && $this->items()->count() >= 1;
+        return in_array($this->status, [self::STATUS_DRAFT, self::STATUS_NEEDS_REVISION], true)
+            && $this->items()->count() >= self::MINIMUM_ITEMS;
     }
 
     public function canVerify(): bool
@@ -330,87 +330,215 @@ class ProcurementRequest extends Model
         return $this->status === self::STATUS_SUBMITTED;
     }
 
-    public function canAssignSupplier(): bool
+    public function canStartNegotiation(): bool
     {
         return $this->status === self::STATUS_VERIFIED;
     }
 
-    public function canPrepareItems(): bool
+    public function canConfirmPayment(): bool
     {
-        return $this->status === self::STATUS_SUPPLIER_ASSIGNED;
+        return $this->status === self::STATUS_PAYMENT_PENDING
+            && $this->payment_confirmed_at === null;
     }
 
     public function canComplete(): bool
     {
-        return $this->status === self::STATUS_ITEMS_PREPARED;
+        return $this->status === self::STATUS_PAYMENT_PENDING
+            && $this->verified_at !== null
+            && $this->verified_by !== null
+            && $this->payment_confirmed_at !== null
+            && $this->payment_confirmed_by !== null;
+    }
+
+    public function canCancel(User $user): bool
+    {
+        if ($user->isSchool()) {
+            return $user->school_id === $this->school_id
+                && in_array($this->status, [
+                    self::STATUS_DRAFT,
+                    self::STATUS_SUBMITTED,
+                    self::STATUS_NEEDS_REVISION,
+                    self::STATUS_VERIFIED,
+                    self::STATUS_NEGOTIATION,
+                    self::STATUS_PRICE_AGREED,
+                ], true);
+        }
+
+        if ($user->isAdmin() || $user->isSuperAdmin()) {
+            return ! in_array($this->status, [
+                self::STATUS_COMPLETED,
+                self::STATUS_REJECTED,
+                self::STATUS_CANCELLED,
+            ], true);
+        }
+
+        return false;
     }
 
     public function submit(User $user): void
     {
-        if (!$this->canSubmit()) {
-            throw new Exception('Pengajuan tidak dapat di-submit. Pastikan status draft dan memiliki minimal 1 item.');
+        $this->authorizeSchoolOwner($user);
+
+        if (! $this->canSubmit()) {
+            throw new Exception('Pengajuan tidak dapat di-submit. Pastikan status draft atau perlu revisi dan memiliki minimal 1 item.');
         }
 
-        $this->update([
-            'status' => self::STATUS_SUBMITTED,
-            'requested_at' => now(),
-        ]);
+        $hasInvalidSpecification = $this->items()
+            ->where(function (Builder $query): void {
+                $query->whereNull('specification')
+                    ->orWhere('specification', '')
+                    ->orWhere('specification', '-');
+            })
+            ->exists();
 
-        $this->recordHistory($user, self::STATUS_SUBMITTED);
+        if ($hasInvalidSpecification) {
+            throw new Exception('Spesifikasi barang wajib diisi dan tidak boleh menggunakan placeholder "-".');
+        }
+
+        DB::transaction(function () use ($user): void {
+            $this->update([
+                'status' => self::STATUS_SUBMITTED,
+                'requested_at' => now(),
+            ]);
+            $this->recordHistory($user, self::STATUS_SUBMITTED);
+        });
     }
 
     public function verify(User $user): void
     {
-        if (!$this->canVerify()) {
+        $this->authorizeInternal($user);
+
+        if (! $this->canVerify()) {
             throw new Exception('Hanya pengajuan berstatus submitted yang dapat diverifikasi.');
         }
 
-        $this->update(['status' => self::STATUS_VERIFIED]);
-        $this->recordHistory($user, self::STATUS_VERIFIED);
+        DB::transaction(function () use ($user): void {
+            $this->update([
+                'status' => self::STATUS_VERIFIED,
+                'reviewed_at' => now(),
+                'reviewed_by' => $user->id,
+            ]);
+            $this->recordHistory($user, self::STATUS_VERIFIED);
+        });
+    }
+
+    public function requestRevision(User $user, string $reason): void
+    {
+        $this->authorizeInternal($user);
+
+        if (! $this->canVerify()) {
+            throw new Exception('Revisi hanya dapat diminta untuk pengajuan berstatus submitted.');
+        }
+
+        $reason = trim($reason);
+        if (mb_strlen($reason) < 5) {
+            throw new Exception('Alasan revisi wajib diisi minimal 5 karakter.');
+        }
+
+        DB::transaction(function () use ($user, $reason): void {
+            $this->update(['status' => self::STATUS_NEEDS_REVISION]);
+            $this->recordHistory($user, self::STATUS_NEEDS_REVISION, 'Revisi diminta: '.$reason);
+        });
     }
 
     public function reject(User $user, string $reason): void
     {
-        if (!$this->canVerify()) {
+        $this->authorizeInternal($user);
+
+        if (! $this->canVerify()) {
             throw new Exception('Hanya pengajuan berstatus submitted yang dapat ditolak.');
         }
 
-        $this->update(['status' => self::STATUS_REJECTED]);
-        $this->recordHistory($user, self::STATUS_REJECTED, 'Ditolak: ' . $reason);
-    }
-
-    public function assignSupplier(Supplier $supplier, User $user): void
-    {
-        if (!$this->canAssignSupplier()) {
-            throw new Exception('Hanya pengajuan berstatus verified yang dapat ditentukan suppliernya.');
+        $reason = trim($reason);
+        if (mb_strlen($reason) < 5) {
+            throw new Exception('Alasan penolakan wajib diisi minimal 5 karakter.');
         }
 
-        $this->update([
-            'status' => self::STATUS_SUPPLIER_ASSIGNED,
-            'supplier_id' => $supplier->id,
-        ]);
-
-        $this->recordHistory($user, self::STATUS_SUPPLIER_ASSIGNED);
+        DB::transaction(function () use ($user, $reason): void {
+            $this->update(['status' => self::STATUS_REJECTED]);
+            $this->recordHistory($user, self::STATUS_REJECTED, 'Ditolak: '.$reason);
+        });
     }
 
-    public function markItemsPrepared(User $user): void
+    public function startNegotiation(User $user): void
     {
-        if (!$this->canPrepareItems()) {
-            throw new Exception('Hanya pengajuan berstatus supplier_assigned yang dapat ditandai siap.');
+        $this->authorizeInternal($user);
+
+        if (! $this->canStartNegotiation()) {
+            throw new Exception('Hanya pengajuan terverifikasi yang dapat diteruskan ke negosiasi.');
         }
 
-        $this->update(['status' => self::STATUS_ITEMS_PREPARED]);
-        $this->recordHistory($user, self::STATUS_ITEMS_PREPARED);
+        DB::transaction(function () use ($user): void {
+            $this->update(['status' => self::STATUS_NEGOTIATION]);
+            $this->recordHistory($user, self::STATUS_NEGOTIATION);
+        });
+    }
+
+    public function confirmPayment(User $user): void
+    {
+        $this->authorizeInternal($user);
+
+        if (! $this->canConfirmPayment()) {
+            throw new Exception('Pembayaran hanya dapat dikonfirmasi satu kali pada status menunggu pembayaran.');
+        }
+
+        DB::transaction(function () use ($user): void {
+            $this->update([
+                'payment_confirmed_at' => now(),
+                'payment_confirmed_by' => $user->id,
+            ]);
+            $this->recordHistory($user, $this->status, 'Pembayaran dikonfirmasi.');
+        });
     }
 
     public function complete(User $user): void
     {
-        if (!$this->canComplete()) {
-            throw new Exception('Hanya pengajuan berstatus items_prepared yang dapat diselesaikan.');
+        $this->authorizeInternal($user);
+
+        if (! $this->canComplete()) {
+            throw new Exception('Pengajuan hanya dapat diselesaikan setelah penerimaan barang dan pembayaran dikonfirmasi pada status menunggu pembayaran.');
         }
 
-        $this->update(['status' => self::STATUS_COMPLETED]);
-        $this->recordHistory($user, self::STATUS_COMPLETED);
+        DB::transaction(function () use ($user): void {
+            $this->update(['status' => self::STATUS_COMPLETED]);
+            $this->recordHistory($user, self::STATUS_COMPLETED);
+        });
+    }
+
+    public function cancel(User $user, string $reason): void
+    {
+        $reason = trim($reason);
+
+        if (mb_strlen($reason) < 5) {
+            throw new Exception('Alasan pembatalan wajib diisi minimal 5 karakter.');
+        }
+
+        if (mb_strlen($reason) > 1000) {
+            throw new Exception('Alasan pembatalan maksimal 1000 karakter.');
+        }
+
+        if (! $this->canCancel($user)) {
+            throw new Exception('Pengajuan tidak dapat dibatalkan oleh pengguna ini pada status saat ini.');
+        }
+
+        DB::transaction(function () use ($user, $reason): void {
+            $this->update(['status' => self::STATUS_CANCELLED]);
+            $this->recordHistory($user, self::STATUS_CANCELLED, 'Dibatalkan: '.$reason);
+        });
+    }
+
+    private function authorizeSchoolOwner(User $user): void
+    {
+        if (! $user->isSchool() || $user->school_id !== $this->school_id) {
+            throw new AuthorizationException('Hanya sekolah pemilik pengajuan yang dapat melakukan tindakan ini.');
+        }
+    }
+
+    private function authorizeInternal(User $user): void
+    {
+        if (! $user->isAdmin() && ! $user->isSuperAdmin()) {
+            throw new AuthorizationException('Hanya Admin CV atau Superadmin yang dapat melakukan tindakan ini.');
+        }
     }
 
     // ─── Audit Trail ────────────────────────────────────────────────
@@ -451,7 +579,7 @@ class ProcurementRequest extends Model
 
     public function totalPpn(): float
     {
-        if (!$this->is_taxable) {
+        if (! $this->is_taxable) {
             return 0;
         }
 
@@ -520,7 +648,7 @@ class ProcurementRequest extends Model
             'grand_total' => null,
         ]);
 
-        $this->recordHistory($user, $this->status, 'Revisi: ' . $reason);
+        $this->recordHistory($user, $this->status, 'Revisi: '.$reason);
     }
 
     // ─── Dashboard Statistics ───────────────────────────────────────

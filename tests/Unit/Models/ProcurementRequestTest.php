@@ -2,8 +2,9 @@
 
 use App\Models\ProcurementRequest;
 use App\Models\ProcurementRequestItem;
-use App\Models\Supplier;
+use App\Models\School;
 use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -65,18 +66,22 @@ test('can calculate tax and grand total correctly', function () {
 });
 
 test('throws exception when submitting without items', function () {
-    $user = User::factory()->create();
+    $school = School::factory()->create();
+    $user = User::factory()->school()->create(['school_id' => $school->id]);
     $procurement = ProcurementRequest::factory()->create([
+        'school_id' => $school->id,
         'status' => ProcurementRequest::STATUS_DRAFT,
     ]);
 
-    expect(fn() => $procurement->submit($user))
-        ->toThrow(Exception::class, 'Pengajuan tidak dapat di-submit. Pastikan status draft dan memiliki minimal 1 item.');
+    expect(fn () => $procurement->submit($user))
+        ->toThrow(Exception::class, 'Pengajuan tidak dapat di-submit. Pastikan status draft atau perlu revisi dan memiliki minimal 1 item.');
 });
 
 test('can transition state from draft to submitted and record history', function () {
-    $user = User::factory()->create();
+    $school = School::factory()->create();
+    $user = User::factory()->school()->create(['school_id' => $school->id]);
     $procurement = ProcurementRequest::factory()->create([
+        'school_id' => $school->id,
         'status' => ProcurementRequest::STATUS_DRAFT,
     ]);
     ProcurementRequestItem::factory()->create(['procurement_request_id' => $procurement->id]);
@@ -92,37 +97,56 @@ test('can transition state from draft to submitted and record history', function
     ]);
 });
 
-test('can transition workflow correctly up to completion', function () {
-    $user = User::factory()->create();
+test('can transition workflow through negotiation and completion', function () {
+    $school = School::factory()->create();
+    $schoolUser = User::factory()->school()->create(['school_id' => $school->id]);
+    $admin = User::factory()->admin()->create();
     $procurement = ProcurementRequest::factory()->create([
+        'school_id' => $school->id,
         'status' => ProcurementRequest::STATUS_DRAFT,
     ]);
     ProcurementRequestItem::factory()->create(['procurement_request_id' => $procurement->id]);
-    $supplier = Supplier::factory()->create();
 
-    $procurement->submit($user);
+    $procurement->submit($schoolUser);
+    expect($procurement->status)->toBe(ProcurementRequest::STATUS_SUBMITTED);
 
-    $procurement->verify($user);
+    $procurement->verify($admin);
     expect($procurement->status)->toBe(ProcurementRequest::STATUS_VERIFIED);
 
-    $procurement->assignSupplier($supplier, $user);
-    expect($procurement->status)->toBe(ProcurementRequest::STATUS_SUPPLIER_ASSIGNED)
-        ->and($procurement->supplier_id)->toBe($supplier->id);
+    $procurement->startNegotiation($admin);
+    expect($procurement->status)->toBe(ProcurementRequest::STATUS_NEGOTIATION);
 
-    $procurement->markItemsPrepared($user);
-    expect($procurement->status)->toBe(ProcurementRequest::STATUS_ITEMS_PREPARED);
+    $procurement->update([
+        'status' => ProcurementRequest::STATUS_PAYMENT_PENDING,
+        'verified_at' => now(),
+        'verified_by' => $admin->id,
+    ]);
 
-    $procurement->complete($user);
+    $procurement->confirmPayment($admin);
+    expect($procurement->payment_confirmed_at)->not->toBeNull()
+        ->and($procurement->payment_confirmed_by)->toBe($admin->id);
+
+    $procurement->complete($admin);
     expect($procurement->status)->toBe(ProcurementRequest::STATUS_COMPLETED);
 });
 
+test('cannot complete before receipt and payment are confirmed', function () {
+    $admin = User::factory()->admin()->create();
+    $procurement = ProcurementRequest::factory()->create([
+        'status' => ProcurementRequest::STATUS_PAYMENT_PENDING,
+    ]);
+
+    expect(fn () => $procurement->complete($admin))
+        ->toThrow(Exception::class, 'Pengajuan hanya dapat diselesaikan setelah penerimaan barang dan pembayaran dikonfirmasi pada status menunggu pembayaran.');
+});
+
 test('reject records reason in history', function () {
-    $user = User::factory()->create();
+    $admin = User::factory()->admin()->create();
     $procurement = ProcurementRequest::factory()->create([
         'status' => ProcurementRequest::STATUS_SUBMITTED,
     ]);
 
-    $procurement->reject($user, 'Anggaran melebihi batas yang ditentukan');
+    $procurement->reject($admin, 'Anggaran melebihi batas yang ditentukan');
 
     expect($procurement->refresh()->status)->toBe(ProcurementRequest::STATUS_REJECTED);
 
@@ -130,8 +154,82 @@ test('reject records reason in history', function () {
         'procurement_request_id' => $procurement->id,
         'status' => ProcurementRequest::STATUS_REJECTED,
         'notes' => 'Ditolak: Anggaran melebihi batas yang ditentukan',
-        'user_id' => $user->id,
+        'user_id' => $admin->id,
     ]);
+});
+
+test('school can cancel an own request and reason is recorded', function () {
+    $school = School::factory()->create();
+    $schoolUser = User::factory()->school()->create(['school_id' => $school->id]);
+    $procurement = ProcurementRequest::factory()->create([
+        'school_id' => $school->id,
+        'status' => ProcurementRequest::STATUS_SUBMITTED,
+    ]);
+
+    $procurement->cancel($schoolUser, 'Anggaran dialihkan ke kebutuhan lain');
+
+    expect($procurement->refresh()->status)->toBe(ProcurementRequest::STATUS_CANCELLED);
+
+    $this->assertDatabaseHas('procurement_request_histories', [
+        'procurement_request_id' => $procurement->id,
+        'status' => ProcurementRequest::STATUS_CANCELLED,
+        'notes' => 'Dibatalkan: Anggaran dialihkan ke kebutuhan lain',
+        'user_id' => $schoolUser->id,
+    ]);
+});
+
+test('school cannot verify a request', function () {
+    $school = School::factory()->create();
+    $schoolUser = User::factory()->school()->create(['school_id' => $school->id]);
+    $procurement = ProcurementRequest::factory()->create([
+        'school_id' => $school->id,
+        'status' => ProcurementRequest::STATUS_SUBMITTED,
+    ]);
+
+    expect(fn () => $procurement->verify($schoolUser))
+        ->toThrow(AuthorizationException::class);
+
+    expect($procurement->fresh()->status)->toBe(ProcurementRequest::STATUS_SUBMITTED);
+});
+
+test('admin cannot submit a school request', function () {
+    $admin = User::factory()->admin()->create();
+    $procurement = ProcurementRequest::factory()->create([
+        'status' => ProcurementRequest::STATUS_DRAFT,
+    ]);
+    ProcurementRequestItem::factory()->create(['procurement_request_id' => $procurement->id]);
+
+    expect(fn () => $procurement->submit($admin))
+        ->toThrow(AuthorizationException::class);
+
+    expect($procurement->fresh()->status)->toBe(ProcurementRequest::STATUS_DRAFT);
+});
+
+test('draft item can store an empty specification as null', function () {
+    $procurement = ProcurementRequest::factory()->create();
+
+    $item = ProcurementRequestItem::factory()->create([
+        'procurement_request_id' => $procurement->id,
+        'specification' => '',
+    ]);
+
+    expect($item->fresh()->specification)->toBeNull();
+});
+
+test('submit rejects an item with an empty specification', function () {
+    $school = School::factory()->create();
+    $schoolUser = User::factory()->school()->create(['school_id' => $school->id]);
+    $procurement = ProcurementRequest::factory()->create([
+        'school_id' => $school->id,
+        'status' => ProcurementRequest::STATUS_DRAFT,
+    ]);
+    ProcurementRequestItem::factory()->create([
+        'procurement_request_id' => $procurement->id,
+        'specification' => null,
+    ]);
+
+    expect(fn () => $procurement->submit($schoolUser))
+        ->toThrow(Exception::class, 'Spesifikasi barang wajib diisi dan tidak boleh menggunakan placeholder "-".');
 });
 
 test('uses official subtotal when official price is set', function () {
@@ -181,11 +279,11 @@ test('canSubmit returns false when no items', function () {
 });
 
 test('throws exception when verifying non-submitted request', function () {
-    $user = User::factory()->create();
+    $admin = User::factory()->admin()->create();
     $procurement = ProcurementRequest::factory()->create([
         'status' => ProcurementRequest::STATUS_DRAFT,
     ]);
 
-    expect(fn() => $procurement->verify($user))
+    expect(fn () => $procurement->verify($admin))
         ->toThrow(Exception::class, 'Hanya pengajuan berstatus submitted yang dapat diverifikasi.');
 });

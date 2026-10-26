@@ -2,15 +2,15 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ProcurementRequestItem extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'procurement_request_id',
@@ -26,6 +26,14 @@ class ProcurementRequestItem extends Model
     ];
 
     protected $guarded = ['id'];
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $item): void {
+            $specification = trim((string) $item->specification);
+            $item->specification = $specification === '' ? null : $specification;
+        });
+    }
 
     protected function casts(): array
     {
@@ -71,7 +79,7 @@ class ProcurementRequestItem extends Model
 
     public function pphAmount(): float
     {
-        if (!$this->is_pph) {
+        if (! $this->is_pph) {
             return 0;
         }
 

@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Supplier extends Model
 {
-    use SoftDeletes, HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'company_name',
@@ -78,6 +78,7 @@ class Supplier extends Model
             $total = $procurements->sum(function ($procurement) {
                 return $procurement->items->sum(function ($item) {
                     $price = $item->official_price ?? $item->estimated_price;
+
                     return $price * $item->quantity;
                 });
             });

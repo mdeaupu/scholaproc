@@ -1,7 +1,9 @@
 <?php
 
 use App\Livewire\Supplier\SupplierForm;
+use App\Models\ProcurementRequest;
 use App\Models\Supplier;
+use App\Models\SupplierLegalDocument;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -10,7 +12,7 @@ uses(RefreshDatabase::class);
 
 describe('SupplierForm Livewire Component', function () {
     it('renders create form for authorized user', function () {
-        $user = User::factory()->create(['role' => 'owner']);
+        $user = User::factory()->create(['role' => 'superadmin']);
 
         $this->actingAs($user);
 
@@ -21,7 +23,7 @@ describe('SupplierForm Livewire Component', function () {
     });
 
     it('renders edit form with existing data', function () {
-        $user = User::factory()->create(['role' => 'owner']);
+        $user = User::factory()->create(['role' => 'superadmin']);
 
         $this->actingAs($user);
 
@@ -33,8 +35,28 @@ describe('SupplierForm Livewire Component', function () {
             ->assertSet('npwp', $supplier->npwp);
     });
 
+    it('renders edit form with legal documents and project history', function () {
+        $user = User::factory()->create(['role' => 'superadmin']);
+
+        $this->actingAs($user);
+
+        $supplier = Supplier::factory()->create();
+        SupplierLegalDocument::factory()->for($supplier)->businessPermit()->create();
+        SupplierLegalDocument::factory()->for($supplier)->deed()->create();
+        ProcurementRequest::factory()->for($supplier)->create();
+
+        Livewire::test(SupplierForm::class, ['supplier' => $supplier])
+            ->assertStatus(200)
+            ->assertSee('Informasi Dasar Supplier')
+            ->assertSee('Dokumen Legalitas')
+            ->assertSee('Ringkasan Supplier')
+            ->assertSee('Riwayat Proyek')
+            ->assertSee('NIB (Nomor Induk Berusaha)')
+            ->assertSee('Lengkap & Valid');
+    });
+
     it('can store new supplier', function () {
-        $user = User::factory()->create(['role' => 'owner']);
+        $user = User::factory()->create(['role' => 'superadmin']);
 
         $this->actingAs($user);
 
@@ -51,7 +73,7 @@ describe('SupplierForm Livewire Component', function () {
             ->set('email', $data['email'])
             ->set('address', $data['address'])
             ->call('save')
-            ->assertRedirect(route('owner.suppliers.index'));
+            ->assertRedirect(route('superadmin.suppliers.index'));
 
         $this->assertDatabaseHas('suppliers', [
             'company_name' => $data['company_name'],
@@ -60,7 +82,7 @@ describe('SupplierForm Livewire Component', function () {
     });
 
     it('can update existing supplier', function () {
-        $user = User::factory()->create(['role' => 'owner']);
+        $user = User::factory()->create(['role' => 'superadmin']);
 
         $this->actingAs($user);
 
@@ -70,7 +92,7 @@ describe('SupplierForm Livewire Component', function () {
         Livewire::test(SupplierForm::class, ['supplier' => $supplier])
             ->set('company_name', $newName)
             ->call('save')
-            ->assertRedirect(route('owner.suppliers.index'));
+            ->assertRedirect(route('superadmin.suppliers.index'));
 
         $this->assertDatabaseHas('suppliers', [
             'id' => $supplier->id,
@@ -79,7 +101,7 @@ describe('SupplierForm Livewire Component', function () {
     });
 
     it('validates uniqueness of npwp and nib', function () {
-        $user = User::factory()->create(['role' => 'owner']);
+        $user = User::factory()->create(['role' => 'superadmin']);
 
         $this->actingAs($user);
 
@@ -96,5 +118,39 @@ describe('SupplierForm Livewire Component', function () {
             ->set('address', 'Jl. Test')
             ->call('save')
             ->assertHasErrors(['npwp']);
+    });
+
+    it('admin cv cannot access supplier form', function () {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($user);
+
+        Livewire::test(SupplierForm::class)
+            ->assertStatus(403);
+    });
+
+    it('admin cv cannot access superadmin supplier create route', function () {
+        $user = User::factory()->admin()->create();
+
+        $this->actingAs($user)
+            ->get(route('superadmin.suppliers.create'))
+            ->assertForbidden();
+    });
+
+    it('admin cv can view supplier index in read-only mode', function () {
+        $user = User::factory()->admin()->create();
+
+        $this->actingAs($user)
+            ->get(route('admin.suppliers.index'))
+            ->assertOk();
+    });
+
+    it('school user cannot access supplier form', function () {
+        $user = User::factory()->create(['role' => 'school']);
+
+        $this->actingAs($user);
+
+        Livewire::test(SupplierForm::class)
+            ->assertStatus(403);
     });
 });

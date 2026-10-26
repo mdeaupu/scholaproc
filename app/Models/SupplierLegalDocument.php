@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class SupplierLegalDocument extends Model
 {
     use HasFactory;
+
     protected $fillable = [
         'supplier_id',
         'document_type',

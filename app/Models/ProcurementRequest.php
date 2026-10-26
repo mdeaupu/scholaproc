@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -10,10 +11,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use LogicException;
 
 class ProcurementRequest extends Model
 {
-    use SoftDeletes, HasFactory;
+    use HasFactory, SoftDeletes;
 
     /**
      * Kosakata status mengikuti PRD bagian 6 (Status Transaksi).
@@ -112,7 +114,6 @@ class ProcurementRequest extends Model
     protected $fillable = [
         'uuid',
         'school_id',
-        'supplier_id',
         'status',
         'package_category_id',
         'budget_year_id',
@@ -139,6 +140,33 @@ class ProcurementRequest extends Model
         static::creating(function ($model) {
             if (empty($model->uuid)) {
                 $model->uuid = (string) Str::uuid();
+            }
+
+            if ($model->subsidiary_id !== null) {
+                $subsidiary = Subsidiary::findOrFail($model->subsidiary_id);
+
+                if (! $subsidiary->isActive()) {
+                    throw new LogicException('Anak Perusahaan nonaktif tidak dapat ditetapkan pada transaksi baru.');
+                }
+            }
+        });
+
+        static::updating(function (self $model): void {
+            if (! $model->isDirty('subsidiary_id')) {
+                return;
+            }
+
+            if ($model->subsidiary_id !== null
+                && (int) $model->subsidiary_id !== (int) $model->getOriginal('subsidiary_id')) {
+                $subsidiary = Subsidiary::findOrFail($model->subsidiary_id);
+
+                if (! $subsidiary->isActive()) {
+                    throw new LogicException('Anak Perusahaan nonaktif tidak dapat ditetapkan pada transaksi baru.');
+                }
+            }
+
+            if ($model->officialDocuments()->whereNotNull('issued_at')->exists()) {
+                throw new LogicException('Anak Perusahaan tidak dapat diganti setelah dokumen resmi diterbitkan.');
             }
         });
     }
@@ -186,9 +214,49 @@ class ProcurementRequest extends Model
         return $this->belongsTo(PackageCategory::class, 'package_category_id');
     }
 
-    public function supplier(): BelongsTo
+    public function subsidiary(): BelongsTo
     {
-        return $this->belongsTo(Supplier::class);
+        return $this->belongsTo(Subsidiary::class);
+    }
+
+    public function subsidiaryAssignedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'subsidiary_assigned_by');
+    }
+
+    public function assignSubsidiary(Subsidiary $subsidiary, User $actor): void
+    {
+        if (! $actor->isAdmin() && ! $actor->isSuperAdmin()) {
+            throw new AuthorizationException('Hanya Admin Pusat yang dapat menetapkan Anak Perusahaan.');
+        }
+
+        if (! $subsidiary->isActive()) {
+            throw new LogicException('Anak Perusahaan nonaktif tidak dapat ditetapkan pada transaksi baru.');
+        }
+
+        if ($this->officialDocuments()->whereNotNull('issued_at')->exists()) {
+            throw new LogicException('Anak Perusahaan tidak dapat diganti setelah dokumen resmi diterbitkan.');
+        }
+
+        $oldSubsidiaryId = $this->subsidiary_id;
+        $assignedAt = now();
+
+        DB::transaction(function () use ($subsidiary, $actor, $oldSubsidiaryId, $assignedAt): void {
+            $this->subsidiary_id = $subsidiary->id;
+            $this->subsidiary_assigned_by = $actor->id;
+            $this->subsidiary_assigned_at = $assignedAt;
+            $this->save();
+
+            activity()
+                ->performedOn($this)
+                ->causedBy($actor)
+                ->withProperties([
+                    'old_subsidiary_id' => $oldSubsidiaryId,
+                    'new_subsidiary_id' => $subsidiary->id,
+                    'subsidiary_assigned_at' => $assignedAt->toIso8601String(),
+                ])
+                ->log('Anak Perusahaan transaksi ditetapkan atau diganti');
+        });
     }
 
     public function signatories(): HasMany
@@ -225,7 +293,6 @@ class ProcurementRequest extends Model
     {
         return $this->hasMany(ProcurementVerificationFile::class);
     }
-
 
     public function scopeSubmitted(Builder $query): Builder
     {
@@ -271,7 +338,6 @@ class ProcurementRequest extends Model
             $q->where('negotiation_status', 'negotiating');
         });
     }
-
 
     public static function getTotalEstimatedAmount(): float
     {

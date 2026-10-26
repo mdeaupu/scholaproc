@@ -29,7 +29,7 @@ new class extends Component {
                 ->join('');
             $roleLabel = match (true) {
                 $user?->isSuperAdmin() => 'Superadmin',
-                $user?->isAdmin() => 'Admin CV',
+                $user?->isAdmin() => 'Admin Pusat',
                 default => 'Sekolah',
             };
         @endphp
@@ -51,9 +51,9 @@ new class extends Component {
             <x-mary-menu-item title="Manajemen Sekolah" icon="o-academic-cap" route="schools.index"
                 :active="request()->routeIs('schools.*')" />
         @endif
-        @if (auth()->user()?->isSuperAdmin() || auth()->user()?->isAdmin())
-            <x-mary-menu-item title="Manajemen Supplier" icon="o-truck" :route="auth()->user()->isAdmin() ? 'admin.suppliers.index' : 'superadmin.suppliers.index'"
-                :active="request()->routeIs('*suppliers.*')" />
+        @if (auth()->user()?->isSuperAdmin())
+            <x-mary-menu-item title="Manajemen Anak Perusahaan" icon="o-building-office-2" route="superadmin.subsidiaries.index"
+                :active="request()->routeIs('superadmin.subsidiaries.*')" />
         @endif
         @if (auth()->user()?->isSuperAdmin())
             <x-mary-menu-item title="Manajemen Admin" icon="o-users" route="admins.index"

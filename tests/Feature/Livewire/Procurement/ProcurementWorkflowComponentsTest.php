@@ -7,6 +7,7 @@ use App\Models\FundingSource;
 use App\Models\ItemUnit;
 use App\Models\PackageCategory;
 use App\Models\ProcurementRequest;
+use App\Models\Subsidiary;
 use App\Models\ProcurementRequestItem;
 use App\Models\School;
 use App\Models\User;
@@ -68,6 +69,8 @@ test('internal staff sees the review panel embedded in request details', functio
     $request = ProcurementRequest::factory()->create([
         'status' => ProcurementRequest::STATUS_VERIFIED,
     ]);
+    $subsidiary = Subsidiary::factory()->create();
+    $request->assignSubsidiary($subsidiary, $admin);
 
     Livewire::test(ProcurementRequestDetail::class, ['procurementRequest' => $request])
         ->assertSee('Review Pengajuan')
@@ -265,6 +268,8 @@ test('admin can continue a verified request to negotiation from the review panel
     $request = ProcurementRequest::factory()->create([
         'status' => ProcurementRequest::STATUS_VERIFIED,
     ]);
+    $subsidiary = Subsidiary::factory()->create();
+    $request->assignSubsidiary($subsidiary, $admin);
 
     Livewire::test(ProcurementReviewPanel::class, ['procurementRequest' => $request])
         ->assertSee('Teruskan ke Negosiasi')
@@ -308,4 +313,18 @@ test('admin can reject a submitted request with a recorded reason', function () 
         'status' => ProcurementRequest::STATUS_REJECTED,
         'notes' => 'Ditolak: Dokumen pendukung tidak lengkap.',
     ]);
+});
+
+test('review panel only exposes rule-based tax evaluation', function () {
+    $admin = User::factory()->admin()->create();
+    $this->actingAs($admin);
+    $request = ProcurementRequest::factory()->create();
+
+    $component = Livewire::test(ProcurementReviewPanel::class, ['procurementRequest' => $request])
+        ->assertSee('Evaluasi Aturan Pajak')
+        ->assertDontSee('Tarif PPN')
+        ->assertDontSee('saveTaxConfiguration');
+
+    expect(property_exists($component->instance(), 'ppnRate'))->toBeFalse()
+        ->and(method_exists($component->instance(), 'saveTaxConfiguration'))->toBeFalse();
 });

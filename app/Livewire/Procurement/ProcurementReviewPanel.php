@@ -3,6 +3,7 @@
 namespace App\Livewire\Procurement;
 
 use App\Models\ProcurementRequest;
+use App\Models\Subsidiary;
 use App\Models\User;
 use Exception;
 use Livewire\Component;
@@ -22,15 +23,28 @@ class ProcurementReviewPanel extends Component
 
     public bool $revisionModal = false;
 
+    public bool $verifyModal = false;
+
     public bool $rejectModal = false;
 
     public bool $cancelModal = false;
+
+    public ?int $subsidiaryId = null;
+
+    public string $assignmentReason = '';
 
     public function mount(ProcurementRequest $procurementRequest): void
     {
         $this->authorizeInternalStaff();
         $this->procurementRequest = $procurementRequest;
+        $this->subsidiaryId = $procurementRequest->subsidiary_id;
         $this->loadDetails();
+    }
+
+    public function confirmVerify(): void
+    {
+        $this->authorizeInternalStaff();
+        $this->verifyModal = true;
     }
 
     public function verify(): void
@@ -39,6 +53,7 @@ class ProcurementReviewPanel extends Component
 
         try {
             $this->procurementRequest->verify(auth()->user());
+            $this->verifyModal = false;
             $this->refreshAfterTransition();
             $this->success('Pengajuan berhasil diverifikasi.');
         } catch (Exception $exception) {
@@ -95,6 +110,46 @@ class ProcurementReviewPanel extends Component
         }
     }
 
+    public function assignSubsidiary(): void
+    {
+        $this->authorizeInternalStaff();
+        $this->validate(['subsidiaryId' => ['required', 'integer', 'exists:subsidiaries,id']]);
+
+        try {
+            $subsidiary = Subsidiary::query()->findOrFail($this->subsidiaryId);
+            if ($this->procurementRequest->officialDocuments()->whereNotNull('issued_at')->exists()) {
+                $this->procurementRequest->correctSubsidiary(
+                    $subsidiary,
+                    auth()->user(),
+                    $this->assignmentReason
+                );
+            } else {
+                $this->procurementRequest->assignSubsidiary($subsidiary, auth()->user());
+            }
+            $this->assignmentReason = '';
+            $this->refreshAfterTransition();
+            $this->success('Anak Perusahaan transaksi berhasil ditetapkan.');
+        } catch (Exception $exception) {
+            $this->error($exception->getMessage());
+        }
+    }
+
+    public function evaluateTaxConfiguration(): void
+    {
+        $this->authorizeInternalStaff();
+
+        try {
+            $result = $this->procurementRequest->evaluateTaxConfiguration(auth()->user());
+            $this->refreshAfterTransition();
+            if ($result['status'] === 'RESOLVED') {
+                $this->success('Evaluasi pajak berhasil: aturan aktif diterapkan.');
+            } else {
+                $this->error('Evaluasi pajak: '.$result['basis']);
+            }
+        } catch (Exception $exception) {
+            $this->error($exception->getMessage());
+        }
+    }
     public function cancelRequest(): void
     {
         $user = auth()->user();
@@ -126,7 +181,13 @@ class ProcurementReviewPanel extends Component
         $this->authorizeInternalStaff();
         $this->loadDetails();
 
-        return view('livewire.procurement.procurement-review-panel');
+        return view('livewire.procurement.procurement-review-panel', [
+            'activeSubsidiaries' => Subsidiary::query()->active()->orderBy('name')->get()
+                ->map(fn (Subsidiary $subsidiary): array => [
+                    'id' => $subsidiary->id,
+                    'name' => $subsidiary->name.' · NPWP '.$subsidiary->npwp,
+                ]),
+        ]);
     }
 
     private function refreshAfterTransition(): void

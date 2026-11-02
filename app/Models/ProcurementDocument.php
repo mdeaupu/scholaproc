@@ -17,25 +17,61 @@ class ProcurementDocument extends Model
         'document_type',
         'document_number',
         'document_date',
+        'document_snapshot',
+        'version',
+        'issued_by',
     ];
 
     protected static function booted(): void
     {
         static::updating(function (self $document): void {
             if ($document->getOriginal('issued_at') !== null
-                && $document->isDirty(['subsidiary_id', 'subsidiary_snapshot', 'issued_at'])) {
-                throw new LogicException('Snapshot Anak Perusahaan pada dokumen yang sudah diterbitkan tidak dapat diubah.');
+                && $document->isDirty([
+                    'subsidiary_id',
+                    'subsidiary_snapshot',
+                    'document_snapshot',
+                    'document_number',
+                    'document_date',
+                    'issued_at',
+                    'issued_by',
+                ])) {
+                throw new LogicException('Dokumen final yang telah diterbitkan tidak dapat diubah.');
             }
 
             if ($document->getOriginal('issued_at') === null && $document->issued_at !== null) {
                 $request = $document->procurementRequest()->with('subsidiary')->firstOrFail();
 
-                if (! $request->subsidiary) {
+                if (! $request->subsidiary
+                    || $request->subsidiary_assigned_by === null
+                    || $request->subsidiary_assigned_at === null
+                    || $document->issued_by === null) {
                     throw new LogicException('Dokumen resmi tidak dapat diterbitkan sebelum Anak Perusahaan ditetapkan.');
                 }
 
+                $stage = data_get($document->document_snapshot, 'stage', []);
+                $allowed = match ($document->document_type) {
+                    'purchase_order' => $request->totals_locked_at !== null
+                        && in_array($request->status, ['price_agreed', 'processing'], true),
+                    'delivery' => isset($stage['delivery_id'])
+                        && $request->deliveries()->whereKey($stage['delivery_id'])->exists(),
+                    'bast', 'inspection' => isset($stage['receipt_id'])
+                        && $request->receipts()->whereKey($stage['receipt_id'])->whereNotNull('verified_at')->exists(),
+                    'invoice' => $request->invoice()->exists()
+                        && in_array($request->status, ['invoiced', 'payment_pending'], true),
+                    'receipt' => $request->payment()->whereNotNull('confirmed_at')->exists(),
+                    'negotiation' => in_array($request->status, ['negotiation', 'price_agreed'], true),
+                    'planning' => in_array($request->status, ['verified', 'negotiation', 'price_agreed', 'processing'], true),
+                    'cover', 'supplier_declaration' => true,
+                    default => false,
+                };
+
+                if (! $allowed) {
+                    throw new LogicException('Tahap transaksi belum memenuhi syarat penerbitan dokumen ini.');
+                }
+
                 $document->subsidiary_id = $request->subsidiary_id;
-                $document->subsidiary_snapshot = $request->subsidiary->documentIdentitySnapshot();
+                $document->subsidiary_snapshot = $request->subsidiary_snapshot
+                    ?? $request->subsidiary->documentIdentitySnapshot();
             }
         });
     }
@@ -45,35 +81,15 @@ class ProcurementDocument extends Model
         return [
             'document_date' => 'date',
             'subsidiary_snapshot' => 'array',
+            'document_snapshot' => 'array',
             'issued_at' => 'datetime',
+            'version' => 'integer',
         ];
     }
 
     public function procurementRequest(): BelongsTo
     {
         return $this->belongsTo(ProcurementRequest::class);
-    }
-
-    public function generateNumber(string $sequence): string
-    {
-        $year = date('Y');
-        $code = match ($this->document_type) {
-            'cover' => 'COV',
-            'planning' => 'HPS',
-            'negotiation' => 'BA-NEGO',
-            'purchase_order' => 'SPK',
-            'inspection' => 'BA-HP',
-            'bast' => 'BAST',
-            'invoice' => 'INV',
-            'receipt' => 'KW',
-            'supplier_declaration' => 'IDENTITAS-ANAK-PERUSAHAAN',
-            default => 'DOC'
-        };
-
-        $subsidiaryName = $this->procurementRequest->subsidiary?->name ?? 'SUBSIDIARY';
-        $subsidiaryCode = Str::slug($subsidiaryName, '-');
-
-        return "{$sequence}/{$subsidiaryCode}/{$code}/{$year}";
     }
 
     public function isComplete(): bool
@@ -84,6 +100,16 @@ class ProcurementDocument extends Model
     public function subsidiary(): BelongsTo
     {
         return $this->belongsTo(Subsidiary::class);
+    }
+
+    public function generateNumber(string $suffix = ''): string
+    {
+        $subsidiary = $this->procurementRequest?->subsidiary;
+        $slug = $subsidiary ? Str::slug($subsidiary->name) : 'dokumen';
+        $type = strtoupper((string) $this->document_type);
+        $year = now()->format('Y');
+
+        return trim("{$slug}/{$type}/{$year}/{$suffix}", '/');
     }
 
     public function issue(): void

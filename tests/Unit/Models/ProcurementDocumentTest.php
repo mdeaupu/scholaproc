@@ -6,6 +6,8 @@ use App\Models\Subsidiary;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 uses(TestCase::class, RefreshDatabase::class);
@@ -52,7 +54,7 @@ describe('ProcurementDocument subsidiary snapshot', function () {
         $request = ProcurementRequest::factory()->create();
         $document = ProcurementDocument::create([
             'procurement_request_id' => $request->id,
-            'document_type' => 'surat_pesanan',
+            'document_type' => 'purchase_order',
         ]);
 
         expect(fn () => $document->issue())
@@ -60,6 +62,8 @@ describe('ProcurementDocument subsidiary snapshot', function () {
     });
 
     it('captures subsidiary identity when issued and preserves the snapshot', function () {
+        Storage::fake('public');
+        $letterheadPath = UploadedFile::fake()->image('kop.png')->store('subsidiary-letterheads', 'public');
         $subsidiary = Subsidiary::factory()->create([
             'name' => 'PT Identitas Awal',
             'npwp' => '123456789012345',
@@ -67,11 +71,15 @@ describe('ProcurementDocument subsidiary snapshot', function () {
             'address' => 'Alamat awal',
             'phone' => '02112345678',
             'email' => 'awal@example.test',
+            'letterhead_path' => $letterheadPath,
         ]);
-        $request = ProcurementRequest::factory()->for($subsidiary, 'subsidiary')->create();
+        $request = ProcurementRequest::factory()->create(['status' => ProcurementRequest::STATUS_VERIFIED]);
+        $admin = User::factory()->admin()->create();
+        $request->assignSubsidiary($subsidiary, $admin);
         $document = ProcurementDocument::create([
             'procurement_request_id' => $request->id,
-            'document_type' => 'surat_pesanan',
+            'document_type' => 'planning',
+            'issued_by' => $admin->id,
         ]);
 
         $document->issue();
@@ -84,6 +92,8 @@ describe('ProcurementDocument subsidiary snapshot', function () {
             ->and($snapshot['address'])->toBe('Alamat awal')
             ->and($snapshot['phone'])->toBe('02112345678')
             ->and($snapshot['email'])->toBe('awal@example.test')
+            ->and($snapshot['letterhead_path'])->toBe($letterheadPath)
+            ->and($snapshot['letterhead_url'])->toBe(Storage::disk('public')->url($letterheadPath))
             ->and($snapshot['letterhead_layout'])->toBe('subsidiary-letterhead');
 
         $letterhead = view('components.documents.subsidiary-letterhead', $snapshot)->render();
@@ -107,10 +117,13 @@ describe('ProcurementDocument subsidiary snapshot', function () {
 
     it('does not allow changing an issued document snapshot', function () {
         $subsidiary = Subsidiary::factory()->create();
-        $request = ProcurementRequest::factory()->for($subsidiary, 'subsidiary')->create();
+        $request = ProcurementRequest::factory()->create(['status' => ProcurementRequest::STATUS_VERIFIED]);
+        $admin = User::factory()->admin()->create();
+        $request->assignSubsidiary($subsidiary, $admin);
         $document = ProcurementDocument::create([
             'procurement_request_id' => $request->id,
-            'document_type' => 'surat_pesanan',
+            'document_type' => 'planning',
+            'issued_by' => $admin->id,
         ]);
         $document->issue();
 
@@ -131,7 +144,7 @@ describe('ProcurementDocument subsidiary snapshot', function () {
     });
 
     it('stores who assigned a subsidiary and when', function () {
-        $request = ProcurementRequest::factory()->create();
+        $request = ProcurementRequest::factory()->create(['status' => ProcurementRequest::STATUS_VERIFIED]);
         $subsidiary = Subsidiary::factory()->create();
         $admin = User::factory()->admin()->create();
 
@@ -154,11 +167,13 @@ describe('ProcurementDocument subsidiary snapshot', function () {
     it('locks the transaction subsidiary after official issuance', function () {
         $original = Subsidiary::factory()->create();
         $replacement = Subsidiary::factory()->create();
-        $request = ProcurementRequest::factory()->for($original, 'subsidiary')->create();
+        $request = ProcurementRequest::factory()->create(['status' => ProcurementRequest::STATUS_VERIFIED]);
         $admin = User::factory()->admin()->create();
+        $request->assignSubsidiary($original, $admin);
         $document = ProcurementDocument::create([
             'procurement_request_id' => $request->id,
-            'document_type' => 'surat_pesanan',
+            'document_type' => 'planning',
+            'issued_by' => $admin->id,
         ]);
         $document->issue();
 

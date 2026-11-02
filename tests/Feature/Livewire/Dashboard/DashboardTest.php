@@ -536,9 +536,10 @@ test('school dashboard lists pending negotiation items with item and subsidiary 
 
     $request = ProcurementRequest::factory()->create([
         'school_id' => $school->id,
-        'status' => 'negotiation',
+        'status' => ProcurementRequest::STATUS_VERIFIED,
     ]);
     $request->assignSubsidiary($subsidiary, $cvStaff);
+    $request->startNegotiation($cvStaff);
     $item = ProcurementRequestItem::factory()->create([
         'procurement_request_id' => $request->id,
         'item_name' => 'Laptop',

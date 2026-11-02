@@ -30,8 +30,27 @@ class ProcurementRequestItem extends Model
     protected static function booted(): void
     {
         static::saving(function (self $item): void {
+            if ($item->exists && $item->procurementRequest()->value('totals_locked_at') !== null
+                && $item->isDirty([
+                    'item_name',
+                    'specification',
+                    'unit_id',
+                    'quantity',
+                    'estimated_price',
+                    'official_price',
+                    'is_pph',
+                ])) {
+                throw new \LogicException('Rincian barang terkunci dalam snapshot final; gunakan alur koreksi berwenang.');
+            }
+
             $specification = trim((string) $item->specification);
             $item->specification = $specification === '' ? null : $specification;
+        });
+
+        static::deleting(function (self $item): void {
+            if ($item->procurementRequest()->value('totals_locked_at') !== null) {
+                throw new \LogicException('Barang dalam snapshot final tidak dapat dihapus; gunakan alur koreksi berwenang.');
+            }
         });
     }
 
@@ -61,6 +80,16 @@ class ProcurementRequestItem extends Model
     public function negotiations(): HasMany
     {
         return $this->hasMany(ProcurementNegotiation::class, 'procurement_request_item_id');
+    }
+
+    public function receiptItems(): HasMany
+    {
+        return $this->hasMany(ProcurementReceiptItem::class);
+    }
+
+    public function deliveryItems(): HasMany
+    {
+        return $this->hasMany(ProcurementDeliveryItem::class);
     }
 
     // ─── Calculations ───────────────────────────────────────────────

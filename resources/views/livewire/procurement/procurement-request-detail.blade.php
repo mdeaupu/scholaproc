@@ -321,6 +321,7 @@
 
             @if (auth()->user()->isAdmin() || auth()->user()->isSuperAdmin())
                 <livewire:procurement.procurement-review-panel :procurement-request="$request" />
+                <livewire:procurement.procurement-processing-panel :procurement-request="$request" />
             @endif
         </aside>
     </div>

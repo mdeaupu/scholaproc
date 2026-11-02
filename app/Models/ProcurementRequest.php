@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -17,6 +19,10 @@ use LogicException;
 class ProcurementRequest extends Model
 {
     use HasFactory, SoftDeletes;
+
+    private bool $allowSnapshotCorrection = false;
+
+    private bool $allowSubsidiaryCorrection = false;
 
     /**
      * Kosakata status mengikuti PRD bagian 6 (Status Transaksi).
@@ -124,13 +130,7 @@ class ProcurementRequest extends Model
         'start_date',
         'end_date',
         'work_duration_text',
-        'is_taxable',
-        'ppn_rate',
-        'pph_22_rate',
-        'pph_23_rate',
         'subtotal',
-        'tax_amount',
-        'grand_total',
         'totals_locked_at',
         'cv_notes',
         'requested_at',
@@ -139,6 +139,8 @@ class ProcurementRequest extends Model
         'verified_at',
         'verified_by',
         'payment_confirmed_at',
+        'price_snapshot',
+        'subsidiary_snapshot',
         'payment_confirmed_by',
     ];
 
@@ -159,22 +161,64 @@ class ProcurementRequest extends Model
         });
 
         static::updating(function (self $model): void {
-            if (! $model->isDirty('subsidiary_id')) {
-                return;
+            if ($model->isTotalsLocked() && ! $model->allowSnapshotCorrection
+                && $model->isDirty([
+                    'is_taxable',
+                    'ppn_rate',
+                    'pph_22_rate',
+                    'pph_23_rate',
+                    'subtotal',
+                    'tax_amount',
+                    'grand_total',
+                    'price_snapshot',
+                    'tax_snapshot',
+                    'subsidiary_snapshot',
+                ])) {
+                throw new LogicException('Snapshot transaksi terkunci; gunakan tindakan koreksi beralasan.');
             }
 
-            if ($model->subsidiary_id !== null
-                && (int) $model->subsidiary_id !== (int) $model->getOriginal('subsidiary_id')) {
+            if ($model->isDirty('subsidiary_id')) {
+                if ($model->officialDocuments()->whereNotNull('issued_at')->exists()
+                    && ! $model->allowSubsidiaryCorrection) {
+                    throw new LogicException('Anak Perusahaan tidak dapat diganti setelah dokumen resmi diterbitkan tanpa koreksi berwenang.');
+                }
+
+                if ($model->subsidiary_id !== null
+                    && (int) $model->subsidiary_id !== (int) $model->getOriginal('subsidiary_id')) {
                 $subsidiary = Subsidiary::findOrFail($model->subsidiary_id);
 
                 if (! $subsidiary->isActive()) {
                     throw new LogicException('Anak Perusahaan nonaktif tidak dapat ditetapkan pada transaksi baru.');
                 }
-            }
 
-            if ($model->officialDocuments()->whereNotNull('issued_at')->exists()) {
-                throw new LogicException('Anak Perusahaan tidak dapat diganti setelah dokumen resmi diterbitkan.');
+                    if ($model->officialDocuments()->whereNotNull('issued_at')->exists()
+                        && ! $model->allowSubsidiaryCorrection) {
+                        throw new LogicException('Anak Perusahaan tidak dapat diganti setelah dokumen resmi diterbitkan.');
+                    }
+                }
             }
+        });
+    }
+
+    public function finalizePriceAgreement(User $actor): void
+    {
+        if (! $actor->isAdmin() && ! $actor->isSuperAdmin() && ! $actor->isSchool()) {
+            throw new AuthorizationException('Pengguna tidak berwenang mengesahkan harga.');
+        }
+
+        if ($this->status !== self::STATUS_NEGOTIATION || ! $this->hasSubsidiary()) {
+            throw new LogicException('Harga final hanya dapat disahkan dalam negosiasi dengan Anak Perusahaan yang telah ditetapkan.');
+        }
+
+        if (! $this->hasOfficialPrices()
+            || $this->items()->where('negotiation_status', '!=', 'accepted')->exists()) {
+            throw new LogicException('Harga final memerlukan persetujuan sekolah dan penyedia untuk semua barang.');
+        }
+
+        DB::transaction(function () use ($actor): void {
+            $this->lockTotals();
+            $this->update(['status' => self::STATUS_PRICE_AGREED]);
+            $this->recordHistory($actor, self::STATUS_PRICE_AGREED, 'Persetujuan harga kedua pihak tercatat; snapshot harga dikunci.');
         });
     }
 
@@ -197,6 +241,11 @@ class ProcurementRequest extends Model
             'totals_locked_at' => 'datetime',
             'verified_at' => 'datetime',
             'payment_confirmed_at' => 'datetime',
+            'tax_configuration_validated' => 'boolean',
+            'tax_configuration_validated_at' => 'datetime',
+            'price_snapshot' => 'array',
+            'tax_snapshot' => 'array',
+            'subsidiary_snapshot' => 'array',
         ];
     }
 
@@ -242,6 +291,10 @@ class ProcurementRequest extends Model
             throw new LogicException('Anak Perusahaan nonaktif tidak dapat ditetapkan pada transaksi baru.');
         }
 
+        if ($this->status !== self::STATUS_VERIFIED) {
+            throw new LogicException('Anak Perusahaan hanya dapat ditetapkan setelah pengajuan diverifikasi.');
+        }
+
         if ($this->officialDocuments()->whereNotNull('issued_at')->exists()) {
             throw new LogicException('Anak Perusahaan tidak dapat diganti setelah dokumen resmi diterbitkan.');
         }
@@ -253,6 +306,7 @@ class ProcurementRequest extends Model
             $this->subsidiary_id = $subsidiary->id;
             $this->subsidiary_assigned_by = $actor->id;
             $this->subsidiary_assigned_at = $assignedAt;
+            $this->subsidiary_snapshot = $subsidiary->documentIdentitySnapshot();
             $this->save();
 
             activity()
@@ -264,6 +318,65 @@ class ProcurementRequest extends Model
                     'subsidiary_assigned_at' => $assignedAt->toIso8601String(),
                 ])
                 ->log('Anak Perusahaan transaksi ditetapkan atau diganti');
+        });
+    }
+
+    public function correctSubsidiary(Subsidiary $subsidiary, User $actor, string $reason): void
+    {
+        $this->authorizeInternal($actor);
+        $reason = trim($reason);
+
+        if (mb_strlen($reason) < 5) {
+            throw new LogicException('Alasan koreksi Anak Perusahaan wajib diisi minimal 5 karakter.');
+        }
+
+        if (! $subsidiary->isActive()) {
+            throw new LogicException('Anak Perusahaan nonaktif tidak dapat ditetapkan.');
+        }
+
+        DB::transaction(function () use ($subsidiary, $actor, $reason): void {
+            $oldId = $this->subsidiary_id;
+            $oldSnapshot = $this->subsidiary_snapshot;
+            $oldTax = $this->taxSnapshot();
+            $this->allowSubsidiaryCorrection = true;
+            $this->allowSnapshotCorrection = true;
+
+            try {
+                $this->forceFill([
+                    'subsidiary_id' => $subsidiary->id,
+                    'subsidiary_assigned_by' => $actor->id,
+                    'subsidiary_assigned_at' => now(),
+                    'subsidiary_snapshot' => $subsidiary->documentIdentitySnapshot(),
+                    'is_taxable' => null,
+                    'ppn_rate' => null,
+                    'pph_22_rate' => null,
+                    'pph_23_rate' => null,
+                    'tax_configuration_validated' => false,
+                    'tax_configuration_basis' => null,
+                    'tax_configuration_validated_by' => null,
+                    'tax_configuration_validated_at' => null,
+                    'tax_amount' => null,
+                    'grand_total' => null,
+                    'tax_snapshot' => null,
+                ])->save();
+            } finally {
+                $this->allowSubsidiaryCorrection = false;
+                $this->allowSnapshotCorrection = false;
+            }
+
+            activity()
+                ->performedOn($this)
+                ->causedBy($actor)
+                ->withProperties([
+                    'old_subsidiary_id' => $oldId,
+                    'new_subsidiary_id' => $subsidiary->id,
+                    'old_snapshot' => $oldSnapshot,
+                    'new_snapshot' => $this->subsidiary_snapshot,
+                    'invalidated_tax_configuration' => $oldTax,
+                    'reason' => $reason,
+                ])
+                ->log('Koreksi Anak Perusahaan transaksi');
+            $this->recordHistory($actor, $this->status, 'Koreksi Anak Perusahaan: '.$reason);
         });
     }
 
@@ -320,6 +433,31 @@ class ProcurementRequest extends Model
     public function verificationFiles(): HasMany
     {
         return $this->hasMany(ProcurementVerificationFile::class);
+    }
+
+    public function deliveries(): HasMany
+    {
+        return $this->hasMany(ProcurementDelivery::class);
+    }
+
+    public function receipts(): HasMany
+    {
+        return $this->hasMany(ProcurementReceipt::class);
+    }
+
+    public function invoice(): HasOne
+    {
+        return $this->hasOne(ProcurementInvoice::class);
+    }
+
+    public function payment(): HasOneThrough
+    {
+        return $this->hasOneThrough(
+            ProcurementPayment::class,
+            ProcurementInvoice::class,
+            'procurement_request_id',
+            'procurement_invoice_id'
+        );
     }
 
     // ─── Scopes ─────────────────────────────────────────────────────
@@ -404,7 +542,7 @@ class ProcurementRequest extends Model
 
     public function canStartNegotiation(): bool
     {
-        return $this->status === self::STATUS_VERIFIED;
+        return $this->status === self::STATUS_VERIFIED && $this->hasSubsidiary();
     }
 
     public function canConfirmPayment(): bool
@@ -415,11 +553,22 @@ class ProcurementRequest extends Model
 
     public function canComplete(): bool
     {
+        $payment = $this->payment()->whereNotNull('confirmed_at')->first();
+
         return $this->status === self::STATUS_PAYMENT_PENDING
-            && $this->verified_at !== null
-            && $this->verified_by !== null
-            && $this->payment_confirmed_at !== null
-            && $this->payment_confirmed_by !== null;
+            && $this->items()->exists()
+            && $this->hasSubsidiary()
+            && $this->isTaxConfigurationValidated()
+            && $this->allQuantitiesReceived()
+            && ! $this->hasOpenReceiptFollowUps()
+            && $this->hasSignatories()
+            && $this->hasCompletedAdministrativeProcessing()
+            && $payment !== null
+            && (float) $payment->amount === (float) ($this->invoice?->total_amount ?? 0)
+            && $this->hasIssuedDocument('purchase_order')
+            && $this->hasIssuedDocument('bast')
+            && $this->hasIssuedDocument('invoice')
+            && $this->hasIssuedDocument('receipt');
     }
 
     public function canCancel(User $user): bool
@@ -536,6 +685,10 @@ class ProcurementRequest extends Model
     {
         $this->authorizeInternal($user);
 
+        if (! $this->hasSubsidiary()) {
+            throw new LogicException('Tetapkan Anak Perusahaan aktif sebelum memulai negosiasi.');
+        }
+
         if (! $this->canStartNegotiation()) {
             throw new Exception('Hanya pengajuan terverifikasi yang dapat diteruskan ke negosiasi.');
         }
@@ -554,13 +707,10 @@ class ProcurementRequest extends Model
             throw new Exception('Pembayaran hanya dapat dikonfirmasi satu kali pada status menunggu pembayaran.');
         }
 
-        DB::transaction(function () use ($user): void {
-            $this->update([
-                'payment_confirmed_at' => now(),
-                'payment_confirmed_by' => $user->id,
-            ]);
-            $this->recordHistory($user, $this->status, 'Pembayaran dikonfirmasi.');
-        });
+        app(\App\Services\ProcurementProcessingService::class)->confirmPayment(
+            $this->payment()->firstOrFail(),
+            $user
+        );
     }
 
     public function complete(User $user): void
@@ -568,7 +718,7 @@ class ProcurementRequest extends Model
         $this->authorizeInternal($user);
 
         if (! $this->canComplete()) {
-            throw new Exception('Pengajuan hanya dapat diselesaikan setelah penerimaan barang dan pembayaran dikonfirmasi pada status menunggu pembayaran.');
+            throw new Exception('Pengadaan belum dapat diselesaikan: penerimaan penuh, administrasi, pembayaran terkonfirmasi, atau tindak lanjut masih belum terpenuhi.');
         }
 
         DB::transaction(function () use ($user): void {
@@ -651,6 +801,10 @@ class ProcurementRequest extends Model
 
     public function totalPpn(): float
     {
+        if (! $this->isTaxConfigurationValidated()) {
+            throw new LogicException('Pajak belum tervalidasi; total pajak final tidak tersedia.');
+        }
+
         if (! $this->is_taxable) {
             return 0;
         }
@@ -660,6 +814,10 @@ class ProcurementRequest extends Model
 
     public function totalPph22(): float
     {
+        if (! $this->isTaxConfigurationValidated()) {
+            throw new LogicException('Pajak belum tervalidasi; total pajak final tidak tersedia.');
+        }
+
         $pphItems = $this->items()->where('is_pph', true);
 
         if ($pphItems->count() === 0) {
@@ -673,6 +831,10 @@ class ProcurementRequest extends Model
 
     public function totalPph23(): float
     {
+        if (! $this->isTaxConfigurationValidated()) {
+            throw new LogicException('Pajak belum tervalidasi; total pajak final tidak tersedia.');
+        }
+
         $pphItems = $this->items()->where('is_pph', true);
 
         if ($pphItems->count() === 0) {
@@ -686,6 +848,10 @@ class ProcurementRequest extends Model
 
     public function grandTotal(): float
     {
+        if (! $this->isTaxConfigurationValidated()) {
+            throw new LogicException('Pajak belum tervalidasi; total transaksi final tidak tersedia.');
+        }
+
         return $this->baseSubtotal() + $this->totalPpn();
     }
 
@@ -703,24 +869,183 @@ class ProcurementRequest extends Model
 
     public function lockTotals(): void
     {
-        $this->update([
-            'subtotal' => $this->baseSubtotal(),
-            'tax_amount' => $this->totalPpn() - $this->totalPph22() - $this->totalPph23(),
-            'grand_total' => $this->grandTotal(),
-            'totals_locked_at' => now(),
-        ]);
+        if (! $this->hasSubsidiary() || ! $this->hasOfficialPrices()) {
+            throw new LogicException('Snapshot harga memerlukan Anak Perusahaan dan harga final untuk setiap barang.');
+        }
+
+        if ($this->isTotalsLocked()) {
+            return;
+        }
+
+        $lines = $this->items()->with('unit')->get()->map(fn (ProcurementRequestItem $item): array => [
+            'item_id' => $item->id,
+            'item_name' => $item->item_name,
+            'specification' => $item->specification,
+            'unit' => $item->unit?->name,
+            'quantity' => $item->quantity,
+            'official_price' => (string) $item->official_price,
+            'amount' => number_format((float) $item->quantity * (float) $item->official_price, 2, '.', ''),
+        ])->all();
+        $subtotal = round(array_sum(array_map(fn (array $line): float => (float) $line['amount'], $lines)), 2);
+        $taxAmount = $this->isTaxConfigurationValidated()
+            ? $this->totalPpn()
+            : null;
+
+        $this->allowSnapshotCorrection = true;
+
+        try {
+            $this->forceFill([
+                'subtotal' => $subtotal,
+                'tax_amount' => $taxAmount,
+                'grand_total' => $taxAmount === null ? null : $subtotal + $taxAmount,
+                'totals_locked_at' => now(),
+                'price_snapshot' => ['items' => $lines, 'subtotal' => number_format($subtotal, 2, '.', '')],
+                'tax_snapshot' => $this->taxSnapshot(),
+                'subsidiary_snapshot' => $this->subsidiary()->firstOrFail()->documentIdentitySnapshot(),
+            ])->save();
+        } finally {
+            $this->allowSnapshotCorrection = false;
+        }
+
     }
 
     public function reopenTotals(User $user, string $reason): void
     {
-        $this->update([
-            'totals_locked_at' => null,
-            'subtotal' => null,
-            'tax_amount' => null,
-            'grand_total' => null,
-        ]);
+        $this->authorizeInternal($user);
+        $reason = trim($reason);
 
-        $this->recordHistory($user, $this->status, 'Revisi: '.$reason);
+        if (mb_strlen($reason) < 5) {
+            throw new LogicException('Alasan koreksi harga wajib diisi minimal 5 karakter.');
+        }
+
+        DB::transaction(function () use ($user, $reason): void {
+            $before = [
+                'subtotal' => $this->subtotal,
+                'tax_amount' => $this->tax_amount,
+                'grand_total' => $this->grand_total,
+                'price_snapshot' => $this->price_snapshot,
+                'tax_snapshot' => $this->tax_snapshot,
+            ];
+            $this->allowSnapshotCorrection = true;
+
+            try {
+                $this->forceFill([
+                    'totals_locked_at' => null,
+                    'subtotal' => null,
+                    'tax_amount' => null,
+                    'grand_total' => null,
+                    'price_snapshot' => null,
+                    'tax_snapshot' => null,
+                    'subsidiary_snapshot' => null,
+                    'status' => self::STATUS_NEGOTIATION,
+                ])->save();
+            } finally {
+                $this->allowSnapshotCorrection = false;
+            }
+
+            $this->recordHistory($user, self::STATUS_DISPUTED, 'Koreksi harga dibuka: '.$reason.'; snapshot sebelumnya: '.json_encode($before));
+        });
+    }
+
+    public function isTaxConfigurationValidated(): bool
+    {
+        return $this->tax_configuration_validated
+            && $this->tax_configuration_validated_at !== null
+            && $this->tax_configuration_validated_by !== null
+            && filled($this->tax_configuration_basis)
+            && $this->is_taxable !== null
+            && (! $this->is_taxable || $this->ppn_rate !== null)
+            && (! $this->items()->where('is_pph', true)->exists()
+                || ($this->pph_22_rate !== null && $this->pph_23_rate !== null));
+    }
+
+    public function evaluateTaxConfiguration(User $actor, array $context = []): array
+    {
+        return app(\App\Services\TaxEvaluationService::class)->evaluateAndApply($this, $actor, $context);
+    }
+
+    public function applyTaxEvaluation(
+        \App\Services\TaxEvaluationService $service,
+        User $actor,
+        array $evaluation
+    ): void {
+        $this->authorizeInternal($actor);
+
+        DB::transaction(function () use ($service, $actor, $evaluation): void {
+            $locked = static::query()->lockForUpdate()->findOrFail($this->id);
+
+            if (! $service->isCurrentEvaluation($locked, $evaluation)) {
+                throw new LogicException('Hasil evaluasi pajak tidak valid atau sudah berubah; evaluasi ulang sebelum diterapkan.');
+            }
+
+            if ($locked->invoice()->exists()) {
+                throw new LogicException('Konfigurasi pajak tidak dapat diubah setelah invoice diproses.');
+            }
+
+            $locked->allowSnapshotCorrection = true;
+
+            try {
+                $resolved = $evaluation['status'] === 'RESOLVED';
+                $rates = $evaluation['rates'];
+                $locked->forceFill([
+                    'is_taxable' => $resolved ? true : null,
+                    'ppn_rate' => $resolved ? $rates[\App\Models\TaxRule::TAX_PPN] : null,
+                    'pph_22_rate' => $resolved ? $rates[\App\Models\TaxRule::TAX_PPH22] : null,
+                    'pph_23_rate' => $resolved ? $rates[\App\Models\TaxRule::TAX_PPH23] : null,
+                    'tax_configuration_validated' => $resolved,
+                    'tax_configuration_basis' => $evaluation['basis'],
+                    'tax_configuration_validated_by' => $resolved ? $actor->id : null,
+                    'tax_configuration_validated_at' => $resolved ? now() : null,
+                ])->save();
+
+                if ($locked->isTotalsLocked()) {
+                    $locked->forceFill([
+                        'tax_amount' => $resolved ? $locked->totalPpn() : null,
+                        'grand_total' => $resolved ? $locked->baseSubtotal() + $locked->totalPpn() : null,
+                        'tax_snapshot' => $resolved ? $locked->taxSnapshot() : null,
+                    ])->save();
+                }
+            } finally {
+                $locked->allowSnapshotCorrection = false;
+            }
+
+            $locked->recordHistory(
+                $actor,
+                $locked->status,
+                $resolved
+                    ? 'Konfigurasi pajak diterapkan dari aturan tervalidasi.'
+                    : 'Konfigurasi pajak belum tervalidasi: '.$evaluation['basis']
+            );
+            activity()
+                ->performedOn($locked)
+                ->causedBy($actor)
+                ->withProperties([
+                    'status' => $evaluation['status'],
+                    'rules' => $evaluation['rules'],
+                    'rates' => $resolved ? $evaluation['rates'] : null,
+                ])
+                ->log('Evaluasi aturan pajak transaksi');
+        });
+
+        $this->refresh();
+    }
+    private function taxSnapshot(): array
+    {
+        $validated = $this->isTaxConfigurationValidated();
+
+        return [
+            'validated' => $validated,
+            'basis' => $this->tax_configuration_basis,
+            'validated_at' => $this->tax_configuration_validated_at?->toIso8601String(),
+            'validated_by' => $this->tax_configuration_validated_by,
+            'is_taxable' => $this->is_taxable,
+            'ppn_rate' => $this->ppn_rate,
+            'pph_22_rate' => $this->pph_22_rate,
+            'pph_23_rate' => $this->pph_23_rate,
+            'ppn_amount' => $validated ? $this->totalPpn() : null,
+            'pph_22_amount' => $validated ? $this->totalPph22() : null,
+            'pph_23_amount' => $validated ? $this->totalPph23() : null,
+        ];
     }
 
     // ─── Dashboard Statistics ───────────────────────────────────────
@@ -749,7 +1074,7 @@ class ProcurementRequest extends Model
         $lockedTotal = (float) (clone $query)
             ->whereNotNull('totals_locked_at')
             ->whereNotIn('status', self::EXCLUDED_FINANCIAL_STATUSES)
-            ->sum('grand_total');
+            ->sum(DB::raw('COALESCE(grand_total, subtotal)'));
 
         $unlockedTotal = (float) (clone $query)
             ->join('procurement_request_items', 'procurement_request_items.procurement_request_id', '=', 'procurement_requests.id')
@@ -773,6 +1098,40 @@ class ProcurementRequest extends Model
     public function hasSubsidiary(): bool
     {
         return ! empty($this->subsidiary_id);
+    }
+
+    public function allQuantitiesReceived(): bool
+    {
+        foreach ($this->items as $item) {
+            $received = (int) $item->receiptItems()
+                ->whereHas('receipt', fn (Builder $query) => $query->whereNotNull('verified_at'))
+                ->sum('quantity');
+
+            if ($received < (int) $item->quantity) {
+                return false;
+            }
+        }
+
+        return $this->items()->exists();
+    }
+
+    public function hasOpenReceiptFollowUps(): bool
+    {
+        return ProcurementReceiptItem::query()
+            ->whereHas('receipt', fn (Builder $query) => $query->where('procurement_request_id', $this->id))
+            ->where('follow_up_status', ProcurementReceiptItem::FOLLOW_UP_OPEN)
+            ->exists();
+    }
+
+    public function hasIssuedDocument(string $type): bool
+    {
+        return $this->documents()->where('document_type', $type)->whereNotNull('issued_at')->exists();
+    }
+
+    public function hasCompletedAdministrativeProcessing(): bool
+    {
+        return $this->receipts()->whereNotNull('verified_at')->exists()
+            && $this->invoice()->exists();
     }
 
     public function hasSignatories(): bool
@@ -800,26 +1159,6 @@ class ProcurementRequest extends Model
     public function isReadyForDocumentGeneration(): bool
     {
         return $this->hasSubsidiary() && $this->hasSignatories() && $this->hasOfficialPrices();
-    }
-
-    public function generateOfficialDocuments(): void
-    {
-        if (!$this->isReadyForDocumentGeneration()) {
-            throw new Exception('Gagal generate. Mohon lengkapi data Anak Perusahaan, penandatangan, dan harga resmi terlebih dahulu.');
-        }
-
-        $documentTypes = ['cover', 'planning', 'negotiation', 'purchase_order', 'inspection', 'bast', 'invoice', 'receipt', 'supplier_declaration'];
-
-        $sequenceNumber = str_pad($this->id, 3, '0', STR_PAD_LEFT);
-
-        DB::transaction(function () use ($documentTypes, $sequenceNumber): void {
-            foreach ($documentTypes as $type) {
-                $doc = $this->documents()->firstOrNew(['document_type' => $type]);
-                $doc->document_number = $doc->generateNumber($sequenceNumber);
-                $doc->document_date = now()->toDateString();
-                $doc->save();
-            }
-        });
     }
 
     public function getTotalEstimatedAmountAttribute(): float

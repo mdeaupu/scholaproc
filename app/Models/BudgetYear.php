@@ -42,9 +42,9 @@ class BudgetYear extends Model
     public function activate(): void
     {
         DB::transaction(function () {
-            // Nonaktifkan semua tahun anggaran lain[cite: 1]
+            // Nonaktifkan semua tahun anggaran lain.
             self::where('id', '!=', $this->id)->update(['is_active' => false]);
-            // Aktifkan tahun anggaran ini[cite: 1]
+            // Aktifkan tahun anggaran ini.
             $this->update(['is_active' => true]);
         });
     }

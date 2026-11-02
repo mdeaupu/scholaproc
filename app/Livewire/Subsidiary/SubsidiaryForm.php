@@ -3,13 +3,16 @@
 namespace App\Livewire\Subsidiary;
 
 use App\Models\Subsidiary;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Mary\Traits\Toast;
 
 class SubsidiaryForm extends Component
 {
-    use Toast;
+    use Toast, WithFileUploads;
 
     public ?Subsidiary $subsidiary = null;
 
@@ -46,6 +49,8 @@ class SubsidiaryForm extends Component
     public bool $isEdit = false;
 
     public string $activeTab = 'umum';
+
+    public $letterheadFile = null;
 
     public string $status = Subsidiary::STATUS_ACTIVE;
 
@@ -139,6 +144,12 @@ class SubsidiaryForm extends Component
             'commissioner_name' => 'nullable|string|max:255',
             'commissioner_nik' => 'nullable|string|size:16',
             'commissioner_address' => 'nullable|string',
+            'letterheadFile' => [
+                $this->isEdit && $this->subsidiary?->letterhead_path ? 'nullable' : 'required',
+                'image',
+                'mimes:jpg,jpeg,png',
+                'max:4096',
+            ],
             'status' => 'required|in:active,inactive',
         ];
     }
@@ -148,6 +159,16 @@ class SubsidiaryForm extends Component
         abort_unless(auth()->user()?->isSuperAdmin(), 403, 'Hanya Superadmin yang dapat mengelola Anak Perusahaan.');
 
         $validated = $this->validate();
+        $letterheadFile = $validated['letterheadFile'] ?? null;
+        unset($validated['letterheadFile']);
+
+        if ($letterheadFile) {
+            $validated['letterhead_path'] = $letterheadFile->storeAs(
+                'subsidiary-letterheads',
+                Str::uuid().'.'.$letterheadFile->extension(),
+                'public'
+            );
+        }
 
         if ($this->isEdit) {
             $this->subsidiary->update($validated);
@@ -199,6 +220,9 @@ class SubsidiaryForm extends Component
             'legalDocuments' => $this->legalDocuments,
             'projects' => $this->projects,
             'summary' => $this->summary,
+            'letterheadUrl' => $this->subsidiary?->letterhead_path
+                ? Storage::disk('public')->url($this->subsidiary->letterhead_path)
+                : null,
         ])->layout('layouts.app');
     }
 }

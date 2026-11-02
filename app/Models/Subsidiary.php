@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -41,6 +42,7 @@ class Subsidiary extends Model
         'commissioner_name',
         'commissioner_nik',
         'commissioner_address',
+        'letterhead_path',
         'status',
     ];
 
@@ -66,6 +68,7 @@ class Subsidiary extends Model
         'commissioner_name',
         'commissioner_nik',
         'commissioner_address',
+        'letterhead_path',
         'status',
     ];
 
@@ -130,6 +133,10 @@ class Subsidiary extends Model
             'npwp' => $this->npwp,
             'director_name' => $this->director_name,
             'letterhead_layout' => 'subsidiary-letterhead',
+            'letterhead_path' => $this->letterhead_path,
+            'letterhead_url' => $this->letterhead_path
+                ? Storage::disk('public')->url($this->letterhead_path)
+                : null,
             'address' => $this->address,
             'phone' => $this->phone,
             'email' => $this->email,
@@ -138,7 +145,8 @@ class Subsidiary extends Model
 
     public function scopeActive(Builder $query): Builder
     {
-        return $query->where('status', 'active');
+        return $query->where(        'letterhead_path',
+        'status', 'active');
     }
 
     public function canBeDeleted(): bool

@@ -6,7 +6,9 @@ use App\Models\Subsidiary;
 use App\Models\SubsidiaryLegalDocument;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Spatie\Activitylog\Models\Activity;
 
@@ -47,6 +49,7 @@ describe('SubsidiaryForm Livewire Component', function () {
 
     it('creates a subsidiary with the required legal identity', function () {
         $this->actingAs(User::factory()->superAdmin()->create());
+        Storage::fake('public');
         $data = Subsidiary::factory()->make();
 
         Livewire::test(SubsidiaryForm::class)
@@ -54,6 +57,7 @@ describe('SubsidiaryForm Livewire Component', function () {
             ->set('npwp', $data->npwp)
             ->set('director_name', $data->director_name)
             ->set('address', $data->address)
+            ->set('letterheadFile', UploadedFile::fake()->image('kop.png'))
             ->call('save')
             ->assertRedirect(route('superadmin.subsidiaries.index'));
 
@@ -63,11 +67,14 @@ describe('SubsidiaryForm Livewire Component', function () {
             'director_name' => $data->director_name,
             'status' => 'active',
         ]);
+        expect(Storage::disk('public')->allFiles('subsidiary-letterheads'))->toHaveCount(1);
     });
 
     it('updates an existing subsidiary', function () {
         $this->actingAs(User::factory()->superAdmin()->create());
-        $subsidiary = Subsidiary::factory()->create();
+        Storage::fake('public');
+        $path = UploadedFile::fake()->image('existing.png')->store('subsidiary-letterheads', 'public');
+        $subsidiary = Subsidiary::factory()->create(['letterhead_path' => $path]);
 
         Livewire::test(SubsidiaryForm::class, ['subsidiary' => $subsidiary])
             ->set('name', 'Nama Anak Perusahaan Baru')
@@ -78,6 +85,23 @@ describe('SubsidiaryForm Livewire Component', function () {
             'id' => $subsidiary->id,
             'name' => 'Nama Anak Perusahaan Baru',
         ]);
+    });
+
+    it('preserves the prior kop surat file when replacing it for future snapshots', function () {
+        $this->actingAs(User::factory()->superAdmin()->create());
+        Storage::fake('public');
+        $oldPath = UploadedFile::fake()->image('old.png')->store('subsidiary-letterheads', 'public');
+        $subsidiary = Subsidiary::factory()->create(['letterhead_path' => $oldPath]);
+
+        Livewire::test(SubsidiaryForm::class, ['subsidiary' => $subsidiary])
+            ->set('letterheadFile', UploadedFile::fake()->image('new.png'))
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $newPath = $subsidiary->fresh()->letterhead_path;
+        expect($newPath)->not->toBe($oldPath)
+            ->and(Storage::disk('public')->exists($oldPath))->toBeTrue()
+            ->and(Storage::disk('public')->exists($newPath))->toBeTrue();
     });
 
     it('requires a unique NPWP, name, and director', function () {
@@ -94,7 +118,9 @@ describe('SubsidiaryForm Livewire Component', function () {
 
     it('allows an existing subsidiary to retain its NPWP', function () {
         $this->actingAs(User::factory()->superAdmin()->create());
-        $subsidiary = Subsidiary::factory()->create();
+        Storage::fake('public');
+        $path = UploadedFile::fake()->image('existing.png')->store('subsidiary-letterheads', 'public');
+        $subsidiary = Subsidiary::factory()->create(['letterhead_path' => $path]);
 
         Livewire::test(SubsidiaryForm::class, ['subsidiary' => $subsidiary])
             ->set('name', 'Nama Diperbarui')

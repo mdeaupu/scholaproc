@@ -33,6 +33,19 @@
                         <x-mary-input label="Nama Direktur" wire:model="director_name"
                             placeholder="Nama sesuai dokumen resmi" :required="true" />
                     </div>
+                    <div class="mt-4">
+                        <label for="letterheadFile" class="label">
+                            <span class="label-text font-medium">Berkas kop surat (PNG/JPG, maksimal 4 MB)</span>
+                        </label>
+                        <input id="letterheadFile" type="file" wire:model="letterheadFile"
+                            accept=".png,.jpg,.jpeg,image/png,image/jpeg" class="file-input file-input-bordered w-full" />
+                        @error('letterheadFile')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                        <div wire:loading wire:target="letterheadFile" class="mt-2 text-sm text-gray-500">
+                            Mengunggah berkas...
+                        </div>
+                    </div>
                 </x-mary-card>
 
                 <x-mary-card title="Informasi untuk Dokumen Resmi" separator shadow>
@@ -97,8 +110,15 @@
             <div class="space-y-5">
                 <x-mary-card title="Pratinjau Kop Surat" separator shadow>
                     <p class="text-xs text-gray-500 mb-4">
-                        Kop surat menggunakan komponen tata letak resmi dan data identitas ini secara otomatis.
+                        Berkas yang tersimpan akan disertakan pada dokumen resmi dan snapshot transaksi.
                     </p>
+                    @if ($letterheadFile)
+                        <img src="{{ $letterheadFile->temporaryUrl() }}" alt="Pratinjau kop surat"
+                            class="mb-3 max-h-32 w-full object-contain" />
+                    @elseif ($letterheadUrl)
+                        <img src="{{ $letterheadUrl }}" alt="Kop surat tersimpan"
+                            class="mb-3 max-h-32 w-full object-contain" />
+                    @endif
                     <x-documents.subsidiary-letterhead
                         :name="$name ?: 'Nama Anak Perusahaan'"
                         :npwp="$npwp ?: null"

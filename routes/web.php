@@ -18,6 +18,7 @@ use App\Livewire\School\SchoolIndex;
 use App\Livewire\Subsidiary\SubsidiaryForm;
 use App\Livewire\Subsidiary\SubsidiaryIndex;
 use App\Livewire\Subsidiary\SubsidiaryLegalDocumentForm;
+use App\Http\Controllers\ProcurementDocumentController;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 
@@ -79,6 +80,14 @@ Route::middleware('auth')->group(function () {
             Route::get('/{id}/edit', ProcurementRequestForm::class)->name('edit');
         });
         Route::get('/{procurementRequest}', ProcurementRequestDetail::class)->name('show');
+        Route::middleware('role:superadmin|admin')->post(
+            '/{procurementRequest}/documents/{type}',
+            [ProcurementDocumentController::class, 'issue']
+        )->name('documents.issue');
+        Route::get(
+            '/{procurementRequest}/documents/{document}/download',
+            [ProcurementDocumentController::class, 'download']
+        )->name('documents.download');
     });
 
     Route::view('profile', 'profile')->name('profile');

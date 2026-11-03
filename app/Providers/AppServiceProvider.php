@@ -7,6 +7,7 @@ use App\Models\ProcurementNegotiation;
 use App\Models\User;
 use App\Observers\GeneratedDocumentObserver;
 use App\Observers\ProcurementNegotiationObserver;
+use App\Policies\UserPolicy;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -31,5 +32,6 @@ class AppServiceProvider extends ServiceProvider
 
         GeneratedDocument::observe(GeneratedDocumentObserver::class);
         ProcurementNegotiation::observe(ProcurementNegotiationObserver::class);
+        Gate::policy(User::class, UserPolicy::class);
     }
 }

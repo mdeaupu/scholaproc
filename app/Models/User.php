@@ -11,13 +11,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
+use Spatie\Activitylog\Models\Activity;
 use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, HasRoles, SoftDeletes;
+    use HasFactory, HasRoles, Notifiable, SoftDeletes;
 
     /**
      * The attributes that are mass assignable.
@@ -29,10 +30,12 @@ class User extends Authenticatable
         'username',
         'name',
         'email',
+        'phone',
+        'notes',
+        'avatar_path',
         'password',
         'status',
         'role',
-        'status',
     ];
 
     /**
@@ -58,7 +61,6 @@ class User extends Authenticatable
         ];
     }
 
-
     public function school(): BelongsTo
     {
         return $this->belongsTo(School::class);
@@ -74,6 +76,20 @@ class User extends Authenticatable
         return $this->hasMany(ProcurementNegotiation::class);
     }
 
+    public function verifiedRequests(): HasMany
+    {
+        return $this->hasMany(ProcurementRequest::class, 'verified_by');
+    }
+
+    public function reviewedRequests(): HasMany
+    {
+        return $this->hasMany(ProcurementRequest::class, 'reviewed_by');
+    }
+
+    public function verificationFiles(): HasMany
+    {
+        return $this->hasMany(ProcurementVerificationFile::class, 'uploaded_by');
+    }
 
     public function isSuperAdmin(): bool
     {
@@ -95,6 +111,19 @@ class User extends Authenticatable
         return $this->status === 'active';
     }
 
+    public function canLogin(): bool
+    {
+        if (!$this->isActive()) {
+            return false;
+        }
+
+        if (!$this->isSchool()) {
+            return true;
+        }
+
+        return $this->school !== null && $this->school->isActive();
+    }
+
     public function isSuspended(): bool
     {
         return $this->status === 'suspended';
@@ -110,25 +139,41 @@ class User extends Authenticatable
         $this->update(['status' => 'suspended']);
     }
 
+    public function terminateSessions(): void
+    {
+        if (config('session.driver') === 'database') {
+            DB::table(config('session.table', 'sessions'))
+                ->where('user_id', $this->getKey())
+                ->delete();
+        }
+    }
+
     public function resetPassword(string $newPassword): void
     {
         $this->update(['password' => $newPassword]);
     }
-
 
     public function canManageSchools(): bool
     {
         return $this->isSuperAdmin();
     }
 
-    public function canManageSuppliers(): bool
+    public function canManageSubsidiaries(): bool
     {
         return $this->isSuperAdmin();
     }
 
     public function canProcessProcurement(): bool
     {
-        return $this->isAdmin();
+        return $this->isAdmin() || $this->isSuperAdmin();
+    }
+
+    public function hasTransactionalHistory(): bool
+    {
+        return $this->histories()->exists()
+            || $this->negotiations()->exists()
+            || $this->verifiedRequests()->exists()
+            || $this->verificationFiles()->exists();
     }
 
     public function canDecideNegotiation(ProcurementRequest $request): bool
@@ -140,7 +185,6 @@ class User extends Authenticatable
     {
         return $this->isSchool() && $this->school_id === $request->school_id;
     }
-
 
     public function scopeActive(Builder $query): Builder
     {

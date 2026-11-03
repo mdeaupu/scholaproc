@@ -4,7 +4,7 @@ use App\Models\User;
 use Livewire\Volt\Volt;
 
 test('profile page is displayed', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->admin()->create();
 
     $this->actingAs($user);
 
@@ -38,7 +38,7 @@ test('profile information can be updated', function () {
     $this->assertNull($user->email_verified_at);
 });
 
-test('email verification status is unchanged when the email address is unchanged', function () {
+test('email verified timestamp is unchanged when the email address is unchanged', function () {
     $user = User::factory()->create();
 
     $this->actingAs($user);
@@ -56,7 +56,7 @@ test('email verification status is unchanged when the email address is unchanged
 });
 
 test('user can delete their account', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->admin()->create();
 
     $this->actingAs($user);
 
@@ -69,11 +69,27 @@ test('user can delete their account', function () {
         ->assertRedirect('/');
 
     $this->assertGuest();
-    $this->assertNull($user->fresh());
+    $this->assertSoftDeleted('users', ['id' => $user->id]);
+});
+
+test('superadmin cannot see or trigger self account deletion', function () {
+    $user = User::factory()->superAdmin()->create();
+
+    $this->actingAs($user)
+        ->get('/profile')
+        ->assertOk()
+        ->assertDontSeeVolt('profile.delete-user-form');
+
+    Volt::test('profile.delete-user-form')
+        ->set('password', 'password')
+        ->call('deleteUser')
+        ->assertStatus(403);
+
+    $this->assertNotSoftDeleted('users', ['id' => $user->id]);
 });
 
 test('correct password must be provided to delete account', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->admin()->create();
 
     $this->actingAs($user);
 

@@ -12,6 +12,10 @@ class ProcurementRequestHistory extends Model
     public $timestamps = false;
     public const UPDATED_AT = null;
 
+    protected $casts = [
+        'created_at' => 'datetime',
+    ];
+
     protected $fillable = [
         'procurement_request_id',
         'user_id',

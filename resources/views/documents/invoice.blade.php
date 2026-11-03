@@ -1,103 +1,49 @@
-<x-document-layout :title="'Faktur - ' . $document->document_number">
-
-    <p class="doc-title" style="font-size: 16px;">Faktur</p>
-
-    <div class="section-spacer"></div>
-
-    <table class="info-table">
-        <tr>
-            <td style="width: 55%;">
-                <p>Kepada Yth.</p>
-                <p class="bold">{{ $school->name }}</p>
-                <p>{{ $school->address }}</p>
-            </td>
-            <td>
-                <table class="info-table">
-                    <tr>
-                        <td class="label">No. Faktur</td>
-                        <td class="colon">:</td>
-                        <td>{{ $document->document_number }}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">Tanggal</td>
-                        <td class="colon">:</td>
-                        <td>{{ \Carbon\Carbon::parse($document->document_date)->translatedFormat('d F Y') }}</td>
-                    </tr>
-                </table>
-            </td>
-        </tr>
-    </table>
-
-    <table class="items-table">
+<!doctype html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <title>Invoice - {{ $document->document_number }}</title>
+    <style>
+        body { font-family: DejaVu Sans, sans-serif; font-size: 10pt; }
+        .letterhead { border-bottom: 2px solid #111; margin-bottom: 20px; padding-bottom: 12px; }
+        .letterhead-image { display: block; max-height: 100px; max-width: 100%; margin: 0 auto 8px; }
+        .letterhead-identity { text-align: center; line-height: 1.5; }
+        h1, .number { text-align: right; }
+        table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+        th, td { border: 1px solid #444; padding: 6px; text-align: left; }
+        .number { text-align: right; }
+    </style>
+</head>
+<body>
+    @include('documents.partials.letterhead')
+    <h1>INVOICE</h1>
+    <p>
+        Nomor: {{ data_get($snapshot, 'stage.invoice_number', $document->document_number) }}<br>
+        Tanggal: {{ data_get($snapshot, 'stage.invoice_date', $document->document_date?->format('Y-m-d')) }}<br>
+        Kepada: {{ data_get($snapshot, 'school.name', '-') }}
+    </p>
+    <table>
         <thead>
-            <tr>
-                <th style="width: 26px;">No</th>
-                <th style="text-align: left;">Nama Produk</th>
-                <th>Satuan</th>
-                <th>Jumlah (Qty)</th>
-                <th>Harga Satuan</th>
-                <th>Total Harga</th>
-            </tr>
+            <tr><th>Barang</th><th>Spesifikasi</th><th>Jumlah</th><th>Harga Satuan</th><th>Jumlah Harga</th></tr>
         </thead>
         <tbody>
-            @foreach ($items as $i => $item)
+            @foreach (data_get($snapshot, 'transaction.items', []) as $item)
                 <tr>
-                    <td class="text-center">{{ $i + 1 }}</td>
-                    <td>{{ $item->item_name }}</td>
-                    <td class="text-center">{{ $item->unit->name ?? '-' }}</td>
-                    <td class="text-center">{{ $item->quantity }}</td>
-                    <td class="text-right">
-                        {{ number_format($item->official_price ?? $item->estimated_price, 0, ',', '.') }}</td>
-                    <td class="text-right">
-                        {{ number_format($item->officialAmount() > 0 ? $item->officialAmount() : $item->estimatedAmount(), 0, ',', '.') }}
-                    </td>
+                    <td>{{ $item['item_name'] ?? '-' }}</td>
+                    <td>{{ $item['specification'] ?? '-' }}</td>
+                    <td>{{ $item['quantity'] ?? '-' }} {{ $item['unit'] ?? '' }}</td>
+                    <td class="number">Rp {{ number_format((float) ($item['official_price'] ?? 0), 2, ',', '.') }}</td>
+                    <td class="number">Rp {{ number_format((float) ($item['amount'] ?? 0), 2, ',', '.') }}</td>
                 </tr>
             @endforeach
-            <tr class="totals-row">
-                <td colspan="5" class="text-right">Jumlah Harga Jual</td>
-                <td class="text-right">{{ number_format($subtotal, 0, ',', '.') }}</td>
-            </tr>
-            @if ($procurement->is_taxable)
-                <tr>
-                    <td colspan="5" class="text-right">PPN
-                        {{ rtrim(rtrim(number_format($procurement->ppn_rate, 2), '0'), '.') }}%</td>
-                    <td class="text-right">{{ number_format($ppn, 0, ',', '.') }}</td>
-                </tr>
-                <tr>
-                    <td colspan="5" class="text-right">PPh 22</td>
-                    <td class="text-right">{{ number_format($pph22, 0, ',', '.') }}</td>
-                </tr>
-                <tr>
-                    <td colspan="5" class="text-right">PPh 23</td>
-                    <td class="text-right">{{ number_format($pph23, 0, ',', '.') }}</td>
-                </tr>
-            @endif
-            <tr class="totals-row">
-                <td colspan="5" class="text-right">Jumlah Harga Setelah Pajak</td>
-                <td class="text-right">{{ number_format($totalAfterTax, 0, ',', '.') }}</td>
-            </tr>
         </tbody>
     </table>
-
-    <p class="note italic">Terbilang: {{ \App\Helpers\Terbilang::make($totalAfterTax, true) }}</p>
-
-    <table class="signature-table">
-        <tr>
-            <td>
-                <p>Mengetahui,</p>
-                <p>Kepala Sekolah</p>
-                <div class="signature-space"></div>
-                <p class="signature-name">{{ $headmaster->name }}</p>
-                <p>NIP. {{ $headmaster->nip ?: '-' }}</p>
-            </td>
-            <td>
-                <p>Hormat Kami,</p>
-                <p>{{ $supplier->company_name }}</p>
-                <div class="signature-space"></div>
-                <p class="signature-name">{{ $supplier->director_name }}</p>
-                <p>Direktur</p>
-            </td>
-        </tr>
-    </table>
-
-</x-document-layout>
+    <p class="number">Subtotal: Rp {{ number_format((float) data_get($snapshot, 'stage.subtotal', data_get($snapshot, 'transaction.subtotal', 0)), 2, ',', '.') }}</p>
+    @if (data_get($snapshot, 'transaction.tax.validated'))
+        <p class="number">Pajak: Rp {{ number_format((float) data_get($snapshot, 'stage.tax_amount', 0), 2, ',', '.') }}</p>
+        <p class="number"><strong>Total Tagihan: Rp {{ number_format((float) data_get($snapshot, 'stage.total_amount', 0), 2, ',', '.') }}</strong></p>
+    @else
+        <p>Konfigurasi pajak belum tervalidasi; nilai final tidak dapat ditampilkan.</p>
+    @endif
+</body>
+</html>

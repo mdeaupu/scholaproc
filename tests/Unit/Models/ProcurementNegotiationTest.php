@@ -171,7 +171,7 @@ test('accept records history on procurement request', function () {
     ]);
 });
 
-test('admin cannot accept offer (only school)', function () {
+test('admin cannot accept an offer made by admin', function () {
     $nego = ProcurementNegotiation::offer(
         $this->item,
         $this->admin,
@@ -180,7 +180,7 @@ test('admin cannot accept offer (only school)', function () {
     );
 
     expect(fn () => $nego->accept($this->admin))
-        ->toThrow(\Exception::class, 'Hanya pihak sekolah yang dapat menerima/menolak tawaran harga.');
+        ->toThrow(\Illuminate\Auth\Access\AuthorizationException::class, 'Hanya pihak lawan yang dapat menerima tawaran ini.');
 });
 
 test('throws exception when accepting non-pending offer', function () {
@@ -204,12 +204,15 @@ test('school can reject admin offer', function () {
         $this->item,
         $this->admin,
         ProcurementNegotiation::OFFERED_BY_ADMIN,
-        90000
+        90000,
+        'Harga penawaran awal'
     );
 
     $nego->reject($this->school, 'Harga terlalu tinggi');
 
-    expect($nego->refresh()->status)->toBe(ProcurementNegotiation::STATUS_REJECTED);
+    expect($nego->refresh()->status)->toBe(ProcurementNegotiation::STATUS_REJECTED)
+        ->and($nego->notes)->toBe('Harga penawaran awal')
+        ->and($nego->response_note)->toBe('Harga terlalu tinggi');
     expect($this->item->refresh()->negotiation_status)->toBe('rejected');
 });
 

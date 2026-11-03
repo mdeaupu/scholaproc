@@ -38,6 +38,7 @@ class ProcurementNegotiation extends Model
         'offered_price',
         'status',
         'notes',
+        'response_note',
         'school_approved_by',
         'school_approved_at',
         'provider_approved_by',
@@ -76,14 +77,6 @@ class ProcurementNegotiation extends Model
     public function scopeForItem(Builder $query, int $itemId): Builder
     {
         return $query->where('procurement_request_item_id', $itemId);
-    }
-
-    public function scopeLatestPerItem(Builder $query): Builder
-    {
-        return $query->whereRaw('id IN (
-            SELECT MAX(id) FROM procurement_negotiations
-            GROUP BY procurement_request_item_id
-        )');
     }
 
     public function scopePending(Builder $query): Builder
@@ -140,6 +133,14 @@ class ProcurementNegotiation extends Model
                 throw new LogicException('Penawaran ini tidak lagi dapat diajukan.');
             }
 
+            $expectedParty = $lockedItem->nextOfferBy();
+            if ($offeredBy !== $expectedParty) {
+                $expectedPartyLabel = $expectedParty === self::OFFERED_BY_ADMIN
+                    ? 'Admin Pusat'
+                    : 'Sekolah';
+                throw new LogicException("Giliran penawaran saat ini adalah {$expectedPartyLabel}.");
+            }
+
             $previousPending = $lockedItem->negotiations()
                 ->where('status', self::STATUS_PENDING)
                 ->latest('round_number')
@@ -171,8 +172,15 @@ class ProcurementNegotiation extends Model
 
     public function accept(User $user): void
     {
-        if (! $user->canDecideNegotiation($this->procurementRequestItem->procurementRequest)) {
-            throw new Exception('Hanya pihak sekolah yang dapat menerima/menolak tawaran harga.');
+        $request = $this->procurementRequestItem->procurementRequest;
+        $isSchool = $user->canDecideNegotiation($request);
+        $isProvider = $user->isAdmin() || $user->isSuperAdmin();
+        $isOfferedBySchool = $this->isFromSchool();
+
+        if ((! $isSchool && ! $isProvider)
+            || ($isSchool && $isOfferedBySchool)
+            || ($isProvider && ! $isOfferedBySchool)) {
+            throw new AuthorizationException('Hanya pihak lawan yang dapat menerima tawaran ini.');
         }
 
         if ($this->status !== self::STATUS_PENDING) {
@@ -203,7 +211,7 @@ class ProcurementNegotiation extends Model
 
             $negotiation->update([
                 'status' => self::STATUS_REJECTED,
-                'notes' => $reason ?? $negotiation->notes,
+                'response_note' => $reason,
             ]);
             $item->update(['negotiation_status' => 'rejected']);
             $request->recordHistory(

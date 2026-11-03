@@ -210,8 +210,17 @@ class ProcurementRequest extends Model
             throw new LogicException('Harga final hanya dapat disahkan dalam negosiasi dengan Anak Perusahaan yang telah ditetapkan.');
         }
 
+        $hasUnapprovedFinalOffer = $this->items()
+            ->whereDoesntHave('negotiations', function (Builder $query): void {
+                $query->where('status', ProcurementNegotiation::STATUS_ACCEPTED)
+                    ->whereNotNull('school_approved_at')
+                    ->whereNotNull('provider_approved_at');
+            })
+            ->exists();
+
         if (! $this->hasOfficialPrices()
-            || $this->items()->where('negotiation_status', '!=', 'accepted')->exists()) {
+            || $this->items()->where('negotiation_status', '!=', 'accepted')->exists()
+            || $hasUnapprovedFinalOffer) {
             throw new LogicException('Harga final memerlukan persetujuan sekolah dan penyedia untuk semua barang.');
         }
 

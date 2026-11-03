@@ -134,6 +134,30 @@ class ProcurementRequestItem extends Model
         return $this->negotiations()->latest('round_number')->first();
     }
 
+    public function nextOfferBy(): ?string
+    {
+        if ($this->isNegotiationSettled()) {
+            return null;
+        }
+
+        $latestRound = $this->latestNegotiationRound();
+
+        if ($latestRound === null) {
+            return ProcurementNegotiation::OFFERED_BY_ADMIN;
+        }
+
+        if (! in_array($latestRound->status, [
+            ProcurementNegotiation::STATUS_PENDING,
+            ProcurementNegotiation::STATUS_COUNTERED,
+        ], true)) {
+            return null;
+        }
+
+        return $latestRound->isFromSchool()
+            ? ProcurementNegotiation::OFFERED_BY_ADMIN
+            : ProcurementNegotiation::OFFERED_BY_SCHOOL;
+    }
+
     public function isNegotiationSettled(): bool
     {
         return in_array($this->negotiation_status, ['accepted', 'rejected']);

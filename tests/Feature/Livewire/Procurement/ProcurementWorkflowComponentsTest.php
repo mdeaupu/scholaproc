@@ -1,11 +1,14 @@
 <?php
 
 use App\Livewire\Procurement\ProcurementRequestDetail;
+use App\Livewire\Procurement\ProcurementProcessPanel;
 use App\Livewire\Procurement\ProcurementReviewPanel;
+use App\Livewire\Procurement\NegotiationPanel;
 use App\Models\BudgetYear;
 use App\Models\FundingSource;
 use App\Models\ItemUnit;
 use App\Models\PackageCategory;
+use App\Models\ProcurementNegotiation;
 use App\Models\ProcurementRequest;
 use App\Models\Subsidiary;
 use App\Models\ProcurementRequestItem;
@@ -39,7 +42,7 @@ test('school can view own request details with item and actual status history', 
 
     Livewire::test(ProcurementRequestDetail::class, ['procurementRequest' => $request])
         ->assertStatus(200)
-        ->assertSee('Detail Pengajuan Barang')
+        ->assertSee('Detail Pengajuan Pengadaan Barang')
         ->assertSee('PGN-'.$request->created_at->format('Y').'-'.str_pad((string) $request->id, 4, '0', STR_PAD_LEFT))
         ->assertSee('SMP Negeri Contoh')
         ->assertSee('Kertas HVS')
@@ -63,18 +66,132 @@ test('school cannot view another school request', function () {
         ->toThrow(HttpException::class);
 });
 
+test('procurement detail tabs switch visible content and default to negotiation when active', function () {
+    $school = School::factory()->create();
+    $user = User::factory()->school()->create(['school_id' => $school->id]);
+    $request = ProcurementRequest::factory()->create([
+        'school_id' => $school->id,
+        'status' => ProcurementRequest::STATUS_DRAFT,
+    ]);
+    ProcurementRequestItem::factory()->create(['procurement_request_id' => $request->id]);
+    $this->actingAs($user);
+
+    Livewire::test(ProcurementRequestDetail::class, ['procurementRequest' => $request])
+        ->assertSet('activeTab', 'informasi')
+        ->assertSee('Informasi & Barang')
+        ->assertSee('Detail Barang')
+        ->call('setActiveTab', 'dokumen')
+        ->assertSet('activeTab', 'dokumen')
+        ->assertSee('Dokumen Pengadaan')
+        ->call('setActiveTab', 'negosiasi')
+        ->assertSet('activeTab', 'negosiasi')
+        ->assertSee('Ruang Negosiasi')
+        ->assertDontSee('Detail Barang');
+
+    $negotiatingRequest = ProcurementRequest::factory()->create([
+        'school_id' => $school->id,
+        'status' => ProcurementRequest::STATUS_VERIFIED,
+    ]);
+    ProcurementRequestItem::factory()->create(['procurement_request_id' => $negotiatingRequest->id]);
+    $admin = User::factory()->admin()->create();
+    $negotiatingRequest->assignSubsidiary(Subsidiary::factory()->create(), $admin);
+    $negotiatingRequest->startNegotiation($admin);
+
+    Livewire::test(ProcurementRequestDetail::class, ['procurementRequest' => $negotiatingRequest])
+        ->assertSet('activeTab', 'negosiasi')
+        ->assertSee('Negosiasi Harga Per Item');
+});
+
+test('procurement process panel switches content through its navigation tabs', function () {
+    $admin = User::factory()->admin()->create();
+    $this->actingAs($admin);
+
+    $request = ProcurementRequest::factory()->create([
+        'status' => ProcurementRequest::STATUS_VERIFIED,
+    ]);
+    ProcurementRequestItem::factory()->create([
+        'procurement_request_id' => $request->id,
+        'item_name' => 'Laptop untuk tab negosiasi',
+    ]);
+    $request->assignSubsidiary(Subsidiary::factory()->create(), $admin);
+    $request->startNegotiation($admin);
+
+    Livewire::test(ProcurementProcessPanel::class, ['procurementRequest' => $request])
+        ->assertSet('activeTab', 'negosiasi')
+        ->assertSee('Negosiasi Harga Per Item')
+        ->call('setActiveTab', 'informasi')
+        ->assertSet('activeTab', 'informasi')
+        ->assertSee('Informasi & Barang')
+        ->assertSee('Laptop untuk tab negosiasi')
+        ->call('setActiveTab', 'negosiasi')
+        ->assertSet('activeTab', 'negosiasi')
+        ->assertSee('Negosiasi Harga Per Item')
+        ->call('setActiveTab', 'pengiriman')
+        ->assertSet('activeTab', 'pengiriman')
+        ->assertSee('Pemrosesan Pesanan')
+        ->call('setActiveTab', 'dokumen')
+        ->assertSet('activeTab', 'dokumen')
+        ->assertSee('Dokumen Terbit');
+});
+
+test('negotiation panel only renders rounds belonging to its request', function () {
+    $admin = User::factory()->admin()->create();
+    $this->actingAs($admin);
+
+    $request = ProcurementRequest::factory()->create([
+        'status' => ProcurementRequest::STATUS_VERIFIED,
+    ]);
+    ProcurementRequestItem::factory()->create([
+        'procurement_request_id' => $request->id,
+    ]);
+    $request->assignSubsidiary(Subsidiary::factory()->create(), $admin);
+    $request->startNegotiation($admin);
+
+    $otherRequest = ProcurementRequest::factory()->create([
+        'status' => ProcurementRequest::STATUS_VERIFIED,
+    ]);
+    $otherItem = ProcurementRequestItem::factory()->create([
+        'procurement_request_id' => $otherRequest->id,
+    ]);
+    $otherRequest->assignSubsidiary(Subsidiary::factory()->create(), $admin);
+    $otherRequest->startNegotiation($admin);
+    ProcurementNegotiation::offer(
+        $otherItem,
+        $admin,
+        ProcurementNegotiation::OFFERED_BY_ADMIN,
+        123456,
+        'Catatan transaksi lain'
+    );
+
+    Livewire::test(NegotiationPanel::class, ['procurementRequest' => $request])
+        ->set('selectedItemId', $otherItem->id)
+        ->assertDontSee('Catatan transaksi lain')
+        ->assertDontSee('123.456');
+});
+
 test('internal staff sees the review panel embedded in request details', function () {
     $admin = User::factory()->admin()->create();
     $this->actingAs($admin);
     $request = ProcurementRequest::factory()->create([
         'status' => ProcurementRequest::STATUS_VERIFIED,
     ]);
-    $subsidiary = Subsidiary::factory()->create();
+    $subsidiary = Subsidiary::factory()->create([
+        'name' => 'Entitas Aktif untuk Review',
+        'npwp' => '12345678901',
+    ]);
+    Subsidiary::factory()->create([
+        'name' => 'Entitas Nonaktif untuk Review',
+        'status' => Subsidiary::STATUS_INACTIVE,
+    ]);
     $request->assignSubsidiary($subsidiary, $admin);
 
     Livewire::test(ProcurementRequestDetail::class, ['procurementRequest' => $request])
         ->assertSee('Review Pengajuan')
         ->assertSee('Teruskan ke Negosiasi');
+
+    Livewire::test(ProcurementReviewPanel::class, ['procurementRequest' => $request])
+        ->assertSee('Entitas Aktif untuk Review · NPWP 12345678901')
+        ->assertDontSee('Entitas Nonaktif untuk Review');
 });
 
 test('school can submit its own draft from the detail page', function () {
@@ -268,12 +385,17 @@ test('admin can continue a verified request to negotiation from the review panel
     $request = ProcurementRequest::factory()->create([
         'status' => ProcurementRequest::STATUS_VERIFIED,
     ]);
+    ProcurementRequestItem::factory()->create(['procurement_request_id' => $request->id]);
     $subsidiary = Subsidiary::factory()->create();
     $request->assignSubsidiary($subsidiary, $admin);
 
     Livewire::test(ProcurementReviewPanel::class, ['procurementRequest' => $request])
         ->assertSee('Teruskan ke Negosiasi')
+        ->call('confirmStartNegotiation')
+        ->assertSet('negotiationModal', true)
+        ->assertSee('Mulai tahap negosiasi harga?')
         ->call('startNegotiation')
+        ->assertSet('negotiationModal', false)
         ->assertHasNoErrors()
         ->assertSee('Negosiasi Harga');
 
@@ -283,6 +405,167 @@ test('admin can continue a verified request to negotiation from the review panel
         'user_id' => $admin->id,
         'status' => ProcurementRequest::STATUS_NEGOTIATION,
     ]);
+});
+
+test('negotiation panel is shown and subsidiary selection is hidden after negotiation starts', function () {
+    $admin = User::factory()->admin()->create();
+    $this->actingAs($admin);
+
+    $request = ProcurementRequest::factory()->create([
+        'status' => ProcurementRequest::STATUS_VERIFIED,
+    ]);
+    ProcurementRequestItem::factory()->create(['procurement_request_id' => $request->id]);
+    $subsidiary = Subsidiary::factory()->create();
+    $request->assignSubsidiary($subsidiary, $admin);
+    $request->startNegotiation($admin);
+
+    Livewire::test(ProcurementReviewPanel::class, ['procurementRequest' => $request])
+        ->assertSee($subsidiary->name)
+        ->assertDontSee('Anak Perusahaan aktif')
+        ->assertDontSee('Simpan Penetapan');
+
+    Livewire::test(ProcurementRequestDetail::class, ['procurementRequest' => $request])
+        ->assertSee('Negosiasi Harga Per Item')
+        ->assertSet('activeTab', 'negosiasi')
+        ->assertSee('Kirim Penawaran');
+
+    $school = School::factory()->create();
+    $schoolUser = User::factory()->school()->create(['school_id' => $school->id]);
+    $schoolRequest = ProcurementRequest::factory()->create([
+        'school_id' => $school->id,
+        'status' => ProcurementRequest::STATUS_VERIFIED,
+    ]);
+    $schoolItem = ProcurementRequestItem::factory()->create(['procurement_request_id' => $schoolRequest->id]);
+    $schoolRequest->assignSubsidiary(Subsidiary::factory()->create(), $admin);
+    $schoolRequest->startNegotiation($admin);
+
+    Livewire::actingAs($schoolUser)
+        ->test(ProcurementRequestDetail::class, ['procurementRequest' => $schoolRequest])
+        ->assertSee('Negosiasi Harga Per Item')
+        ->assertSee('Menunggu Admin/Superadmin mengajukan penawaran')
+        ->assertDontSee('Ajukan Penawaran Balik')
+        ->assertDontSee('Masukkan harga');
+
+    ProcurementNegotiation::offer(
+        $schoolItem,
+        $admin,
+        ProcurementNegotiation::OFFERED_BY_ADMIN,
+        95000
+    );
+
+    Livewire::actingAs($schoolUser)
+        ->test(ProcurementRequestDetail::class, ['procurementRequest' => $schoolRequest])
+        ->assertSee('Ajukan Penawaran Balik')
+        ->assertSee('Masukkan harga');
+
+    ProcurementNegotiation::offer(
+        $schoolItem,
+        $schoolUser,
+        ProcurementNegotiation::OFFERED_BY_SCHOOL,
+        90000
+    );
+
+    Livewire::actingAs($admin)
+        ->test(ProcurementRequestDetail::class, ['procurementRequest' => $schoolRequest])
+        ->assertSee('Ajukan Penawaran')
+        ->assertSee('Masukkan harga');
+
+    Livewire::actingAs($schoolUser)
+        ->test(ProcurementRequestDetail::class, ['procurementRequest' => $schoolRequest])
+        ->assertSee('Menunggu Admin/Superadmin mengajukan penawaran')
+        ->assertDontSee('Masukkan harga');
+
+    Livewire::actingAs($admin)
+        ->test(ProcurementReviewPanel::class, ['procurementRequest' => $request])
+        ->set('subsidiaryId', Subsidiary::factory()->create()->id)
+        ->call('assignSubsidiary')
+        ->assertStatus(403);
+});
+
+test('negotiation model enforces admin first and alternates offer turns', function () {
+    $school = School::factory()->create();
+    $schoolUser = User::factory()->school()->create(['school_id' => $school->id]);
+    $admin = User::factory()->admin()->create();
+    $request = ProcurementRequest::factory()->create([
+        'school_id' => $school->id,
+        'status' => ProcurementRequest::STATUS_VERIFIED,
+    ]);
+    $item = ProcurementRequestItem::factory()->create([
+        'procurement_request_id' => $request->id,
+    ]);
+    $request->assignSubsidiary(Subsidiary::factory()->create(), $admin);
+    $request->startNegotiation($admin);
+
+    expect(fn () => ProcurementNegotiation::offer(
+        $item,
+        $schoolUser,
+        ProcurementNegotiation::OFFERED_BY_SCHOOL,
+        90000
+    ))->toThrow(\LogicException::class, 'Giliran penawaran saat ini adalah Admin Pusat.');
+
+    $adminOffer = ProcurementNegotiation::offer(
+        $item,
+        $admin,
+        ProcurementNegotiation::OFFERED_BY_ADMIN,
+        95000
+    );
+    expect($item->fresh()->nextOfferBy())->toBe(ProcurementNegotiation::OFFERED_BY_SCHOOL);
+
+    ProcurementNegotiation::offer(
+        $item,
+        $schoolUser,
+        ProcurementNegotiation::OFFERED_BY_SCHOOL,
+        90000
+    );
+    expect($item->fresh()->nextOfferBy())->toBe(ProcurementNegotiation::OFFERED_BY_ADMIN);
+
+    expect($adminOffer->refresh()->status)->toBe(ProcurementNegotiation::STATUS_COUNTERED);
+});
+
+test('admin can accept school offer without rejection controls', function () {
+    $school = School::factory()->create();
+    $schoolUser = User::factory()->school()->create(['school_id' => $school->id]);
+    $admin = User::factory()->admin()->create();
+    $request = ProcurementRequest::factory()->create([
+        'school_id' => $school->id,
+        'status' => ProcurementRequest::STATUS_VERIFIED,
+    ]);
+    $item = ProcurementRequestItem::factory()->create([
+        'procurement_request_id' => $request->id,
+    ]);
+    $request->assignSubsidiary(Subsidiary::factory()->create(), $admin);
+    $request->startNegotiation($admin);
+
+    $schoolOffer = ProcurementNegotiation::offer(
+        $item,
+        $admin,
+        ProcurementNegotiation::OFFERED_BY_ADMIN,
+        95000
+    );
+    ProcurementNegotiation::offer(
+        $item,
+        $schoolUser,
+        ProcurementNegotiation::OFFERED_BY_SCHOOL,
+        90000
+    );
+    $schoolOffer->refresh();
+    $latestSchoolOffer = ProcurementNegotiation::query()
+        ->where('procurement_request_item_id', $item->id)
+        ->latest('round_number')
+        ->firstOrFail();
+
+    Livewire::actingAs($admin)
+        ->test(\App\Livewire\Procurement\NegotiationPanel::class, ['procurementRequest' => $request])
+        ->assertSee('Terima Penawaran Sekolah')
+        ->assertDontSee('Tolak Tawaran Harga')
+        ->assertDontSee('Tolak Tawaran')
+        ->call('accept', $latestSchoolOffer->id)
+        ->assertHasNoErrors();
+
+    expect($latestSchoolOffer->fresh()->status)->toBe(ProcurementNegotiation::STATUS_ACCEPTED)
+        ->and($latestSchoolOffer->fresh()->provider_approved_at)->not->toBeNull()
+        ->and($item->fresh()->official_price)->toEqual(90000)
+        ->and($request->fresh()->status)->toBe(ProcurementRequest::STATUS_PRICE_AGREED);
 });
 
 test('non-internal users cannot access the review panel', function () {

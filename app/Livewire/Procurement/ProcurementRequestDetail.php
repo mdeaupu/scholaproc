@@ -19,10 +19,15 @@ class ProcurementRequestDetail extends Component
 
     public bool $confirmingDeleteDraft = false;
 
+    public string $activeTab = 'informasi';
+
     public function mount(ProcurementRequest $procurementRequest): void
     {
         $this->authorizeSchoolScope($procurementRequest);
         $this->procurementRequest = $procurementRequest;
+        if ($procurementRequest->status === ProcurementRequest::STATUS_NEGOTIATION) {
+            $this->activeTab = 'negosiasi';
+        }
         $this->loadDetails();
 
         if (session()->has('toast_success')) {
@@ -59,6 +64,13 @@ class ProcurementRequestDetail extends Component
         $this->confirmingDeleteDraft = true;
     }
 
+    public function setActiveTab(string $tab): void
+    {
+        abort_unless(in_array($tab, ['informasi', 'negosiasi', 'pengiriman', 'dokumen'], true), 404);
+
+        $this->activeTab = $tab;
+    }
+
     public function deleteDraft()
     {
         $this->authorizeSchoolOwner();
@@ -90,6 +102,10 @@ class ProcurementRequestDetail extends Component
         $this->authorizeSchoolScope($this->procurementRequest);
         $this->procurementRequest->refresh();
         $this->loadDetails();
+
+        if ($this->procurementRequest->status === ProcurementRequest::STATUS_NEGOTIATION) {
+            $this->activeTab = 'negosiasi';
+        }
     }
 
     private function loadDetails(): void
@@ -101,6 +117,9 @@ class ProcurementRequestDetail extends Component
             'budgetYear',
             'items.unit',
             'histories.createdBy',
+            'deliveries.items.requestItem',
+            'receipts.items.requestItem',
+            'documents',
         ]);
     }
 

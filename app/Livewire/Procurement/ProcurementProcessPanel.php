@@ -15,6 +15,8 @@ class ProcurementProcessPanel extends Component
 
     public ProcurementRequest $procurementRequest;
 
+    public string $activeTab = 'informasi';
+
     public string $rejectReason = '';
 
     public string $subsidiaryId = '';
@@ -27,8 +29,6 @@ class ProcurementProcessPanel extends Component
 
     public bool $subsidiaryModal = false;
 
-    public bool $showNegotiation = false;
-
     public function mount(ProcurementRequest $procurementRequest): void
     {
         $this->authorizeRequest($procurementRequest);
@@ -37,6 +37,10 @@ class ProcurementProcessPanel extends Component
         $this->taxEvaluationMessage = $procurementRequest->tax_configuration_basis
             ?? 'Konfigurasi pajak belum dievaluasi.';
         $this->taxEvaluationResolved = $procurementRequest->isTaxConfigurationValidated();
+
+        if ($procurementRequest->status === ProcurementRequest::STATUS_NEGOTIATION) {
+            $this->activeTab = 'negosiasi';
+        }
     }
 
     public function submitRequest(): void
@@ -123,12 +127,14 @@ class ProcurementProcessPanel extends Component
             $this->procurementRequest->startNegotiation($user);
         }, 'Negosiasi harga dimulai.');
 
-        $this->showNegotiation = true;
+        $this->activeTab = 'negosiasi';
     }
 
-    public function toggleNegotiation(): void
+    public function setActiveTab(string $tab): void
     {
-        $this->showNegotiation = ! $this->showNegotiation;
+        abort_unless(in_array($tab, ['informasi', 'negosiasi', 'pengiriman', 'dokumen'], true), 404);
+
+        $this->activeTab = $tab;
     }
 
     public function complete(): void
@@ -165,6 +171,9 @@ class ProcurementProcessPanel extends Component
             'histories.createdBy',
             'school',
             'subsidiary',
+            'deliveries.items.requestItem',
+            'receipts.items.requestItem',
+            'documents',
         ]);
     }
 

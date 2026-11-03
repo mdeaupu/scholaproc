@@ -145,8 +145,7 @@ class Subsidiary extends Model
 
     public function scopeActive(Builder $query): Builder
     {
-        return $query->where(        'letterhead_path',
-        'status', 'active');
+        return $query->where('status', self::STATUS_ACTIVE);
     }
 
     public function canBeDeleted(): bool

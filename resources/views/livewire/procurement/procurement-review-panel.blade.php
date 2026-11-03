@@ -3,6 +3,9 @@
     $request = $procurementRequest;
     $canReview = $request->status === \App\Models\ProcurementRequest::STATUS_SUBMITTED;
     $canStartNegotiation = $request->canStartNegotiation();
+    $hasIssuedDocuments = $request->officialDocuments()->whereNotNull('issued_at')->exists();
+    $canChangeSubsidiary = $request->status === \App\Models\ProcurementRequest::STATUS_VERIFIED
+        || ($request->status !== \App\Models\ProcurementRequest::STATUS_NEGOTIATION && $hasIssuedDocuments);
 @endphp
 
 <x-mary-card title="Review Pengajuan" separator shadow>
@@ -19,15 +22,19 @@
                 <p class="text-sm font-semibold">Anak Perusahaan wajib ditetapkan sebelum negosiasi</p>
                 @if ($request->subsidiary)
                     <p class="text-sm">{{ $request->subsidiary->name }} · NPWP {{ $request->subsidiary->npwp }}</p>
+                @elseif ($request->status === \App\Models\ProcurementRequest::STATUS_VERIFIED)
+                    <p class="text-sm text-amber-700">Anak Perusahaan belum ditetapkan.</p>
                 @endif
-                <x-mary-select label="Anak Perusahaan aktif" wire:model="subsidiaryId"
-                    :options="$activeSubsidiaries" option-value="id" option-label="name" placeholder="Pilih Anak Perusahaan" />
-                @if ($request->officialDocuments()->whereNotNull('issued_at')->exists())
-                    <x-mary-textarea label="Alasan koreksi penetapan" wire:model="assignmentReason" rows="2" />
+                @if ($canChangeSubsidiary)
+                    <x-mary-select label="Anak Perusahaan aktif" wire:model="subsidiaryId"
+                        :options="$activeSubsidiaries" option-value="id" option-label="name" placeholder="Pilih Anak Perusahaan" />
+                    @if ($hasIssuedDocuments)
+                        <x-mary-textarea label="Alasan koreksi penetapan" wire:model="assignmentReason" rows="2" />
+                    @endif
+                    <x-mary-button label="{{ $hasIssuedDocuments ? 'Simpan Koreksi Penetapan' : 'Simpan Penetapan' }}"
+                        icon="o-building-office-2" wire:click="assignSubsidiary" spinner="assignSubsidiary"
+                        class="w-full border border-blue-200 bg-white text-blue-700" />
                 @endif
-                <x-mary-button label="Simpan Penetapan" icon="o-building-office-2"
-                    wire:click="assignSubsidiary" spinner="assignSubsidiary"
-                    class="w-full border border-blue-200 bg-white text-blue-700" />
             </div>
         @endif
 
@@ -43,8 +50,7 @@
         @elseif ($canStartNegotiation)
             <p class="text-sm text-gray-600">Pengajuan telah diverifikasi dan siap diproses.</p>
             <x-mary-button label="Teruskan ke Negosiasi" icon="o-arrow-right"
-                wire:click="startNegotiation"
-                wire:confirm="Teruskan pengajuan ini ke tahap negosiasi?" wire:loading.attr="disabled"
+                wire:click="confirmStartNegotiation" wire:loading.attr="disabled"
                 spinner="startNegotiation" class="w-full bg-[#0046FF] text-white hover:bg-[#0046FF]/90" />
         @else
             <p class="rounded-lg bg-gray-50 p-3 text-sm text-gray-500">
@@ -143,6 +149,26 @@
         <x-mary-button label="Batal" wire:click="$set('verifyModal', false)" class="btn-ghost text-black" />
         <x-mary-button label="Ya, Verifikasi" wire:click="verify" wire:loading.attr="disabled"
             spinner="verify" class="bg-[#0046FF] text-white hover:bg-[#0046FF]/90" />
+    </x-slot:actions>
+</x-mary-modal>
+
+<x-mary-modal wire:model="negotiationModal" title="Teruskan ke Negosiasi" class="backdrop-blur"
+    title-class="text-[#0046FF]">
+    <div class="flex items-start gap-4">
+        <div class="shrink-0 rounded-full bg-[#0046FF]/10 p-3 text-[#0046FF]">
+            <x-mary-icon name="o-chat-bubble-left-right" class="h-7 w-7" />
+        </div>
+        <div>
+            <p class="font-semibold text-black">Mulai tahap negosiasi harga?</p>
+            <p class="mt-1 text-sm leading-relaxed text-gray-500">
+                Pengajuan akan diteruskan ke tahap negosiasi dan sekolah dapat mulai menanggapi penawaran harga.
+            </p>
+        </div>
+    </div>
+    <x-slot:actions>
+        <x-mary-button label="Batal" wire:click="$set('negotiationModal', false)" class="btn-ghost text-black" />
+        <x-mary-button label="Ya, Teruskan" wire:click="startNegotiation" wire:loading.attr="disabled"
+            spinner="startNegotiation" class="bg-[#0046FF] text-white hover:bg-[#0046FF]/90" />
     </x-slot:actions>
 </x-mary-modal>
 

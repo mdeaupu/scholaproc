@@ -29,6 +29,8 @@ class ProcurementReviewPanel extends Component
 
     public bool $cancelModal = false;
 
+    public bool $negotiationModal = false;
+
     public ?int $subsidiaryId = null;
 
     public string $assignmentReason = '';
@@ -104,15 +106,25 @@ class ProcurementReviewPanel extends Component
         try {
             $this->procurementRequest->startNegotiation(auth()->user());
             $this->refreshAfterTransition();
+            $this->negotiationModal = false;
             $this->success('Pengajuan berhasil diteruskan ke negosiasi.');
         } catch (Exception $exception) {
             $this->error($exception->getMessage());
         }
     }
 
+    public function confirmStartNegotiation(): void
+    {
+        $this->authorizeInternalStaff();
+        abort_unless($this->procurementRequest->canStartNegotiation(), 403);
+
+        $this->negotiationModal = true;
+    }
+
     public function assignSubsidiary(): void
     {
         $this->authorizeInternalStaff();
+        abort_if($this->procurementRequest->status === ProcurementRequest::STATUS_NEGOTIATION, 403);
         $this->validate(['subsidiaryId' => ['required', 'integer', 'exists:subsidiaries,id']]);
 
         try {

@@ -52,9 +52,8 @@ class UserSeeder extends Seeder
 
         $schoolUser = User::create([
             'school_id' => $school->id,
-            'username' => 'school',
-            'name' => 'Siti Operator Sekolah',
-            'email' => 'siti.school@scholaproc.test',
+            'username' => $school->npsn,
+            'name' => 'Asep',
             'password' => Hash::make('password'),
             'status' => 'active',
             'role' => 'school',

@@ -2,15 +2,15 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ProcurementRequestItem extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'procurement_request_id',
@@ -26,6 +26,33 @@ class ProcurementRequestItem extends Model
     ];
 
     protected $guarded = ['id'];
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $item): void {
+            if ($item->exists && $item->procurementRequest()->value('totals_locked_at') !== null
+                && $item->isDirty([
+                    'item_name',
+                    'specification',
+                    'unit_id',
+                    'quantity',
+                    'estimated_price',
+                    'official_price',
+                    'is_pph',
+                ])) {
+                throw new \LogicException('Rincian barang terkunci dalam snapshot final; gunakan alur koreksi berwenang.');
+            }
+
+            $specification = trim((string) $item->specification);
+            $item->specification = $specification === '' ? null : $specification;
+        });
+
+        static::deleting(function (self $item): void {
+            if ($item->procurementRequest()->value('totals_locked_at') !== null) {
+                throw new \LogicException('Barang dalam snapshot final tidak dapat dihapus; gunakan alur koreksi berwenang.');
+            }
+        });
+    }
 
     protected function casts(): array
     {
@@ -55,6 +82,16 @@ class ProcurementRequestItem extends Model
         return $this->hasMany(ProcurementNegotiation::class, 'procurement_request_item_id');
     }
 
+    public function receiptItems(): HasMany
+    {
+        return $this->hasMany(ProcurementReceiptItem::class);
+    }
+
+    public function deliveryItems(): HasMany
+    {
+        return $this->hasMany(ProcurementDeliveryItem::class);
+    }
+
     // ─── Calculations ───────────────────────────────────────────────
 
     public function estimatedAmount(): float
@@ -71,7 +108,7 @@ class ProcurementRequestItem extends Model
 
     public function pphAmount(): float
     {
-        if (!$this->is_pph) {
+        if (! $this->is_pph) {
             return 0;
         }
 
@@ -95,6 +132,30 @@ class ProcurementRequestItem extends Model
     public function latestNegotiationRound()
     {
         return $this->negotiations()->latest('round_number')->first();
+    }
+
+    public function nextOfferBy(): ?string
+    {
+        if ($this->isNegotiationSettled()) {
+            return null;
+        }
+
+        $latestRound = $this->latestNegotiationRound();
+
+        if ($latestRound === null) {
+            return ProcurementNegotiation::OFFERED_BY_ADMIN;
+        }
+
+        if (! in_array($latestRound->status, [
+            ProcurementNegotiation::STATUS_PENDING,
+            ProcurementNegotiation::STATUS_COUNTERED,
+        ], true)) {
+            return null;
+        }
+
+        return $latestRound->isFromSchool()
+            ? ProcurementNegotiation::OFFERED_BY_ADMIN
+            : ProcurementNegotiation::OFFERED_BY_SCHOOL;
     }
 
     public function isNegotiationSettled(): bool

@@ -1,69 +1,44 @@
-@php
-    $letterHead = $schoolSetting
-        ? $schoolSetting->getLetterHead()
-        : [
-            'pusat' => '',
-            'provinsi' => '',
-            'sub_wilayah' => null,
-            'sekolah' => strtoupper($school->name),
-            'alamat_lengkap' => $school->address,
-            'kontak' => 'Telp: ' . $school->phone_number,
-        ];
-@endphp
-<x-document-layout :title="'Cover - ' . $procurement->package_category_name">
-
-    <div style="margin-top: 40px; text-align: center;">
-        <p style="font-size: 13px; font-weight: bold; text-transform: uppercase;">
-            {{ $letterHead['pusat'] }}
-        </p>
-
-        <div style="margin: 22px 0;">
-            <img src="{{ public_path($logo ?? 'images/logo-jabar.svg') }}" style="width: 110px;" alt="Logo">
-        </div>
-
-        <p style="font-size: 15px; font-weight: bold; text-transform: uppercase;">{{ $school->name }}</p>
-        <p style="font-size: 10px; margin-top: 4px;">{{ $school->address }}</p>
+<!doctype html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <title>Cover - {{ data_get($snapshot, 'transaction.package_category', '-') }}</title>
+    <style>
+        body { font-family: DejaVu Sans, sans-serif; font-size: 12pt; line-height: 1.6; }
+        .cover { margin-top: 40px; text-align: center; }
+        .details { border-collapse: collapse; margin: 40px auto; width: 80%; }
+        .details td { padding: 8px; }
+        .label { font-weight: bold; width: 30%; }
+    </style>
+</head>
+<body>
+    @include('documents.partials.school-letterhead')
+    <div class="cover">
+        <p><strong>KUITANSI:</strong></p>
+        <p>{{ data_get($snapshot, 'documents.receipt.number') ?: '-' }}</p>
+        <p>{{ data_get($snapshot, 'documents.receipt.date') ?: '-' }}</p>
+        <p style="margin-top: 60px"><strong>PAKET PEKERJAAN</strong></p>
+        <h2>{{ data_get($snapshot, 'transaction.package_category', '-') }}</h2>
+        <p>DI LINGKUNGAN {{ data_get($snapshot, 'school.name', '-') }}</p>
+        <table class="details">
+            <tr>
+                <td class="label">HARGA</td>
+                <td>Rp {{ number_format((float) data_get($snapshot, 'transaction.amount', 0), 0, ',', '.') }}</td>
+            </tr>
+            <tr>
+                <td class="label">TERBILANG</td>
+                <td>{{ data_get($snapshot, 'transaction.amount_in_words', '-') }}</td>
+            </tr>
+            <tr>
+                <td class="label">REKANAN PELAKSANA</td>
+                <td>{{ data_get($snapshot, 'subsidiary.name', '-') }}</td>
+            </tr>
+            <tr>
+                <td class="label">ALAMAT</td>
+                <td>{{ data_get($snapshot, 'subsidiary.address', '-') }}</td>
+            </tr>
+        </table>
+        <p>{{ data_get($snapshot, 'transaction.budget_year', '-') }}</p>
     </div>
-
-    <div style="margin-top: 50px; text-align: center;">
-        <p class="bold">KUITANSI :</p>
-        <p>{{ $receiptDocument->document_number ?? '-' }}</p>
-        <p>Tanggal {{ optional($receiptDocument->document_date)->translatedFormat('d F Y') ?? '-' }}</p>
-    </div>
-
-    <div style="margin-top: 30px; text-align: center;">
-        <p class="bold">TENTANG :</p>
-        <p class="bold uppercase" style="font-size: 13px;">PAKET PEKERJAAN</p>
-        <p class="bold uppercase" style="font-size: 13px;">{{ $procurement->package_category_name }}</p>
-        <p>DI LINGKUNGAN {{ strtoupper($school->name) }}</p>
-    </div>
-
-    <table class="info-table" style="margin-top: 40px; width: 80%; margin-left: auto; margin-right: auto;">
-        <tr>
-            <td class="label">HARGA</td>
-            <td class="colon">:</td>
-            <td>Rp {{ number_format($totalNegosiasi, 0, ',', '.') }}</td>
-        </tr>
-        <tr>
-            <td class="label">TERBILANG</td>
-            <td class="colon">:</td>
-            <td>{{ \App\Helpers\Terbilang::make($totalNegosiasi, true) }}</td>
-        </tr>
-        <tr>
-            <td class="label">REKANAN PELAKSANA</td>
-            <td class="colon">:</td>
-            <td>{{ $supplier->company_name }}</td>
-        </tr>
-        <tr>
-            <td class="label">ALAMAT</td>
-            <td class="colon">:</td>
-            <td>{{ $supplier->address }}</td>
-        </tr>
-    </table>
-
-    <div style="margin-top: 60px; text-align: center;">
-        <p class="bold uppercase">{{ $cityName ?? '-' }}</p>
-        <p>TAHUN ANGGARAN {{ $procurement->budget_year_name }}</p>
-    </div>
-
-</x-document-layout>
+</body>
+</html>

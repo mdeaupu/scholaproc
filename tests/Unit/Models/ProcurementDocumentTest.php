@@ -31,25 +31,7 @@ test('isComplete mengecek status kelengkapan dokumen', function () {
     expect($document->isComplete())->toBeTrue();
 });
 
-test('generateNumber men-generate nomor dokumen otomatis', function () {
-    $subsidiary = Subsidiary::factory()->create(['name' => 'PT Anak Perusahaan']);
-    $request = ProcurementRequest::factory()->for($subsidiary, 'subsidiary')->create();
-
-    $document = new ProcurementDocument(['document_type' => 'bast']);
-    $document->setRelation('procurementRequest', $request);
-    $generatedNumber = $document->generateNumber('001');
-
-    expect($generatedNumber)->not->toBeEmpty();
-
-    $currentYear = date('Y');
-    expect($generatedNumber)
-        ->toContain('pt-anak-perusahaan')
-        ->toContain($currentYear)
-        ->toContain('BAST')
-        ->toContain('001');
-});
-
-test('finalizing both price approvals generates the purchase order', function () {
+test('finalizing both price approvals generates negotiation and purchase order documents', function () {
     $subsidiary = Subsidiary::factory()->create();
     $school = User::factory()->school()->create();
     $admin = User::factory()->admin()->create();
@@ -76,6 +58,10 @@ test('finalizing both price approvals generates the purchase order', function ()
     ]);
 
     $documentGeneration = Mockery::mock(DocumentGenerationService::class);
+    $documentGeneration->shouldReceive('issue')
+        ->once()
+        ->with($request, 'negotiation', $admin)
+        ->andReturn(new ProcurementDocument);
     $documentGeneration->shouldReceive('issue')
         ->once()
         ->with($request, 'purchase_order', $admin)

@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Str;
 use LogicException;
 
 class ProcurementDocument extends Model
@@ -18,6 +17,8 @@ class ProcurementDocument extends Model
         'document_number',
         'document_date',
         'document_snapshot',
+        'subsidiary_id',
+        'subsidiary_snapshot',
         'version',
         'issued_by',
     ];
@@ -59,8 +60,29 @@ class ProcurementDocument extends Model
                     'invoice' => $request->invoice()->exists()
                         && in_array($request->status, ['invoiced', 'payment_pending'], true),
                     'receipt' => $request->payment()->whereNotNull('confirmed_at')->exists(),
-                    'negotiation' => in_array($request->status, ['negotiation', 'price_agreed'], true),
+                    'negotiation' => in_array($request->status, [
+                        'price_agreed',
+                        'processing',
+                        'partially_received',
+                        'disputed',
+                        'received',
+                        'invoiced',
+                        'payment_pending',
+                        'completed',
+                    ], true),
                     'planning' => in_array($request->status, ['verified', 'negotiation', 'price_agreed', 'processing'], true),
+                    'summary' => in_array($request->status, [
+                        'verified',
+                        'negotiation',
+                        'price_agreed',
+                        'processing',
+                        'partially_received',
+                        'disputed',
+                        'received',
+                        'invoiced',
+                        'payment_pending',
+                        'completed',
+                    ], true),
                     'cover', 'supplier_declaration' => true,
                     default => false,
                 };
@@ -70,7 +92,8 @@ class ProcurementDocument extends Model
                 }
 
                 $document->subsidiary_id = $request->subsidiary_id;
-                $document->subsidiary_snapshot = $request->subsidiary_snapshot
+                $document->subsidiary_snapshot = $document->subsidiary_snapshot
+                    ?? $request->subsidiary_snapshot
                     ?? $request->subsidiary->documentIdentitySnapshot();
             }
         });
@@ -100,16 +123,6 @@ class ProcurementDocument extends Model
     public function subsidiary(): BelongsTo
     {
         return $this->belongsTo(Subsidiary::class);
-    }
-
-    public function generateNumber(string $suffix = ''): string
-    {
-        $subsidiary = $this->procurementRequest?->subsidiary;
-        $slug = $subsidiary ? Str::slug($subsidiary->name) : 'dokumen';
-        $type = strtoupper((string) $this->document_type);
-        $year = now()->format('Y');
-
-        return trim("{$slug}/{$type}/{$year}/{$suffix}", '/');
     }
 
     public function issue(): void

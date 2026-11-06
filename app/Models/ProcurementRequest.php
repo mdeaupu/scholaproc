@@ -230,6 +230,7 @@ class ProcurementRequest extends Model
             $this->lockTotals();
             $this->update(['status' => self::STATUS_PRICE_AGREED]);
             $this->recordHistory($actor, self::STATUS_PRICE_AGREED, 'Persetujuan harga kedua pihak tercatat; snapshot harga dikunci.');
+            app(DocumentGenerationService::class)->issue($this, 'negotiation', $actor);
             app(DocumentGenerationService::class)->issue($this, 'purchase_order', $actor);
         });
     }
@@ -330,6 +331,10 @@ class ProcurementRequest extends Model
                     'subsidiary_assigned_at' => $assignedAt->toIso8601String(),
                 ])
                 ->log('Anak Perusahaan transaksi ditetapkan atau diganti');
+
+            if ($this->status === self::STATUS_VERIFIED) {
+                $this->issuePlanningDocumentIfReady($actor);
+            }
         });
     }
 
@@ -581,8 +586,16 @@ class ProcurementRequest extends Model
             && (float) $payment->amount === (float) ($this->invoice?->total_amount ?? 0)
             && $this->hasIssuedDocument('purchase_order')
             && $this->hasIssuedDocument('bast')
-            && $this->hasIssuedDocument('invoice')
-            && $this->hasIssuedDocument('receipt');
+            && $this->hasIssuedDocument('invoice');
+    }
+
+    private function issuePlanningDocumentIfReady(User $actor): void
+    {
+        if ($this->hasSubsidiary()
+            && is_string(data_get($this->subsidiary_snapshot, 'letterhead_path'))
+            && data_get($this->subsidiary_snapshot, 'letterhead_path') !== '') {
+            app(DocumentGenerationService::class)->issue($this, 'planning', $actor);
+        }
     }
 
     public function canCancel(User $user): bool
@@ -653,6 +666,9 @@ class ProcurementRequest extends Model
                 'reviewed_by' => $user->id,
             ]);
             $this->recordHistory($user, self::STATUS_VERIFIED);
+            if ($this->hasSubsidiary()) {
+                $this->issuePlanningDocumentIfReady($user);
+            }
         });
     }
 
@@ -737,6 +753,8 @@ class ProcurementRequest extends Model
         DB::transaction(function () use ($user): void {
             $this->update(['status' => self::STATUS_COMPLETED]);
             $this->recordHistory($user, self::STATUS_COMPLETED);
+            app(DocumentGenerationService::class)->issue($this, 'receipt', $user);
+            app(DocumentGenerationService::class)->issue($this, 'cover', $user);
         });
     }
 

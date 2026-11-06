@@ -16,6 +16,10 @@ use LogicException;
 
 class ProcurementProcessingService
 {
+    public function __construct(
+        private readonly DocumentGenerationService $documents
+    ) {}
+
     public function startProcessing(ProcurementRequest $request, User $actor): void
     {
         $this->authorizeInternal($actor);
@@ -31,7 +35,7 @@ class ProcurementProcessingService
 
             $request->update(['status' => ProcurementRequest::STATUS_PROCESSING]);
             $request->recordHistory($actor, ProcurementRequest::STATUS_PROCESSING, 'Pemrosesan pesanan dimulai.');
-            app(DocumentGenerationService::class)->issue($request, 'purchase_order', $actor);
+            $this->documents->issue($request, 'purchase_order', $actor);
             activity()->performedOn($request)->causedBy($actor)->log('Pemrosesan pengadaan dimulai');
         });
     }
@@ -85,7 +89,7 @@ class ProcurementProcessingService
                 ]);
             }
 
-            app(DocumentGenerationService::class)->issue($request, 'delivery', $actor, [
+            $this->documents->issue($request, 'delivery', $actor, [
                 'delivery_id' => $delivery->id,
                 'delivered_at' => $delivery->delivered_at?->toDateString(),
                 'items' => $delivery->items()->with('requestItem')->get()->map(fn ($line): array => [
@@ -204,20 +208,7 @@ class ProcurementProcessingService
             ]);
             $request->recordHistory($actor, $newStatus, 'Penerimaan diverifikasi.');
             activity()->performedOn($request)->causedBy($actor)->withProperties(['receipt_id' => $receipt->id])->log('Penerimaan barang diverifikasi');
-            app(DocumentGenerationService::class)->issue($request, 'bast', $actor, [
-                'receipt_id' => $receipt->id,
-                'received_at' => $receipt->received_at?->toDateString(),
-                'items' => $receipt->items->map(fn (ProcurementReceiptItem $item): array => [
-                    'item' => $item->requestItem?->item_name,
-                    'quantity' => $item->quantity,
-                    'condition' => $item->condition,
-                    'issue_notes' => $item->issue_notes,
-                ])->all(),
-            ]);
-            app(DocumentGenerationService::class)->issue($request, 'inspection', $actor, [
-                'receipt_id' => $receipt->id,
-                'verified_at' => $receipt->verified_at?->toIso8601String(),
-            ]);
+            $this->issueReceiptDocuments($request, $receipt, $actor);
         });
     }
 
@@ -247,6 +238,7 @@ class ProcurementProcessingService
                     'verified_at' => now(),
                     'verified_by' => $actor->id,
                 ]);
+                $this->issueReceiptDocuments($request, $item->receipt, $actor);
             }
             $request->recordHistory($actor, $request->status, 'Tindak lanjut penerimaan diselesaikan: '.$resolution);
             activity()->performedOn($request)->causedBy($actor)->withProperties(['receipt_item_id' => $item->id])->log('Tindak lanjut penerimaan diselesaikan');
@@ -287,7 +279,7 @@ class ProcurementProcessingService
 
             $request->update(['status' => ProcurementRequest::STATUS_INVOICED]);
             $request->recordHistory($actor, ProcurementRequest::STATUS_INVOICED, 'Invoice diproses setelah penerimaan dan administrasi terverifikasi.');
-            app(DocumentGenerationService::class)->issue($request, 'invoice', $actor, [
+            $this->documents->issue($request, 'invoice', $actor, [
                 'invoice_id' => $invoice->id,
                 'invoice_number' => $invoice->invoice_number,
                 'invoice_date' => $invoice->invoice_date->toDateString(),
@@ -366,14 +358,18 @@ class ProcurementProcessingService
             ]);
             $request->recordHistory($actor, $request->status, 'Pembayaran invoice dikonfirmasi.');
             activity()->performedOn($request)->causedBy($actor)->withProperties(['payment_id' => $payment->id])->log('Pembayaran invoice dikonfirmasi');
-            app(DocumentGenerationService::class)->issue($request, 'receipt', $actor, [
-                'invoice_number' => $invoice->invoice_number,
-                'payment_amount' => $payment->amount,
-                'payment_method' => $payment->method,
-                'payment_reference' => $payment->reference,
-                'paid_at' => $payment->paid_at->toDateString(),
-            ]);
         });
+    }
+
+    private function issueReceiptDocuments(
+        ProcurementRequest $request,
+        ProcurementReceipt $receipt,
+        User $actor
+    ): void {
+        $stage = ['receipt_id' => $receipt->id];
+
+        $this->documents->issue($request, 'inspection', $actor, $stage);
+        $this->documents->issue($request, 'bast', $actor, $stage);
     }
 
     private function authorizeInternal(User $actor): void

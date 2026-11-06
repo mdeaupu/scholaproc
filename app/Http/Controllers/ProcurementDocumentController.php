@@ -43,6 +43,6 @@ class ProcurementDocumentController extends Controller
         abort_if($view === null, 404, 'Template PDF untuk jenis dokumen ini belum tersedia.');
         $pdf = Pdf::loadView($view, $documents->viewData($document));
 
-        return $pdf->download($document->document_number.'.pdf');
+        return $pdf->download($documents->downloadFilename($document));
     }
 }

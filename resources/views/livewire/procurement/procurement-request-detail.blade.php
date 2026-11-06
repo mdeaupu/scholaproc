@@ -364,30 +364,9 @@
             @endif
 
             @if ($activeTab === 'dokumen')
-                <section class="rounded-xl border border-gray-100 bg-white p-5 text-sm text-gray-700 shadow-sm">
-                    <div class="mb-4">
-                        <h2 class="font-bold text-gray-900">Dokumen Pengadaan</h2>
-                        <p class="mt-1 text-xs text-gray-500">Dokumen resmi yang telah diterbitkan untuk pengajuan ini.</p>
-                    </div>
-                    <ul class="divide-y divide-gray-100">
-                        @forelse ($request->documents->whereNotNull('issued_at') as $document)
-                            <li class="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                                <div>
-                                    <p class="font-medium text-gray-900">{{ strtoupper(str_replace('_', ' ', $document->document_type)) }}</p>
-                                    <p class="mt-1 text-xs text-gray-500">
-                                        {{ $document->document_number }} · {{ $document->issued_at?->locale('id')->isoFormat('D MMM YYYY') ?? '-' }}
-                                    </p>
-                                </div>
-                                <a class="font-medium text-blue-700 underline"
-                                    href="{{ route('procurement.documents.download', [$request, $document]) }}">
-                                    Unduh
-                                </a>
-                            </li>
-                        @empty
-                            <li class="py-4 text-gray-500">Belum ada dokumen yang diterbitkan.</li>
-                        @endforelse
-                    </ul>
-                </section>
+                <livewire:procurement.document-panel
+                    :procurement-request="$request"
+                    wire:key="request-document-panel-{{ $request->id }}" />
             @endif
         </main>
 

@@ -1,99 +1,57 @@
-<x-document-layout :title="'Dokumen Hasil Negosiasi - ' . $procurement->package_category_name">
-
-    @include('documents.partials.kop-surat', ['school' => $school, 'schoolSetting' => $schoolSetting])
-
-    <p class="doc-title">Dokumen Hasil Negosiasi</p>
-    <p class="doc-number">{{ $document->document_number }}</p>
-
-    <div class="section-spacer"></div>
-
-    <table class="info-table">
-        <tr>
-            <td class="label">Nama Satuan Pendidikan</td>
-            <td class="colon">:</td>
-            <td>{{ $school->name }}</td>
-        </tr>
-        <tr>
-            <td class="label">Alamat Satuan Pendidikan</td>
-            <td class="colon">:</td>
-            <td>{{ $school->address }}</td>
-        </tr>
-        <tr>
-            <td class="label">Nama Calon Penyedia</td>
-            <td class="colon">:</td>
-            <td>{{ $supplier->company_name }}</td>
-        </tr>
-        <tr>
-            <td class="label">Alamat Calon Penyedia</td>
-            <td class="colon">:</td>
-            <td>{{ $supplier->address }}</td>
-        </tr>
-        <tr>
-            <td class="label">Tanggal Terima Barang/Jasa</td>
-            <td class="colon">:</td>
-            <td>{{ \Carbon\Carbon::parse($procurement->end_date)->translatedFormat('d F Y') }}</td>
-        </tr>
-        <tr>
-            <td class="label">Hasil Negosiasi</td>
-            <td class="colon">:</td>
-            <td>Rp
-                {{ number_format($procurement->officialSubtotal() > 0 ? $procurement->officialSubtotal() : $procurement->estimatedSubtotal(), 0, ',', '.') }}
-            </td>
-        </tr>
-    </table>
-
-    <table class="items-table">
+<!doctype html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <title>Dokumen Hasil Negosiasi - {{ data_get($snapshot, 'transaction.package_category', '-') }}</title>
+    <style>
+        body { font-family: DejaVu Sans, sans-serif; font-size: 10pt; line-height: 1.5; }
+        h1, .center { text-align: center; }
+        table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+        th, td { border: 1px solid #444; padding: 6px; text-align: left; }
+        .number { text-align: right; }
+    </style>
+</head>
+<body>
+    @include('documents.partials.letterhead')
+    <h1>DOKUMEN HASIL NEGOSIASI</h1>
+    <p class="center">Nomor: {{ data_get($snapshot, 'document_number', '-') }}</p>
+    <p>
+        Sekolah: {{ data_get($snapshot, 'school.name', '-') }}<br>
+        Alamat sekolah: {{ data_get($snapshot, 'school.address', '-') }}<br>
+        Calon penyedia: {{ data_get($snapshot, 'subsidiary.name', '-') }}<br>
+        Alamat penyedia: {{ data_get($snapshot, 'subsidiary.address', '-') }}<br>
+        Paket: {{ data_get($snapshot, 'transaction.package_category', '-') }}<br>
+        Target tanggal penerimaan: {{ data_get($snapshot, 'transaction.target_receipt_date_numeric', '-') }}
+        ({{ data_get($snapshot, 'transaction.target_receipt_date_words', '-') }})
+    </p>
+    <table>
         <thead>
             <tr>
-                <th style="width: 26px;">No</th>
-                <th style="text-align: left;">Nama Produk</th>
-                <th>Jumlah (Qty)</th>
-                <th>Harga Penawaran</th>
-                <th>Harga Negosiasi</th>
-                <th>Jumlah Harga Penawaran</th>
-                <th>Jumlah Harga Negosiasi</th>
+                <th>No.</th><th>Nama Produk</th><th>Jumlah</th><th>Harga Penawaran</th>
+                <th>Harga Negosiasi</th><th>Jumlah Penawaran</th><th>Jumlah Negosiasi</th>
             </tr>
         </thead>
         <tbody>
-            @foreach ($items as $i => $item)
+            @foreach (data_get($snapshot, 'transaction.items', []) as $index => $item)
                 <tr>
-                    <td class="text-center">{{ $i + 1 }}</td>
-                    <td>{{ $item->item_name }}</td>
-                    <td class="text-center">{{ $item->quantity }}</td>
-                    <td class="text-right">{{ number_format($item->estimated_price, 0, ',', '.') }}</td>
-                    <td class="text-right">
-                        {{ number_format($item->official_price ?? $item->estimated_price, 0, ',', '.') }}</td>
-                    <td class="text-right">{{ number_format($item->estimatedAmount(), 0, ',', '.') }}</td>
-                    <td class="text-right">
-                        {{ number_format($item->officialAmount() > 0 ? $item->officialAmount() : $item->estimatedAmount(), 0, ',', '.') }}
-                    </td>
+                    <td>{{ $index + 1 }}</td>
+                    <td>{{ $item['item_name'] ?? '-' }}</td>
+                    <td>{{ $item['quantity'] ?? 0 }} {{ $item['unit'] ?? '' }}</td>
+                    <td class="number">Rp {{ number_format((float) ($item['offered_price'] ?? 0), 0, ',', '.') }}</td>
+                    <td class="number">Rp {{ number_format((float) ($item['negotiated_price'] ?? 0), 0, ',', '.') }}</td>
+                    <td class="number">Rp {{ number_format((float) ($item['offered_amount'] ?? 0), 0, ',', '.') }}</td>
+                    <td class="number">Rp {{ number_format((float) ($item['negotiated_amount'] ?? 0), 0, ',', '.') }}</td>
                 </tr>
             @endforeach
-            <tr class="totals-row">
-                <td colspan="2" class="text-center">Jumlah Total</td>
-                <td class="text-center">{{ $items->sum('quantity') }}</td>
-                <td></td>
-                <td></td>
-                <td class="text-right">{{ number_format($procurement->estimatedSubtotal(), 0, ',', '.') }}</td>
-                <td class="text-right">
-                    {{ number_format($procurement->officialSubtotal() > 0 ? $procurement->officialSubtotal() : $procurement->estimatedSubtotal(), 0, ',', '.') }}
-                </td>
-            </tr>
         </tbody>
     </table>
-
-    @include('documents.partials.signature-block', [
-        'placeDate' => $placeDate,
-        'left' => [
-            'title' => 'Calon Penyedia',
-            'name' => $supplier->director_name,
-            'subtitle' => 'Direktur',
-        ],
-        'right' => [
-            'title' => 'Pelaksana',
-            'name' => $headmaster->name,
-            'subtitle' => 'NIP. ' . ($headmaster->nip ?: '-'),
-        ],
-    ])
-
-</x-document-layout>
+    <p class="number">
+        Total penawaran: Rp {{ number_format((float) data_get($snapshot, 'transaction.offer_subtotal', 0), 0, ',', '.') }}<br>
+        Total negosiasi: Rp {{ number_format((float) data_get($snapshot, 'transaction.negotiated_subtotal', 0), 0, ',', '.') }}
+    </p>
+    <p>
+        Kepala Sekolah: {{ data_get($snapshot, 'school.officials.headmaster.name', '-') }}<br>
+        Direktur: {{ data_get($snapshot, 'subsidiary.director_name', '-') }}
+    </p>
+</body>
+</html>

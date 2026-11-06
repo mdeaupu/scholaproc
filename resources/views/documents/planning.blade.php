@@ -1,97 +1,39 @@
-<x-document-layout :title="'Dokumen Perencanaan - ' . $procurement->package_category_name">
-
-    @include('documents.partials.kop-surat', ['school' => $school, 'schoolSetting' => $schoolSetting])
-
-    <p class="doc-title">Dokumen Perencanaan</p>
-    <p class="doc-number">{{ $document->document_number }}</p>
-
-    <div class="section-spacer"></div>
-
-    <table class="info-table">
-        <tr>
-            <td class="label">Nama Satuan Pendidikan</td>
-            <td class="colon">:</td>
-            <td>{{ $school->name }}</td>
-        </tr>
-        <tr>
-            <td class="label">Alamat Satuan Pendidikan</td>
-            <td class="colon">:</td>
-            <td>{{ $school->address }}</td>
-        </tr>
-        <tr>
-            <td class="label">Kategori Barang/Jasa</td>
-            <td class="colon">:</td>
-            <td>{{ $procurement->package_category_name }}</td>
-        </tr>
-    </table>
-
-    <table class="items-table">
+<!doctype html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <title>Dokumen Perencanaan - {{ data_get($snapshot, 'transaction.package_category', '-') }}</title>
+    <style>
+        body { font-family: DejaVu Sans, sans-serif; font-size: 10pt; line-height: 1.5; }
+        h1, .center { text-align: center; }
+        table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+        th, td { border: 1px solid #444; padding: 6px; text-align: left; }
+        .number { text-align: right; }
+    </style>
+</head>
+<body>
+    @include('documents.partials.school-letterhead')
+    <h1>DOKUMEN PERENCANAAN</h1>
+    <p class="center">Nomor: {{ data_get($snapshot, 'document_number', '-') }}</p>
+    <p>
+        Sekolah: {{ data_get($snapshot, 'school.name', '-') }}<br>
+        Alamat: {{ data_get($snapshot, 'school.address', '-') }}<br>
+        Paket: {{ data_get($snapshot, 'transaction.package_category', '-') }}<br>
+        Sumber anggaran: {{ data_get($snapshot, 'transaction.funding_source', '-') }}<br>
+        Tahun anggaran: {{ data_get($snapshot, 'transaction.budget_year', '-') }}<br>
+        Mulai: {{ data_get($snapshot, 'transaction.start_date', '-') }} |
+        Selesai: {{ data_get($snapshot, 'transaction.end_date', '-') }} |
+        Lama pengerjaan: {{ data_get($snapshot, 'transaction.duration', '-') }}
+    </p>
+    <table>
         <thead>
-            <tr>
-                <th style="width: 30px;">No</th>
-                <th style="text-align: left;">Jenis</th>
-                <th>Keterangan</th>
-            </tr>
+            <tr><th>No.</th><th>Jenis</th><th>Keterangan</th></tr>
         </thead>
         <tbody>
-            <tr>
-                <td class="text-center">1</td>
-                <td>Jumlah Barang/Jasa</td>
-                <td class="text-center">{{ $totalItems }}</td>
-            </tr>
-            <tr>
-                <td class="text-center">2</td>
-                <td>Total Anggaran</td>
-                <td class="text-right">Rp {{ number_format($totalAnggaran, 0, ',', '.') }}</td>
-            </tr>
-            <tr>
-                <td class="text-center">3</td>
-                <td>Tanggal Mulai Pekerjaan</td>
-                <td class="text-center">{{ \Carbon\Carbon::parse($procurement->start_date)->translatedFormat('d F Y') }}
-                </td>
-            </tr>
-            <tr>
-                <td class="text-center">4</td>
-                <td>Tanggal Selesai Pekerjaan</td>
-                <td class="text-center">{{ \Carbon\Carbon::parse($procurement->end_date)->translatedFormat('d F Y') }}
-                </td>
-            </tr>
-            <tr>
-                <td class="text-center">5</td>
-                <td>Lama Pengerjaan</td>
-                <td class="text-center">{{ $procurement->work_duration_text }}</td>
-            </tr>
-            <tr>
-                <td class="text-center">6</td>
-                <td>Sumber Anggaran</td>
-                <td class="text-center">{{ $procurement->funding_source_name }}</td>
-            </tr>
-            <tr>
-                <td class="text-center">7</td>
-                <td>Tahun Anggaran</td>
-                <td class="text-center">{{ $procurement->budget_year_name }}</td>
-            </tr>
-            <tr>
-                <td class="text-center">8</td>
-                <td>Persyaratan Penyedia</td>
-                <td>
-                    Perorangan/Badan Usaha memenuhi syarat sebagai berikut:<br>
-                    A. Identitas Penyedia<br>
-                    B. Nomor Pokok Wajib Pajak (NPWP)<br>
-                    C. Nomor Induk Berusaha (NIB)<br>
-                    D. Bukti Laporan Pajak Tahun Terakhir
-                </td>
-            </tr>
+            <tr><td>1</td><td>Jumlah Barang/Jasa</td><td>{{ data_get($snapshot, 'transaction.quantity_total', 0) }}</td></tr>
+            <tr><td>2</td><td>Total Anggaran</td><td class="number">Rp {{ number_format((float) data_get($snapshot, 'transaction.subtotal', 0), 0, ',', '.') }}</td></tr>
+            <tr><td>3</td><td>Persyaratan Penyedia</td><td>Identitas penyedia, NPWP, NIB, dan dokumen legalitas terkait.</td></tr>
         </tbody>
     </table>
-
-    @include('documents.partials.signature-single', [
-        'placeDate' => $placeDate,
-        'signer' => [
-            'title' => 'Pelaksana',
-            'name' => $headmaster->name,
-            'subtitle' => 'NIP. ' . ($headmaster->nip ?: '-'),
-        ],
-    ])
-
-</x-document-layout>
+</body>
+</html>

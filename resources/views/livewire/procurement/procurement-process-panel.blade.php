@@ -182,24 +182,9 @@
     @endif
 
     @if ($activeTab === 'dokumen')
-        <x-mary-card title="Dokumen Terbit" subtitle="Dokumen transaksi yang telah diterbitkan." separator shadow>
-            <ul class="space-y-3 text-sm">
-                @forelse ($procurementRequest->documents->whereNotNull('issued_at') as $document)
-                    <li class="flex flex-wrap items-center justify-between gap-2 border-b pb-3 last:border-0">
-                        <span>
-                            {{ strtoupper(str_replace('_', ' ', $document->document_type)) }}
-                            · {{ $document->document_number }}
-                        </span>
-                        <a class="font-medium text-blue-700 underline"
-                            href="{{ route('procurement.documents.download', [$procurementRequest, $document]) }}">
-                            Unduh
-                        </a>
-                    </li>
-                @empty
-                    <li class="text-gray-500">Belum ada dokumen yang diterbitkan.</li>
-                @endforelse
-            </ul>
-        </x-mary-card>
+        <livewire:procurement.document-panel
+            :procurement-request="$procurementRequest"
+            wire:key="document-panel-{{ $procurementRequest->id }}" />
     @endif
 
     <x-mary-modal wire:model="subsidiaryModal" title="Tetapkan Anak Perusahaan">

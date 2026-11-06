@@ -1,121 +1,53 @@
-@php
-    $letterHead = $schoolSetting
-        ? $schoolSetting->getLetterHead()
-        : [
-            'pusat' => '',
-            'provinsi' => '',
-            'sub_wilayah' => null,
-            'sekolah' => strtoupper($school->name),
-            'alamat_lengkap' => $school->address,
-            'kontak' => 'Telp: ' . $school->phone_number,
-        ];
-@endphp
-
-<x-document-layout :title="'Identitas Penyedia - ' . $supplier->company_name">
-
-    @include('documents.partials.kop-surat', ['school' => $school, 'schoolSetting' => $schoolSetting])
-
-    <p class="doc-title">Identitas Penyedia</p>
-    <p class="doc-number">{{ $document->document_number ?? '-' }}</p>
-    <p class="text-center" style="font-size: 11px;">Tanggal {{ \Carbon\Carbon::parse($document->document_date)->translatedFormat('d F Y') ?? '-' }}</p>
-
-    <div class="section-spacer"></div>
-
-    <p>Yang bertanda tangan di bawah ini :</p>
-
-    <table class="info-table" style="margin-top: 6px;">
-        <tr>
-            <td class="label">Nama</td>
-            <td class="colon">:</td>
-            <td>{{ $supplier->director_name }}</td>
-        </tr>
-        <tr>
-            <td class="label">Jabatan</td>
-            <td class="colon">:</td>
-            <td>Direktur CV {{ $supplier->company_name }}</td>
-        </tr>
-        <tr>
-            <td class="label">NIK</td>
-            <td class="colon">:</td>
-            <td>{{ $supplier->director_nik }}</td>
-        </tr>
-        <tr>
-            <td class="label">NPWP</td>
-            <td class="colon">:</td>
-            <td>{{ $supplier->director_npwp ?: '-' }}</td>
-        </tr>
-        <tr>
-            <td class="label">Alamat</td>
-            <td class="colon">:</td>
-            <td>{{ $supplier->director_address ?: '-' }}</td>
-        </tr>
+<!doctype html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <title>Identitas Penyedia - {{ data_get($snapshot, 'subsidiary.name', '-') }}</title>
+    <style>
+        body { font-family: DejaVu Sans, sans-serif; font-size: 10pt; line-height: 1.5; }
+        h1, .center { text-align: center; }
+        table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+        th, td { border: 1px solid #444; padding: 6px; text-align: left; }
+    </style>
+</head>
+<body>
+    @include('documents.partials.letterhead')
+    <h1>IDENTITAS PENYEDIA</h1>
+    <p class="center">Nomor: {{ data_get($snapshot, 'document_number', '-') }}</p>
+    <p>Yang bertanda tangan di bawah ini menyatakan identitas penyedia sebagai berikut:</p>
+    <table>
+        <tbody>
+            <tr><th>Nama perusahaan</th><td>{{ data_get($snapshot, 'subsidiary.name', '-') }}</td></tr>
+            <tr><th>Alamat</th><td>{{ data_get($snapshot, 'subsidiary.address', '-') }}</td></tr>
+            <tr><th>Telepon / Email</th><td>{{ data_get($snapshot, 'subsidiary.phone', '-') }} / {{ data_get($snapshot, 'subsidiary.email', '-') }}</td></tr>
+            <tr><th>NPWP</th><td>{{ data_get($snapshot, 'subsidiary.npwp', '-') }}</td></tr>
+            <tr><th>NIB</th><td>{{ data_get($snapshot, 'subsidiary.nib', '-') }}</td></tr>
+            <tr><th>Direktur</th><td>{{ data_get($snapshot, 'subsidiary.director_name', '-') }}</td></tr>
+            <tr><th>NIK Direktur</th><td>{{ data_get($snapshot, 'subsidiary.director_nik', '-') }}</td></tr>
+            <tr><th>NPWP Direktur</th><td>{{ data_get($snapshot, 'subsidiary.director_npwp', '-') }}</td></tr>
+        </tbody>
     </table>
-
-    <p style="margin-top: 12px;">Dengan ini menyatakan dengan sesungguhnya bahwa :</p>
-
-    <div style="margin-top: 8px;">
-        <p><strong>1. Identitas Perusahaan</strong></p>
-        <table class="info-table" style="margin-left: 20px;">
-            <tr>
-                <td class="label">Nama Perusahaan</td>
-                <td class="colon">:</td>
-                <td>{{ $supplier->company_name }}</td>
-            </tr>
-            <tr>
-                <td class="label">Alamat</td>
-                <td class="colon">:</td>
-                <td>{{ $supplier->address }}</td>
-            </tr>
-            <tr>
-                <td class="label">NPWP</td>
-                <td class="colon">:</td>
-                <td>{{ $supplier->npwp }}</td>
-            </tr>
-            <tr>
-                <td class="label">NIB</td>
-                <td class="colon">:</td>
-                <td>{{ $supplier->nib }}</td>
-            </tr>
-        </table>
-    </div>
-
-    @if ($supplier->commissioner_name)
-        <div style="margin-top: 12px;">
-            <p><strong>2. Data Komisaris</strong></p>
-            <table class="info-table" style="margin-left: 20px;">
+    <h3>Akta dan izin usaha</h3>
+    <table>
+        <thead><tr><th>Jenis</th><th>Nomor</th><th>Tanggal</th><th>Notaris / Penerbit</th></tr></thead>
+        <tbody>
+            @foreach (data_get($snapshot, 'subsidiary.legal_documents', []) as $legalDocument)
                 <tr>
-                    <td class="label">Nama</td>
-                    <td class="colon">:</td>
-                    <td>{{ $supplier->commissioner_name }}</td>
+                    <td>{{ $legalDocument['type'] ?? '-' }}</td>
+                    <td>{{ $legalDocument['number'] ?? '-' }}</td>
+                    <td>{{ $legalDocument['date'] ?? '-' }}</td>
+                    <td>{{ $legalDocument['notary_name'] ?? $legalDocument['issuer'] ?? '-' }}</td>
                 </tr>
-                <tr>
-                    <td class="label">NIK</td>
-                    <td class="colon">:</td>
-                    <td>{{ $supplier->commissioner_nik ?: '-' }}</td>
-                </tr>
-                <tr>
-                    <td class="label">Alamat</td>
-                    <td class="colon">:</td>
-                    <td>{{ $supplier->commissioner_address ?: '-' }}</td>
-                </tr>
-            </table>
-        </div>
-    @endif
-
-    <div style="margin-top: 14px;">
-        <p>{{ $supplier->commissioner_name ? '3' : '2' }}. Bahwa kami tidak sedang dalam proses hukum, pailit, atau dikenakan sanksi oleh instansi pemerintah.</p>
-        <p style="margin-top: 6px;">{{ $supplier->commissioner_name ? '4' : '3' }}. Bahwa data dan informasi yang kami berikan adalah benar dan dapat dipertanggungjawabkan.</p>
-    </div>
-
-    <p style="margin-top: 14px;">Demikian surat pernyataan ini dibuat dengan sebenarnya.</p>
-
-    @include('documents.partials.signature-single', [
-        'placeDate' => $placeDate,
-        'signer' => [
-            'title' => 'Direktur CV ' . $supplier->company_name,
-            'name' => $supplier->director_name,
-            'subtitle' => 'NIK. ' . ($supplier->director_nik ?: '-'),
-        ],
-    ])
-
-</x-document-layout>
+            @endforeach
+        </tbody>
+    </table>
+    <p>
+        Saya menyatakan bahwa data dan informasi yang tercantum di atas benar dan dapat dipertanggungjawabkan.
+    </p>
+    <p style="margin-top: 48px; text-align: right;">
+        {{ data_get($snapshot, 'subsidiary.name', '-') }}<br><br><br>
+        <strong>{{ data_get($snapshot, 'subsidiary.director_name', '-') }}</strong><br>
+        Direktur
+    </p>
+</body>
+</html>

@@ -15,6 +15,8 @@ use App\Models\ProcurementRequestItem;
 use App\Models\School;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -82,7 +84,8 @@ test('procurement detail tabs switch visible content and default to negotiation 
         ->assertSee('Detail Barang')
         ->call('setActiveTab', 'dokumen')
         ->assertSet('activeTab', 'dokumen')
-        ->assertSee('Dokumen Pengadaan')
+        ->assertSee('Dokumen Terkait')
+        ->assertSee('Ringkasan Pengajuan')
         ->call('setActiveTab', 'negosiasi')
         ->assertSet('activeTab', 'negosiasi')
         ->assertSee('Ruang Negosiasi')
@@ -131,7 +134,7 @@ test('procurement process panel switches content through its navigation tabs', f
         ->assertSee('Pemrosesan Pesanan')
         ->call('setActiveTab', 'dokumen')
         ->assertSet('activeTab', 'dokumen')
-        ->assertSee('Dokumen Terbit');
+        ->assertSee('Dokumen Terkait');
 });
 
 test('negotiation panel only renders rounds belonging to its request', function () {
@@ -523,6 +526,8 @@ test('negotiation model enforces admin first and alternates offer turns', functi
 });
 
 test('admin can accept school offer without rejection controls', function () {
+    Storage::fake('public');
+    $letterheadPath = UploadedFile::fake()->image('kop.png')->store('subsidiary-letterheads', 'public');
     $school = School::factory()->create();
     $schoolUser = User::factory()->school()->create(['school_id' => $school->id]);
     $admin = User::factory()->admin()->create();
@@ -533,7 +538,7 @@ test('admin can accept school offer without rejection controls', function () {
     $item = ProcurementRequestItem::factory()->create([
         'procurement_request_id' => $request->id,
     ]);
-    $request->assignSubsidiary(Subsidiary::factory()->create(), $admin);
+    $request->assignSubsidiary(Subsidiary::factory()->create(['letterhead_path' => $letterheadPath]), $admin);
     $request->startNegotiation($admin);
 
     $schoolOffer = ProcurementNegotiation::offer(

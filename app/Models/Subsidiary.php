@@ -128,10 +128,34 @@ class Subsidiary extends Model
 
     public function documentIdentitySnapshot(): array
     {
+        $legalDocuments = $this->legalDocuments
+            ->map(fn (SubsidiaryLegalDocument $document): array => [
+                'id' => $document->id,
+                'type' => $document->document_type instanceof DocumentType
+                    ? $document->document_type->value
+                    : $document->document_type,
+                'number' => $document->document_number,
+                'date' => $document->document_date?->toDateString(),
+                'notary_name' => $document->notary_name,
+                'issuer' => $document->issuer,
+                'valid_until' => $document->valid_until?->toDateString(),
+            ])
+            ->values()
+            ->all();
+
         return [
             'name' => $this->name,
             'npwp' => $this->npwp,
+            'nib' => $this->nib,
             'director_name' => $this->director_name,
+            'director_nik' => $this->director_nik,
+            'director_npwp' => $this->director_npwp,
+            'director_phone' => $this->director_phone,
+            'director_address' => $this->director_address,
+            'commissioner_name' => $this->commissioner_name,
+            'commissioner_nik' => $this->commissioner_nik,
+            'commissioner_address' => $this->commissioner_address,
+            'pic_name' => $this->pic_name,
             'letterhead_layout' => 'subsidiary-letterhead',
             'letterhead_path' => $this->letterhead_path,
             'letterhead_url' => $this->letterhead_path
@@ -140,6 +164,15 @@ class Subsidiary extends Model
             'address' => $this->address,
             'phone' => $this->phone,
             'email' => $this->email,
+            'legal_documents' => $legalDocuments,
+            'deeds' => array_values(array_filter(
+                $legalDocuments,
+                fn (array $document): bool => $document['type'] === DocumentType::DEED->value
+            )),
+            'business_permits' => array_values(array_filter(
+                $legalDocuments,
+                fn (array $document): bool => $document['type'] === DocumentType::BUSINESS_PERMIT->value
+            )),
         ];
     }
 

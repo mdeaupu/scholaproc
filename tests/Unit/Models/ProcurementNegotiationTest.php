@@ -4,14 +4,19 @@ use App\Models\ProcurementNegotiation;
 use App\Models\ProcurementRequest;
 use App\Models\ProcurementRequestItem;
 use App\Models\School;
-use App\Models\Supplier;
+use App\Models\Subsidiary;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 uses(TestCase::class, RefreshDatabase::class);
 
 beforeEach(function () {
+    Storage::fake('public');
+    $letterheadPath = UploadedFile::fake()->image('kop.png')->store('subsidiary-letterheads', 'public');
+
     $this->schoolModel = School::factory()->create();
 
     $this->school = User::factory()->create([
@@ -21,13 +26,14 @@ beforeEach(function () {
 
     $this->admin = User::factory()->create(['role' => 'admin']);
 
-    $this->supplier = Supplier::factory()->create();
+    $this->subsidiary = Subsidiary::factory()->create(['letterhead_path' => $letterheadPath]);
 
     $this->procurement = ProcurementRequest::factory()->create([
-        'status' => ProcurementRequest::STATUS_SUPPLIER_ASSIGNED,
+        'status' => ProcurementRequest::STATUS_VERIFIED,
         'school_id' => $this->schoolModel->id,
-        'supplier_id' => $this->supplier->id,
     ]);
+    $this->procurement->assignSubsidiary($this->subsidiary, $this->admin);
+    $this->procurement->startNegotiation($this->admin);
 
     $this->item = ProcurementRequestItem::factory()->create([
         'procurement_request_id' => $this->procurement->id,
@@ -103,18 +109,25 @@ test('throws exception when offering on settled item', function () {
         $this->admin,
         ProcurementNegotiation::OFFERED_BY_ADMIN,
         80000
-    ))->toThrow(\Exception::class, 'Negosiasi untuk item ini sudah selesai');
+    ))->toThrow(\Exception::class, 'Negosiasi untuk item ini sudah selesai (diterima/ditolak).');
 });
 
-test('throws exception when offering without supplier', function () {
-    $this->procurement->update(['supplier_id' => null]);
+test('throws exception when offering without subsidiary', function () {
+    $request = ProcurementRequest::factory()->create([
+        'status' => ProcurementRequest::STATUS_NEGOTIATION,
+        'school_id' => $this->schoolModel->id,
+    ]);
+    $item = ProcurementRequestItem::factory()->create([
+        'procurement_request_id' => $request->id,
+        'negotiation_status' => 'not_started',
+    ]);
 
     expect(fn () => ProcurementNegotiation::offer(
-        $this->item,
+        $item,
         $this->admin,
         ProcurementNegotiation::OFFERED_BY_ADMIN,
         95000
-    ))->toThrow(\Exception::class, 'Supplier belum ditentukan');
+    ))->toThrow(\Exception::class, 'Penawaran hanya dapat diajukan saat negosiasi dan setelah Anak Perusahaan ditetapkan.');
 });
 
 test('throws exception with invalid offered_by value', function () {
@@ -384,25 +397,30 @@ test('hasOfficialPrices returns true for rejected items without official price',
     expect($this->procurement->refresh()->hasOfficialPrices())->toBeTrue();
 });
 
-test('canStartNegotiation returns true when supplier assigned', function () {
+test('canStartNegotiation returns true when subsidiary assigned', function () {
+    $this->procurement->update(['status' => ProcurementRequest::STATUS_VERIFIED]);
+
     expect($this->procurement->canStartNegotiation())->toBeTrue();
 });
 
-test('canStartNegotiation returns false when no supplier', function () {
-    $this->procurement->update(['supplier_id' => null]);
-    expect($this->procurement->canStartNegotiation())->toBeFalse();
+test('canStartNegotiation returns false when no subsidiary', function () {
+    $request = ProcurementRequest::factory()->create([
+        'status' => ProcurementRequest::STATUS_VERIFIED,
+        'school_id' => $this->schoolModel->id,
+    ]);
+
+    expect($request->canStartNegotiation())->toBeFalse();
 });
 
-test('canComplete requires all items settled', function () {
-    $this->procurement->update(['status' => ProcurementRequest::STATUS_ITEMS_PREPARED]);
+test('canComplete returns false until payment and receipts are complete', function () {
     $this->procurement->signatories()->create(['name' => 'Kepsek', 'role' => 'headmaster']);
     $this->procurement->signatories()->create(['name' => 'Pemeriksa', 'role' => 'inspector']);
     $this->procurement->signatories()->create(['name' => 'Bendahara', 'role' => 'treasurer']);
 
-    expect($this->procurement->canComplete())->toBeFalse();
-
     $nego = ProcurementNegotiation::offer($this->item, $this->admin, ProcurementNegotiation::OFFERED_BY_ADMIN, 90000);
     $nego->accept($this->school);
 
-    expect($this->procurement->refresh()->canComplete())->toBeTrue();
+    $this->procurement->refresh()->update(['status' => ProcurementRequest::STATUS_PAYMENT_PENDING]);
+
+    expect($this->procurement->refresh()->canComplete())->toBeFalse();
 });

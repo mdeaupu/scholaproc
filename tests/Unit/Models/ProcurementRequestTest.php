@@ -400,3 +400,19 @@ test('isReadyForDocumentGeneration tervalidasi jika semua syarat terpenuhi', fun
 
     expect($procurement->refresh()->isReadyForDocumentGeneration())->toBeTrue();
 });
+
+test('invoice eligibility reflects each guard on a fresh request', function () {
+    $procurement = ProcurementRequest::factory()->create([
+        'status' => ProcurementRequest::STATUS_DRAFT,
+    ]);
+
+    expect($procurement->invoiceEligibility())->toBe([
+        'status_received' => false,
+        'all_quantities_received' => false,
+        'no_open_follow_ups' => true,
+        'tax_configuration_valid' => false,
+        'totals_locked' => false,
+        'bast_issued' => false,
+        'not_yet_invoiced' => true,
+    ])->and($procurement->canProcessInvoice())->toBeFalse();
+});

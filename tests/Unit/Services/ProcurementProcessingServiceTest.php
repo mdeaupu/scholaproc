@@ -275,6 +275,48 @@ test('invoice gating requires full receipt bast tax and totals', function () {
         ->toThrow(LogicException::class);
 });
 
+test('invoice eligibility tracks every guard through the full receipt flow', function () {
+    [$request, $admin, $item] = makeProcessingRequest();
+
+    $before = $request->invoiceEligibility();
+
+    expect($before['status_received'])->toBeFalse()
+        ->and($before['all_quantities_received'])->toBeFalse()
+        ->and($before['tax_configuration_valid'])->toBeTrue()
+        ->and($before['totals_locked'])->toBeTrue()
+        ->and($before['bast_issued'])->toBeFalse()
+        ->and($request->canProcessInvoice())->toBeFalse();
+
+    app(ProcurementProcessingService::class)->recordDelivery(
+        $request,
+        $admin,
+        now()->toDateString(),
+        [$item->id => 10]
+    );
+    $receipt = app(ProcurementProcessingService::class)->recordReceipt(
+        $request,
+        $admin,
+        now()->toDateString(),
+        [$item->id => ['quantity' => 10, 'condition' => 'good']]
+    );
+    app(ProcurementProcessingService::class)->verifyReceipt($receipt, $admin);
+
+    $received = $request->fresh();
+
+    expect(in_array(false, $received->invoiceEligibility(), true))->toBeFalse()
+        ->and($received->canProcessInvoice())->toBeTrue();
+
+    $received->forceFill(['tax_configuration_validated' => false])->save();
+
+    $failedGuards = collect($received->invoiceEligibility())
+        ->filter(fn (bool $passed): bool => ! $passed)
+        ->keys()
+        ->all();
+
+    expect($received->canProcessInvoice())->toBeFalse()
+        ->and($failedGuards)->toBe(['tax_configuration_valid']);
+});
+
 test('invoice and payment flow succeeds', function () {
     [$request, $admin, $item] = makeProcessingRequest();
 
@@ -383,4 +425,44 @@ test('school cannot use processing panel', function () {
     Livewire::actingAs($schoolUser)
         ->test(ProcurementProcessingPanel::class, ['procurementRequest' => $request])
         ->assertStatus(403);
+});
+
+test('admin can verify school draft and resolve follow-up from processing panel', function () {
+    [$request, $admin, $item] = makeProcessingRequest();
+    $this->actingAs($admin);
+
+    app(ProcurementProcessingService::class)->recordDelivery(
+        $request,
+        $admin,
+        now()->toDateString(),
+        [$item->id => 10],
+        'kirim penuh'
+    );
+    $receipt = app(ProcurementProcessingService::class)->recordReceipt(
+        $request,
+        $admin,
+        now()->toDateString(),
+        [$item->id => ['quantity' => 10, 'condition' => 'damaged', 'issue_notes' => 'Layar retak']],
+        'draf sekolah'
+    );
+    $receiptItem = $receipt->items->first();
+
+    Livewire::test(ProcurementProcessingPanel::class, ['procurementRequest' => $request])
+        ->assertSee('Daftar Penerimaan Menunggu Verifikasi')
+        ->assertSee('Tindak Lanjut Isu Penerimaan')
+        ->assertSee('Layar retak')
+        ->assertDontSee('Simpan Penerimaan')
+        ->call('verifyReceipt', $receipt->id)
+        ->assertHasNoErrors();
+
+    expect($receipt->refresh()->verified_at)->not->toBeNull()
+        ->and($request->fresh()->status)->toBe(ProcurementRequest::STATUS_DISPUTED);
+
+    Livewire::test(ProcurementProcessingPanel::class, ['procurementRequest' => $request->fresh()])
+        ->set('resolutionNotes', 'Barang diganti oleh penyedia')
+        ->call('resolveIssue', $receiptItem->id)
+        ->assertHasNoErrors();
+
+    expect($receiptItem->refresh()->follow_up_status)->toBe('resolved')
+        ->and($request->fresh()->status)->toBe(ProcurementRequest::STATUS_RECEIVED);
 });

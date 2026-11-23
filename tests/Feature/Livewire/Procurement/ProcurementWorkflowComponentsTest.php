@@ -1,13 +1,14 @@
 <?php
 
 use App\Livewire\Procurement\ProcurementRequestDetail;
-use App\Livewire\Procurement\ProcurementProcessPanel;
 use App\Livewire\Procurement\ProcurementReviewPanel;
 use App\Livewire\Procurement\NegotiationPanel;
+use App\Livewire\Procurement\ProcurementProcessingPanel;
 use App\Models\BudgetYear;
 use App\Models\FundingSource;
 use App\Models\ItemUnit;
 use App\Models\PackageCategory;
+use App\Models\ProcurementDocument;
 use App\Models\ProcurementNegotiation;
 use App\Models\ProcurementRequest;
 use App\Models\Subsidiary;
@@ -85,7 +86,7 @@ test('procurement detail tabs switch visible content and default to negotiation 
         ->call('setActiveTab', 'dokumen')
         ->assertSet('activeTab', 'dokumen')
         ->assertSee('Dokumen Terkait')
-        ->assertSee('Ringkasan Pengajuan')
+        ->assertSee('Ringkasan pengajuan')
         ->call('setActiveTab', 'negosiasi')
         ->assertSet('activeTab', 'negosiasi')
         ->assertSee('Ruang Negosiasi')
@@ -105,36 +106,164 @@ test('procurement detail tabs switch visible content and default to negotiation 
         ->assertSee('Negosiasi Harga Per Item');
 });
 
-test('procurement process panel switches content through its navigation tabs', function () {
+test('pengiriman tab shows goods list and verification evidence panel', function () {
+    $school = School::factory()->create();
+    $user = User::factory()->school()->create(['school_id' => $school->id]);
+    $request = ProcurementRequest::factory()->create([
+        'school_id' => $school->id,
+        'status' => ProcurementRequest::STATUS_PROCESSING,
+    ]);
+    ProcurementRequestItem::factory()->create([
+        'procurement_request_id' => $request->id,
+        'item_name' => 'Kertas HVS',
+        'quantity' => 10,
+    ]);
+    $this->actingAs($user);
+
+    Livewire::test(ProcurementRequestDetail::class, ['procurementRequest' => $request])
+        ->call('setActiveTab', 'pengiriman')
+        ->assertSet('activeTab', 'pengiriman')
+        ->assertSee('Daftar Barang yang Diterima')
+        ->assertSee('Kertas HVS')
+        ->assertSee('Verifikasi Penerimaan Barang');
+});
+
+test('admin pengiriman tab shows shipment cards and hides school receipt form', function () {
     $admin = User::factory()->admin()->create();
     $this->actingAs($admin);
 
     $request = ProcurementRequest::factory()->create([
-        'status' => ProcurementRequest::STATUS_VERIFIED,
+        'status' => ProcurementRequest::STATUS_PROCESSING,
     ]);
     ProcurementRequestItem::factory()->create([
         'procurement_request_id' => $request->id,
-        'item_name' => 'Laptop untuk tab negosiasi',
+        'item_name' => 'Proyektor',
+        'quantity' => 5,
     ]);
-    $request->assignSubsidiary(Subsidiary::factory()->create(), $admin);
-    $request->startNegotiation($admin);
 
-    Livewire::test(ProcurementProcessPanel::class, ['procurementRequest' => $request])
-        ->assertSet('activeTab', 'negosiasi')
-        ->assertSee('Negosiasi Harga Per Item')
-        ->call('setActiveTab', 'informasi')
-        ->assertSet('activeTab', 'informasi')
-        ->assertSee('Informasi & Barang')
-        ->assertSee('Laptop untuk tab negosiasi')
-        ->call('setActiveTab', 'negosiasi')
-        ->assertSet('activeTab', 'negosiasi')
-        ->assertSee('Negosiasi Harga Per Item')
+    Livewire::test(ProcurementRequestDetail::class, ['procurementRequest' => $request])
         ->call('setActiveTab', 'pengiriman')
         ->assertSet('activeTab', 'pengiriman')
-        ->assertSee('Pemrosesan Pesanan')
-        ->call('setActiveTab', 'dokumen')
-        ->assertSet('activeTab', 'dokumen')
-        ->assertSee('Dokumen Terkait');
+        ->assertSee('Pengiriman Barang')
+        ->assertSee('Informasi Pengiriman')
+        ->assertSee('Daftar Barang yang Dikirim')
+        ->assertSee('Status Pengiriman')
+        ->assertSee('Berkas Pengiriman')
+        ->assertSee('Total Dikirim')
+        ->assertSee('Pengajuan Disetujui')
+        ->assertSee('Dalam Pengiriman')
+        ->assertSee('rounded-lg border border-gray-200 bg-white shadow-sm', false)
+        ->assertSee('Buat Pengiriman', false)
+        ->assertDontSee('Form Penerimaan');
+});
+
+test('processing panel shows ordered shipped and remaining shipping quantities', function () {
+    $admin = User::factory()->admin()->create();
+    $this->actingAs($admin);
+
+    $request = ProcurementRequest::factory()->create([
+        'status' => ProcurementRequest::STATUS_PROCESSING,
+    ]);
+    ProcurementRequestItem::factory()->create([
+        'procurement_request_id' => $request->id,
+        'item_name' => 'Proyektor',
+        'quantity' => 5,
+    ]);
+
+    Livewire::test(ProcurementProcessingPanel::class, ['procurementRequest' => $request])
+        ->assertSee('dipesan 5')
+        ->assertSee('terkirim 0')
+        ->assertSee('sisa kirim 5')
+        ->assertDontSee('Simpan Penerimaan (Draf)')
+        ->assertDontSee('Penerimaan Barang');
+});
+
+test('admin panel shows school draft receipts awaiting verification without receipt input form', function () {
+    $admin = User::factory()->admin()->create();
+    $this->actingAs($admin);
+
+    $request = ProcurementRequest::factory()->create([
+        'status' => ProcurementRequest::STATUS_PROCESSING,
+    ]);
+    $item = ProcurementRequestItem::factory()->create([
+        'procurement_request_id' => $request->id,
+        'item_name' => 'Proyektor',
+        'quantity' => 5,
+    ]);
+
+    $receipt = $request->receipts()->create([
+        'received_at' => now()->toDateString(),
+        'recorded_by' => $admin->id,
+        'notes' => 'Draf dari sekolah',
+    ]);
+    $receipt->items()->create([
+        'procurement_request_item_id' => $item->id,
+        'quantity' => 3,
+        'condition' => 'good',
+        'follow_up_status' => 'none',
+    ]);
+
+    Livewire::test(ProcurementProcessingPanel::class, ['procurementRequest' => $request])
+        ->assertSee('Daftar Penerimaan Menunggu Verifikasi')
+        ->assertSee('Verifikasi Penerimaan')
+        ->assertSee('Draf Sekolah')
+        ->assertSee('Proyektor: 3')
+        ->assertDontSee('Simpan Penerimaan')
+        ->assertDontSee('Jumlah diterima');
+});
+
+test('processing panel disables invoice button and lists unmet invoice guards', function () {
+    $admin = User::factory()->admin()->create();
+    $this->actingAs($admin);
+
+    $request = ProcurementRequest::factory()->create([
+        'status' => ProcurementRequest::STATUS_RECEIVED,
+        'totals_locked_at' => now(),
+        'tax_configuration_validated' => true,
+        'tax_configuration_basis' => 'uji tampilan invoice',
+        'tax_configuration_validated_by' => $admin->id,
+        'tax_configuration_validated_at' => now(),
+        'is_taxable' => true,
+        'ppn_rate' => 11,
+    ]);
+    $item = ProcurementRequestItem::factory()->create([
+        'procurement_request_id' => $request->id,
+        'item_name' => 'Proyektor',
+        'quantity' => 5,
+    ]);
+    $receipt = $request->receipts()->create([
+        'received_at' => now()->toDateString(),
+        'recorded_by' => $admin->id,
+        'verified_at' => now(),
+        'verified_by' => $admin->id,
+    ]);
+    $receipt->items()->create([
+        'procurement_request_item_id' => $item->id,
+        'quantity' => 5,
+        'condition' => 'good',
+        'follow_up_status' => 'none',
+    ]);
+    $bast = new ProcurementDocument([
+        'procurement_request_id' => $request->id,
+        'document_type' => 'bast',
+        'document_number' => 'BAST/UJI/'.now()->format('Y'),
+        'document_date' => now()->toDateString(),
+        'issued_by' => $admin->id,
+    ]);
+    $bast->issued_at = now();
+    $bast->save();
+
+    Livewire::test(ProcurementProcessingPanel::class, ['procurementRequest' => $request])
+        ->assertSee('Invoice dan Pembayaran')
+        ->assertSee('Proses Invoice')
+        ->assertDontSee('Syarat invoice belum lengkap');
+
+    $request->forceFill(['tax_configuration_validated' => false])->save();
+
+    Livewire::test(ProcurementProcessingPanel::class, ['procurementRequest' => $request])
+        ->assertSee('Syarat invoice belum lengkap: Konfigurasi pajak belum tervalidasi')
+        ->assertDontSee('Status penerimaan belum Received')
+        ->assertDontSee('BAST belum diterbitkan');
 });
 
 test('negotiation panel only renders rounds belonging to its request', function () {

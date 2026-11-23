@@ -588,6 +588,24 @@ class ProcurementRequest extends Model
             && $this->hasIssuedDocument('invoice');
     }
 
+    public function invoiceEligibility(): array
+    {
+        return [
+            'status_received' => $this->status === self::STATUS_RECEIVED,
+            'all_quantities_received' => $this->allQuantitiesReceived(),
+            'no_open_follow_ups' => ! $this->hasOpenReceiptFollowUps(),
+            'tax_configuration_valid' => $this->isTaxConfigurationValidated(),
+            'totals_locked' => $this->isTotalsLocked(),
+            'bast_issued' => $this->hasIssuedDocument('bast'),
+            'not_yet_invoiced' => ! $this->invoice()->exists(),
+        ];
+    }
+
+    public function canProcessInvoice(): bool
+    {
+        return ! in_array(false, $this->invoiceEligibility(), true);
+    }
+
     private function issuePlanningDocumentIfReady(User $actor): void
     {
         if ($this->hasSubsidiary()
@@ -623,9 +641,61 @@ class ProcurementRequest extends Model
 
     public function canMarkVerified(): bool
     {
-        return in_array($this->status, [self::STATUS_ITEMS_PREPARED, self::STATUS_COMPLETED])
+        return in_array($this->status, [
+            self::STATUS_PROCESSING,
+            self::STATUS_PARTIALLY_RECEIVED,
+            self::STATUS_COMPLETED,
+        ], true)
             && $this->verificationFiles()->count() > 0
             && $this->verified_at === null;
+    }
+
+    public function canConfirmReceipt(): bool
+    {
+        return $this->canMarkVerified() && $this->hasVerificationEvidence();
+    }
+
+    public function canShowNegotiation(): bool
+    {
+        return in_array($this->status, [
+            self::STATUS_NEGOTIATION,
+            self::STATUS_PRICE_AGREED,
+            self::STATUS_PROCESSING,
+            self::STATUS_PARTIALLY_RECEIVED,
+            self::STATUS_RECEIVED,
+            self::STATUS_INVOICED,
+            self::STATUS_PAYMENT_PENDING,
+            self::STATUS_COMPLETED,
+            self::STATUS_DISPUTED,
+        ], true) && $this->hasSubsidiary();
+    }
+
+    public function canShowProcessing(): bool
+    {
+        return in_array($this->status, [
+            self::STATUS_VERIFIED,
+            self::STATUS_NEGOTIATION,
+            self::STATUS_PRICE_AGREED,
+            self::STATUS_PROCESSING,
+            self::STATUS_PARTIALLY_RECEIVED,
+            self::STATUS_RECEIVED,
+            self::STATUS_INVOICED,
+            self::STATUS_PAYMENT_PENDING,
+            self::STATUS_COMPLETED,
+            self::STATUS_DISPUTED,
+        ], true);
+    }
+
+    public function canShowReceiptVerification(): bool
+    {
+        return $this->verified_at !== null
+            || in_array($this->status, [
+                self::STATUS_PROCESSING,
+                self::STATUS_PARTIALLY_RECEIVED,
+                self::STATUS_RECEIVED,
+                self::STATUS_DISPUTED,
+                self::STATUS_COMPLETED,
+            ], true);
     }
 
     public function hasVerificationEvidence(): bool
@@ -808,7 +878,7 @@ class ProcurementRequest extends Model
     public function markVerified(User $user): void
     {
         if (! $this->canMarkVerified()) {
-            throw new Exception('Verifikasi penerimaan tidak dapat dilakukan. Pastikan minimal 1 bukti dokumen bertanda tangan sudah diunggah dan status pengadaan adalah barang siap atau selesai.');
+            throw new Exception('Verifikasi penerimaan tidak dapat dilakukan. Pastikan minimal 1 bukti sudah diunggah dan status pengadaan sedang diproses, diterima sebagian, atau selesai.');
         }
 
         $this->update([
@@ -816,7 +886,7 @@ class ProcurementRequest extends Model
             'verified_by' => $user->id,
         ]);
 
-        $this->recordHistory($user, 'verified_receipt', 'Barang telah diverifikasi diterima oleh sekolah.');
+        $this->recordHistory($user, $this->status, 'Barang telah diverifikasi diterima oleh sekolah.');
     }
 
     // ─── Audit Trail ────────────────────────────────────────────────
@@ -1157,17 +1227,13 @@ class ProcurementRequest extends Model
 
     public function allQuantitiesReceived(): bool
     {
-        foreach ($this->items as $item) {
-            $received = (int) $item->receiptItems()
-                ->whereHas('receipt', fn (Builder $query) => $query->whereNotNull('verified_at'))
-                ->sum('quantity');
-
-            if ($received < (int) $item->quantity) {
-                return false;
-            }
+        if (! $this->items()->exists()) {
+            return false;
         }
 
-        return $this->items()->exists();
+        return $this->items->every(
+            fn (ProcurementRequestItem $item): bool => $item->remainingToReceive() <= 0
+        );
     }
 
     public function hasOpenReceiptFollowUps(): bool

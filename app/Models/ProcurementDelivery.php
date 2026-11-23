@@ -25,6 +25,11 @@ class ProcurementDelivery extends Model
         return $this->belongsTo(ProcurementRequest::class);
     }
 
+    public function recordedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'recorded_by');
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(ProcurementDeliveryItem::class);

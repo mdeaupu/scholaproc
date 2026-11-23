@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -113,6 +114,34 @@ class ProcurementRequestItem extends Model
         }
 
         return (float) $this->official_price * (float) $this->quantity;
+    }
+
+    public function deliveredQuantity(): int
+    {
+        return (int) $this->deliveryItems()->sum('quantity');
+    }
+
+    public function receivedQuantity(bool $verifiedOnly = true): int
+    {
+        return (int) $this->receiptItems()
+            ->whereHas('receipt', function (Builder $query) use ($verifiedOnly): void {
+                $query->whereNull('voided_at');
+
+                if ($verifiedOnly) {
+                    $query->whereNotNull('verified_at');
+                }
+            })
+            ->sum('quantity');
+    }
+
+    public function remainingToReceive(): int
+    {
+        return max(0, (int) $this->quantity - $this->receivedQuantity());
+    }
+
+    public function remainingToShip(): int
+    {
+        return max(0, (int) $this->quantity - $this->deliveredQuantity());
     }
 
     // ─── Accessors ──────────────────────────────────────────────────

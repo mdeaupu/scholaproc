@@ -66,7 +66,7 @@ class ProcurementRequestDetail extends Component
 
     public function setActiveTab(string $tab): void
     {
-        abort_unless(in_array($tab, ['informasi', 'negosiasi', 'pengiriman', 'dokumen'], true), 404);
+        abort_unless(in_array($tab, ['informasi', 'negosiasi', 'pengiriman', 'dokumen', 'riwayat'], true), 404);
 
         $this->activeTab = $tab;
     }
@@ -77,7 +77,7 @@ class ProcurementRequestDetail extends Component
         abort_unless($this->procurementRequest->status === ProcurementRequest::STATUS_DRAFT, 403);
 
         DB::transaction(function (): void {
-            $this->procurementRequest->items->each(fn ($item) => $item->delete());
+            $this->procurementRequest->items->each(fn($item) => $item->delete());
             $this->procurementRequest->delete();
         });
 
@@ -127,7 +127,7 @@ class ProcurementRequestDetail extends Component
     {
         $user = auth()->user();
         abort_unless($user !== null, 403);
-        abort_unless(! $user->isSchool() || $request->school_id === $user->school_id, 404);
+        abort_unless(!$user->isSchool() || $request->school_id === $user->school_id, 404);
     }
 
     private function authorizeSchoolOwner(): void

@@ -174,20 +174,10 @@ class ProcurementProcessingPanel extends Component
         $this->loadDetails();
 
         return view('livewire.procurement.procurement-processing-panel', [
-            'receivedQuantities' => $this->receivedQuantities(),
             'openIssues' => $this->procurementRequest->receipts
                 ->flatMap(fn (ProcurementReceipt $receipt) => $receipt->items)
                 ->where('follow_up_status', ProcurementReceiptItem::FOLLOW_UP_OPEN),
         ]);
-    }
-
-    private function receivedQuantities(): array
-    {
-        return $this->procurementRequest->items->mapWithKeys(fn ($item): array => [
-            $item->id => $item->receiptItems
-                ->filter(fn (ProcurementReceiptItem $line): bool => $line->receipt?->verified_at !== null)
-                ->sum('quantity'),
-        ])->all();
     }
 
     private function loadDetails(): void
@@ -197,6 +187,7 @@ class ProcurementProcessingPanel extends Component
             'items.deliveryItems',
             'items.receiptItems.receipt',
             'deliveries.items.requestItem',
+            'receipts.recordedBy',
             'receipts.items.requestItem',
             'invoice.payment',
             'documents',

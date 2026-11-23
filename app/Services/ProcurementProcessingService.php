@@ -9,8 +9,12 @@ use App\Models\ProcurementReceipt;
 use App\Models\ProcurementReceiptItem;
 use App\Models\ProcurementRequest;
 use App\Models\ProcurementRequestItem;
+use App\Models\ProcurementVerificationFile;
 use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use LogicException;
 
@@ -78,7 +82,7 @@ class ProcurementProcessingService
                     throw ValidationException::withMessages(['quantities' => 'Barang atau jumlah pengiriman tidak valid.']);
                 }
 
-                $alreadyShipped = $item->deliveryItems()->sum('quantity');
+                $alreadyShipped = $item->deliveredQuantity();
                 if ($alreadyShipped + $quantity > $item->quantity) {
                     throw ValidationException::withMessages(['quantities' => "Jumlah terkirim {$item->item_name} melebihi jumlah pesanan."]);
                 }
@@ -114,7 +118,7 @@ class ProcurementProcessingService
         array $items,
         ?string $notes = null
     ): ProcurementReceipt {
-        $this->authorizeInternal($actor);
+        $this->authorizeReceiptRecorder($request, $actor);
 
         return DB::transaction(function () use ($request, $actor, $date, $items, $notes): ProcurementReceipt {
             $request = ProcurementRequest::query()->lockForUpdate()->findOrFail($request->id);
@@ -146,10 +150,8 @@ class ProcurementProcessingService
                     throw ValidationException::withMessages(['items' => 'Rincian penerimaan barang tidak valid.']);
                 }
 
-                $shipped = (int) $item->deliveryItems()->sum('quantity');
-                $received = (int) $item->receiptItems()
-                    ->whereHas('receipt', fn ($query) => $query->whereNotNull('verified_at'))
-                    ->sum('quantity');
+                $shipped = $item->deliveredQuantity();
+                $received = $item->receivedQuantity();
                 if ($received + $quantity > $shipped || $received + $quantity > $item->quantity) {
                     throw ValidationException::withMessages(['items' => "Jumlah diterima {$item->item_name} melebihi jumlah terkirim atau pesanan."]);
                 }
@@ -184,13 +186,29 @@ class ProcurementProcessingService
 
             foreach ($receipt->items as $receiptItem) {
                 $item = ProcurementRequestItem::query()->lockForUpdate()->findOrFail($receiptItem->procurement_request_item_id);
-                $priorReceived = $item->receiptItems()
-                    ->where('procurement_receipt_id', '!=', $receipt->id)
-                    ->whereHas('receipt', fn ($query) => $query->whereNotNull('verified_at'))
-                    ->sum('quantity');
 
-                if ($priorReceived + $receiptItem->quantity > $item->quantity) {
+                if ($receiptItem->quantity < 1) {
+                    throw new LogicException('Jumlah diterima tidak valid.');
+                }
+
+                if (! in_array($receiptItem->condition, ['good', 'incomplete', 'damaged', 'non_conforming'], true)) {
+                    throw new LogicException('Kondisi barang tidak valid.');
+                }
+
+                if ($receiptItem->condition !== 'good'
+                    && $receiptItem->follow_up_status === ProcurementReceiptItem::FOLLOW_UP_NONE) {
+                    throw new LogicException('Kondisi tidak baik wajib memiliki tindak lanjut.');
+                }
+
+                // Receipt ini belum terverifikasi, sehingga belum ikut terhitung pada helper.
+                $newTotal = $item->receivedQuantity() + $receiptItem->quantity;
+
+                if ($newTotal > $item->quantity) {
                     throw new LogicException('Jumlah penerimaan terverifikasi melampaui jumlah pesanan.');
+                }
+
+                if ($newTotal > $item->deliveredQuantity()) {
+                    throw new LogicException('Jumlah penerimaan terverifikasi melampaui jumlah terkirim.');
                 }
             }
 
@@ -245,18 +263,157 @@ class ProcurementProcessingService
         });
     }
 
+    public function voidReceipt(ProcurementReceipt $receipt, User $actor, string $reason): void
+    {
+        $this->authorizeInternal($actor);
+        $reason = trim($reason);
+        if (mb_strlen($reason) < 5) {
+            throw new LogicException('Alasan pembatalan penerimaan wajib diisi minimal 5 karakter.');
+        }
+
+        DB::transaction(function () use ($receipt, $actor, $reason): void {
+            $receipt = ProcurementReceipt::query()->lockForUpdate()->findOrFail($receipt->id);
+            $request = ProcurementRequest::query()->lockForUpdate()->findOrFail($receipt->procurement_request_id);
+
+            if ($receipt->voided_at !== null) {
+                throw new LogicException('Penerimaan ini sudah pernah dibatalkan.');
+            }
+
+            if ($request->invoice()->exists()) {
+                throw new LogicException('Penerimaan tidak dapat dibatalkan setelah invoice diproses.');
+            }
+
+            if (! in_array($request->status, [
+                ProcurementRequest::STATUS_PROCESSING,
+                ProcurementRequest::STATUS_PARTIALLY_RECEIVED,
+                ProcurementRequest::STATUS_RECEIVED,
+                ProcurementRequest::STATUS_DISPUTED,
+            ], true)) {
+                throw new LogicException('Penerimaan hanya dapat dibatalkan pada tahap pemrosesan atau penerimaan.');
+            }
+
+            $receipt->update([
+                'voided_at' => now(),
+                'voided_by' => $actor->id,
+                'void_reason' => $reason,
+            ]);
+
+            $hasOpenIssue = $request->hasOpenReceiptFollowUps();
+            $fullyReceived = $request->allQuantitiesReceived();
+            $hasVerifiedReceipt = $request->receipts()
+                ->whereNull('voided_at')
+                ->whereNotNull('verified_at')
+                ->exists();
+
+            if ($hasOpenIssue) {
+                $newStatus = ProcurementRequest::STATUS_DISPUTED;
+            } elseif ($fullyReceived) {
+                $newStatus = ProcurementRequest::STATUS_RECEIVED;
+            } elseif ($hasVerifiedReceipt) {
+                $newStatus = ProcurementRequest::STATUS_PARTIALLY_RECEIVED;
+            } else {
+                $newStatus = ProcurementRequest::STATUS_PROCESSING;
+            }
+
+            $request->update([
+                'status' => $newStatus,
+                'verified_at' => $newStatus === ProcurementRequest::STATUS_RECEIVED ? now() : null,
+                'verified_by' => $newStatus === ProcurementRequest::STATUS_RECEIVED ? $actor->id : null,
+            ]);
+            $request->recordHistory($actor, $newStatus, 'Penerimaan dibatalkan: '.$reason);
+            activity()->performedOn($request)->causedBy($actor)
+                ->withProperties(['receipt_id' => $receipt->id, 'void_reason' => $reason])
+                ->log('Penerimaan barang dibatalkan');
+        });
+    }
+
+    public function storeVerificationFiles(
+        ProcurementRequest $request,
+        User $actor,
+        string $fileType,
+        array $files,
+        ?string $notes = null
+    ): int {
+        $this->authorizeSchoolOwner($request, $actor);
+
+        if ($request->verified_at !== null) {
+            throw new LogicException('Tidak dapat mengunggah file setelah verifikasi dikonfirmasi.');
+        }
+
+        if ($files === []) {
+            throw ValidationException::withMessages(['files' => 'Pilih minimal satu file bukti.']);
+        }
+
+        [$rules, $messages] = match ($fileType) {
+            ProcurementVerificationFile::TYPE_PHOTO => [
+                'file|image|max:5120|mimes:jpg,jpeg,png',
+                [
+                    'files.*.file' => 'File foto tidak valid.',
+                    'files.*.image' => 'File harus berupa gambar.',
+                    'files.*.max' => 'Ukuran foto maksimal 5MB.',
+                    'files.*.mimes' => 'Format foto harus JPG atau PNG.',
+                ],
+            ],
+            ProcurementVerificationFile::TYPE_SIGNED_DOCUMENT => [
+                'file|max:10240|mimes:pdf,jpg,jpeg,png',
+                [
+                    'files.*.file' => 'File dokumen tidak valid.',
+                    'files.*.max' => 'Ukuran dokumen maksimal 10MB.',
+                    'files.*.mimes' => 'Format dokumen harus PDF, JPG, atau PNG.',
+                ],
+            ],
+            default => throw new LogicException('Jenis bukti penerimaan tidak valid.'),
+        };
+
+        Validator::make(['files' => $files], ['files.*' => $rules], $messages)->validate();
+
+        $stored = 0;
+        foreach ($files as $file) {
+            $filename = time().'_'.uniqid().'.'.$file->getClientOriginalExtension();
+            $path = $file->storeAs('verification_files/'.$request->id, $filename, 'public');
+
+            ProcurementVerificationFile::create([
+                'procurement_request_id' => $request->id,
+                'file_type' => $fileType,
+                'file_path' => $path,
+                'uploaded_by' => $actor->id,
+                'notes' => $notes,
+                'uploaded_at' => now(),
+            ]);
+            $stored++;
+        }
+
+        return $stored;
+    }
+
+    public function deleteVerificationFile(ProcurementRequest $request, User $actor, int $fileId): void
+    {
+        $this->authorizeSchoolOwner($request, $actor);
+
+        if ($request->verified_at !== null) {
+            throw new LogicException('Tidak dapat menghapus file setelah verifikasi dikonfirmasi.');
+        }
+
+        $file = ProcurementVerificationFile::query()
+            ->where('procurement_request_id', $request->id)
+            ->findOrFail($fileId);
+
+        if (Storage::disk('public')->exists($file->file_path)) {
+            Storage::disk('public')->delete($file->file_path);
+        }
+
+        $file->delete();
+    }
+
     public function processInvoice(ProcurementRequest $request, User $actor): ProcurementInvoice
     {
         $this->authorizeInternal($actor);
 
         return DB::transaction(function () use ($request, $actor): ProcurementInvoice {
             $request = ProcurementRequest::query()->lockForUpdate()->findOrFail($request->id);
-            if ($request->status !== ProcurementRequest::STATUS_RECEIVED
-                || ! $request->allQuantitiesReceived()
-                || $request->hasOpenReceiptFollowUps()
-                || ! $request->isTaxConfigurationValidated()
-                || ! $request->isTotalsLocked()
-                || ! $request->hasIssuedDocument('bast')) {
+            $eligibility = $request->invoiceEligibility();
+            unset($eligibility['not_yet_invoiced']);
+            if (in_array(false, $eligibility, true)) {
                 throw new LogicException('Invoice memerlukan penerimaan penuh yang diverifikasi, tindak lanjut selesai, snapshot harga, konfigurasi pajak tervalidasi, dan dokumen penerimaan.');
             }
 
@@ -375,7 +532,24 @@ class ProcurementProcessingService
     private function authorizeInternal(User $actor): void
     {
         if (! $actor->isAdmin() && ! $actor->isSuperAdmin()) {
-            throw new \Illuminate\Auth\Access\AuthorizationException('Hanya Admin Pusat yang dapat memproses transaksi.');
+            throw new AuthorizationException('Hanya Admin Pusat yang dapat memproses transaksi.');
+        }
+    }
+
+    private function authorizeReceiptRecorder(ProcurementRequest $request, User $actor): void
+    {
+        $isInternal = $actor->isAdmin() || $actor->isSuperAdmin();
+        $isSchoolOwner = $actor->isSchool() && $actor->school_id === $request->school_id;
+
+        if (! $isInternal && ! $isSchoolOwner) {
+            throw new AuthorizationException('Hanya Admin Pusat atau sekolah pemilik pengajuan yang dapat mencatat penerimaan.');
+        }
+    }
+
+    private function authorizeSchoolOwner(ProcurementRequest $request, User $actor): void
+    {
+        if (! $actor->isSchool() || $actor->school_id !== $request->school_id) {
+            throw new AuthorizationException('Hanya sekolah pemilik pengajuan yang dapat mengelola bukti penerimaan.');
         }
     }
 }

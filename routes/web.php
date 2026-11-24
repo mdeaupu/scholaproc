@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\ProcurementDocumentController;
 use App\Livewire\Admin\AdminCreate;
 use App\Livewire\Admin\AdminEdit;
 use App\Livewire\Admin\AdminIndex;
@@ -12,6 +12,7 @@ use App\Livewire\Master\BudgetYearIndex;
 use App\Livewire\Master\FundingSourceIndex;
 use App\Livewire\Master\ItemUnitIndex;
 use App\Livewire\Master\PackageCategoryIndex;
+use App\Livewire\Master\TaxRuleIndex;
 use App\Livewire\Procurement\ProcurementRequestDetail;
 use App\Livewire\Procurement\ProcurementRequestForm;
 use App\Livewire\Procurement\ProcurementRequestList;
@@ -20,7 +21,6 @@ use App\Livewire\School\SchoolIndex;
 use App\Livewire\Subsidiary\SubsidiaryForm;
 use App\Livewire\Subsidiary\SubsidiaryIndex;
 use App\Livewire\Subsidiary\SubsidiaryLegalDocumentForm;
-use App\Http\Controllers\ProcurementDocumentController;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 
@@ -73,6 +73,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/budget-years', BudgetYearIndex::class)->name('budget-years');
         Route::get('/funding-sources', FundingSourceIndex::class)->name('funding-sources');
         Route::get('/item-units', ItemUnitIndex::class)->name('item-units');
+        Route::get('/tax-rules', TaxRuleIndex::class)->name('tax-rules');
     });
 
     Route::prefix('procurement-requests')->name('procurement.')->group(function () {
@@ -94,15 +95,10 @@ Route::middleware('auth')->group(function () {
 
     Route::prefix('documents')->name('documents.')->group(function () {
         Route::get('/download/{document:download_token}', [DocumentController::class, 'download'])->name('download');
-
-        Route::middleware('role:superadmin|admin')->group(function () {
-            Route::get('/generate/{procurement}/{type}', [DocumentController::class, 'generate'])->name('generate');
-            Route::post('/regenerate/{document}', [DocumentController::class, 'regenerate'])->name('regenerate');
-        });
     });
     Route::view('profile', 'profile')->name('profile');
 });
 
-if (file_exists(__DIR__ . '/auth.php')) {
-    require __DIR__ . '/auth.php';
+if (file_exists(__DIR__.'/auth.php')) {
+    require __DIR__.'/auth.php';
 }

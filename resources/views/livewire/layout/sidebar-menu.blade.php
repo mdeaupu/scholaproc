@@ -67,6 +67,8 @@ new class extends Component {
                 <x-mary-menu-item title="Tahun Anggaran" icon="o-calendar-days" route="master.budget-years"
                     :active="request()->routeIs('master.budget-years')" />
                 <x-mary-menu-item title="Satuan Barang" icon="o-scale" route="master.item-units" :active="request()->routeIs('master.item-units')" />
+                <x-mary-menu-item title="Aturan Pajak" icon="o-receipt-percent" route="master.tax-rules"
+                    :active="request()->routeIs('master.tax-rules')" />
             </x-mary-menu-sub>
             <x-mary-menu-item title="Pengajuan Pengadaan" icon="o-shopping-cart" route="procurement.index"
                 :active="request()->routeIs('procurement.*')" />

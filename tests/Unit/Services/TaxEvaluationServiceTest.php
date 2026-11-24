@@ -53,12 +53,12 @@ test('tax evaluation applies active matching rule rates', function () {
         ->and($result['rates']['pph23'])->toBe(2.0);
 });
 
-test('inactive or draft rules are not applied', function () {
+test('inactive rules are not applied', function () {
     TaxRule::create([
         'tax_type' => TaxRule::TAX_PPN,
-        'name' => 'Draft PPN',
+        'name' => 'Inactive PPN',
         'version' => 1,
-        'status' => TaxRule::STATUS_DRAFT,
+        'status' => TaxRule::STATUS_INACTIVE,
         'rate' => 11,
     ]);
 
@@ -91,28 +91,39 @@ test('active tax rule without approval and verification is not resolved', functi
 
 test('activating a rule does not deactivate another active rule of the same type', function () {
     $approver = User::factory()->admin()->create();
-    $verifier = User::factory()->admin()->create();
-    $rules = collect([1, 2])->map(fn (int $version): TaxRule => TaxRule::create([
+    $actor = User::factory()->admin()->create();
+
+    $active = TaxRule::create([
         'tax_type' => TaxRule::TAX_PPN,
-        'name' => 'PPN '.$version,
-        'version' => $version,
-        'status' => TaxRule::STATUS_APPROVED,
+        'name' => 'PPN 1',
+        'version' => 1,
+        'status' => TaxRule::STATUS_ACTIVE,
         'rate' => 11,
         'calculation_method' => 'percentage',
         'legal_basis' => 'Dasar hukum pengujian.',
         'approved_by' => $approver->id,
         'approved_at' => now(),
-    ]));
-    $rules[0]->forceFill([
-        'status' => TaxRule::STATUS_ACTIVE,
-        'verified_by' => $verifier->id,
+        'verified_by' => $approver->id,
         'verified_at' => now(),
-    ])->save();
+    ]);
+    $inactive = TaxRule::create([
+        'tax_type' => TaxRule::TAX_PPN,
+        'name' => 'PPN 2',
+        'version' => 2,
+        'status' => TaxRule::STATUS_INACTIVE,
+        'rate' => 11,
+        'calculation_method' => 'percentage',
+        'legal_basis' => 'Dasar hukum pengujian.',
+    ]);
 
-    $rules[1]->activate(User::factory()->admin()->create()->id);
+    $inactive->activate($actor->id);
 
-    expect($rules[0]->fresh()->status)->toBe(TaxRule::STATUS_ACTIVE)
-        ->and($rules[1]->fresh()->status)->toBe(TaxRule::STATUS_ACTIVE);
+    expect($active->fresh()->status)->toBe(TaxRule::STATUS_ACTIVE)
+        ->and($inactive->fresh()->status)->toBe(TaxRule::STATUS_ACTIVE)
+        ->and($inactive->fresh()->approved_by)->toBe($actor->id)
+        ->and($inactive->fresh()->approved_at)->not->toBeNull()
+        ->and($inactive->fresh()->verified_by)->toBe($actor->id)
+        ->and($inactive->fresh()->verified_at)->not->toBeNull();
 });
 
 test('multiple matching active rules require review rather than choosing a rate', function () {

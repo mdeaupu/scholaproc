@@ -13,7 +13,7 @@ return new class extends Migration
             $table->string('tax_type', 20)->index(); // ppn, pph22, pph23
             $table->string('name');
             $table->unsignedInteger('version')->default(1);
-            $table->string('status', 20)->default('draft')->index(); // draft, pending, approved, active, rejected, expired
+            $table->string('status', 20)->default('active')->index(); // active, inactive
             $table->string('buyer_type', 20)->nullable(); // negeri, swasta, all
             $table->string('pkp_status', 20)->nullable(); // pkp, non_pkp, all
             $table->string('transaction_type', 50)->nullable();

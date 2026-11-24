@@ -6,6 +6,7 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class TaxRule extends Model
@@ -27,15 +28,14 @@ class TaxRule extends Model
         });
     }
 
-    public const STATUS_DRAFT = 'draft';
-    public const STATUS_PENDING = 'pending';
-    public const STATUS_APPROVED = 'approved';
     public const STATUS_ACTIVE = 'active';
-    public const STATUS_REJECTED = 'rejected';
-    public const STATUS_EXPIRED = 'expired';
+
+    public const STATUS_INACTIVE = 'inactive';
 
     public const TAX_PPN = 'ppn';
+
     public const TAX_PPH22 = 'pph22';
+
     public const TAX_PPH23 = 'pph23';
 
     protected $fillable = [
@@ -75,7 +75,7 @@ class TaxRule extends Model
         'verified_at' => 'datetime',
     ];
 
-    public function subsidiary(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function subsidiary(): BelongsTo
     {
         return $this->belongsTo(Subsidiary::class);
     }
@@ -115,44 +115,16 @@ class TaxRule extends Model
         return true;
     }
 
-    public function submitForApproval(): void
-    {
-        if ($this->status !== self::STATUS_DRAFT) {
-            throw new \LogicException('Hanya draft yang dapat diajukan.');
-        }
-        $this->update(['status' => self::STATUS_PENDING]);
-    }
-
-    public function approve(int $approverId): void
-    {
-        if ($this->status !== self::STATUS_PENDING) {
-            throw new \LogicException('Hanya aturan pending yang dapat disetujui.');
-        }
-        if ($this->created_by === $approverId) {
-            throw new \LogicException('Persetujuan harus dilakukan pengguna berbeda dari pembuat.');
-        }
-        $this->update([
-            'status' => self::STATUS_APPROVED,
-            'approved_by' => $approverId,
-            'approved_at' => now(),
-        ]);
-    }
-
     public function activate(int $actorId): void
     {
+        if ($this->status === self::STATUS_ACTIVE) {
+            return;
+        }
+
         $actor = User::query()->findOrFail($actorId);
 
         if (! $actor->isAdmin() && ! $actor->isSuperAdmin()) {
             throw new AuthorizationException('Hanya Admin Pusat yang dapat mengaktifkan aturan pajak.');
-        }
-        if ($this->status !== self::STATUS_APPROVED) {
-            throw new \LogicException('Hanya aturan yang disetujui dapat diaktifkan.');
-        }
-        if ($this->approved_by === null || $this->approved_at === null) {
-            throw new \LogicException('Persetujuan aturan wajib tercatat sebelum aktivasi.');
-        }
-        if ($actorId === (int) $this->approved_by) {
-            throw new \LogicException('Verifikator aktivasi harus berbeda dari pemberi persetujuan.');
         }
         if (trim((string) $this->legal_basis) === ''
             || $this->rate === null
@@ -162,23 +134,27 @@ class TaxRule extends Model
             throw new \LogicException('Aturan pajak belum memiliki dasar hukum dan konfigurasi persentase yang valid.');
         }
 
-        \Illuminate\Support\Facades\DB::transaction(function () use ($actorId): void {
-            $this->update([
-                'status' => self::STATUS_ACTIVE,
-                'verified_by' => $actorId,
-                'verified_at' => now(),
-            ]);
-        });
+        $this->update([
+            'status' => self::STATUS_ACTIVE,
+            'approved_by' => $actorId,
+            'approved_at' => now(),
+            'verified_by' => $actorId,
+            'verified_at' => now(),
+        ]);
 
         activity()
             ->performedOn($this)
             ->causedBy($actor)
             ->withProperties(['tax_type' => $this->tax_type, 'version' => $this->version])
-            ->log('Aturan pajak diaktifkan tanpa menonaktifkan aturan lain');
+            ->log('Aturan pajak diaktifkan');
     }
 
-    public function reject(): void
+    public function deactivate(): void
     {
-        $this->update(['status' => self::STATUS_REJECTED]);
+        if ($this->status === self::STATUS_INACTIVE) {
+            return;
+        }
+
+        $this->update(['status' => self::STATUS_INACTIVE]);
     }
 }

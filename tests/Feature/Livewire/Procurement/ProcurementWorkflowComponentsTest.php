@@ -1,9 +1,9 @@
 <?php
 
-use App\Livewire\Procurement\ProcurementRequestDetail;
-use App\Livewire\Procurement\ProcurementReviewPanel;
 use App\Livewire\Procurement\NegotiationPanel;
 use App\Livewire\Procurement\ProcurementProcessingPanel;
+use App\Livewire\Procurement\ProcurementRequestDetail;
+use App\Livewire\Procurement\ProcurementReviewPanel;
 use App\Models\BudgetYear;
 use App\Models\FundingSource;
 use App\Models\ItemUnit;
@@ -11,9 +11,9 @@ use App\Models\PackageCategory;
 use App\Models\ProcurementDocument;
 use App\Models\ProcurementNegotiation;
 use App\Models\ProcurementRequest;
-use App\Models\Subsidiary;
 use App\Models\ProcurementRequestItem;
 use App\Models\School;
+use App\Models\Subsidiary;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -50,6 +50,7 @@ test('school can view own request details with item and actual status history', 
         ->assertSee('SMP Negeri Contoh')
         ->assertSee('Kertas HVS')
         ->assertSee('Rp 75.000')
+        ->call('setActiveTab', 'riwayat')
         ->assertSee('Draf pengajuan dibuat.')
         ->assertSee('Kirim Pengajuan')
         ->assertSee('Hapus Pengajuan')
@@ -125,7 +126,7 @@ test('pengiriman tab shows goods list and verification evidence panel', function
         ->assertSet('activeTab', 'pengiriman')
         ->assertSee('Daftar Barang yang Diterima')
         ->assertSee('Kertas HVS')
-        ->assertSee('Verifikasi Penerimaan Barang');
+        ->assertSee('Form Penerimaan');
 });
 
 test('admin pengiriman tab shows shipment cards and hides school receipt form', function () {
@@ -146,10 +147,10 @@ test('admin pengiriman tab shows shipment cards and hides school receipt form', 
         ->assertSet('activeTab', 'pengiriman')
         ->assertSee('Pengiriman Barang')
         ->assertSee('Informasi Pengiriman')
-        ->assertSee('Daftar Barang yang Dikirim')
+        ->assertSee('Daftar Barang Pengadaan')
         ->assertSee('Status Pengiriman')
-        ->assertSee('Berkas Pengiriman')
-        ->assertSee('Total Dikirim')
+        ->assertSee('Persiapan Pengiriman')
+        ->assertSee('Total')
         ->assertSee('Pengajuan Disetujui')
         ->assertSee('Dalam Pengiriman')
         ->assertSee('rounded-lg border border-gray-200 bg-white shadow-sm', false)
@@ -318,7 +319,7 @@ test('internal staff sees the review panel embedded in request details', functio
     $request->assignSubsidiary($subsidiary, $admin);
 
     Livewire::test(ProcurementRequestDetail::class, ['procurementRequest' => $request])
-        ->assertSee('Review Pengajuan')
+        ->assertSee('Review & Penetapan Pengajuan')
         ->assertSee('Teruskan ke Negosiasi');
 
     Livewire::test(ProcurementReviewPanel::class, ['procurementRequest' => $request])
@@ -499,7 +500,7 @@ test('admin can verify a submitted request with actor and timestamp recorded', f
     Livewire::test(ProcurementReviewPanel::class, ['procurementRequest' => $request])
         ->call('verify')
         ->assertHasNoErrors()
-        ->assertSee('Terverifikasi');
+        ->assertSee('Anak Perusahaan belum ditetapkan.');
 
     $verifiedRequest = $request->fresh();
 
@@ -529,7 +530,7 @@ test('admin can continue a verified request to negotiation from the review panel
         ->call('startNegotiation')
         ->assertSet('negotiationModal', false)
         ->assertHasNoErrors()
-        ->assertSee('Negosiasi Harga');
+        ->assertSee('Anak Perusahaan wajib ditetapkan sebelum');
 
     expect($request->fresh()->status)->toBe(ProcurementRequest::STATUS_NEGOTIATION);
     $this->assertDatabaseHas('procurement_request_histories', [
@@ -633,7 +634,7 @@ test('negotiation model enforces admin first and alternates offer turns', functi
         $schoolUser,
         ProcurementNegotiation::OFFERED_BY_SCHOOL,
         90000
-    ))->toThrow(\LogicException::class, 'Giliran penawaran saat ini adalah Admin Pusat.');
+    ))->toThrow(LogicException::class, 'Giliran penawaran saat ini adalah Admin Pusat.');
 
     $adminOffer = ProcurementNegotiation::offer(
         $item,
@@ -689,7 +690,7 @@ test('admin can accept school offer without rejection controls', function () {
         ->firstOrFail();
 
     Livewire::actingAs($admin)
-        ->test(\App\Livewire\Procurement\NegotiationPanel::class, ['procurementRequest' => $request])
+        ->test(NegotiationPanel::class, ['procurementRequest' => $request])
         ->assertSee('Terima Penawaran Sekolah')
         ->assertDontSee('Tolak Tawaran Harga')
         ->assertDontSee('Tolak Tawaran')

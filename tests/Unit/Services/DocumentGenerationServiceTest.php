@@ -1,12 +1,14 @@
 <?php
 
 use App\Models\ProcurementDocument;
+use App\Models\ProcurementNegotiation;
 use App\Models\ProcurementRequest;
 use App\Models\ProcurementRequestItem;
 use App\Models\School;
 use App\Models\Subsidiary;
 use App\Models\User;
 use App\Services\DocumentGenerationService;
+use App\Services\ProcurementProcessingService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -387,6 +389,65 @@ test('invoice and receipt issuance enforce their lifecycle prerequisites', funct
         ->toThrow(LogicException::class, 'belum memenuhi tahap penerbitan');
 });
 
+test('terbitan receipt bersifat idempoten: diterbitkan kembali mengembalikan dokumen yang sama', function () {
+    Storage::fake('public');
+    $path = UploadedFile::fake()->image('kop.png')->store('subsidiary-letterheads', 'public');
+    $actor = User::factory()->admin()->create();
+    $subsidiary = Subsidiary::factory()->create(['letterhead_path' => $path]);
+
+    $request = ProcurementRequest::factory()->create([
+        'status' => ProcurementRequest::STATUS_VERIFIED,
+        'subsidiary_id' => null,
+        'tax_configuration_validated' => true,
+        'tax_configuration_basis' => 'validasi test',
+        'tax_configuration_validated_by' => $actor->id,
+        'tax_configuration_validated_at' => now(),
+        'is_taxable' => true,
+        'ppn_rate' => 11,
+        'pph_22_rate' => 1.5,
+        'pph_23_rate' => 2,
+        'subtotal' => 100000,
+        'tax_amount' => 11000,
+        'grand_total' => 111000,
+        'price_snapshot' => ['items' => []],
+        'tax_snapshot' => [],
+    ]);
+    $request->assignSubsidiary($subsidiary, $actor);
+    $request->update(['status' => ProcurementRequest::STATUS_PRICE_AGREED]);
+
+    $item = ProcurementRequestItem::factory()->create([
+        'procurement_request_id' => $request->id,
+        'quantity' => 10,
+        'official_price' => 10000,
+        'is_pph' => false,
+        'negotiation_status' => 'accepted',
+    ]);
+
+    $request->lockTotals();
+    $request->signatories()->createMany([
+        ['role' => 'headmaster', 'name' => 'Kepala Sekolah', 'nip' => '111'],
+        ['role' => 'inspector', 'name' => 'Pemeriksa', 'nip' => '222'],
+        ['role' => 'treasurer', 'name' => 'Bendahara', 'nip' => '333'],
+    ]);
+
+    app(ProcurementProcessingService::class)->startProcessing($request, $actor);
+
+    app(ProcurementProcessingService::class)->recordDelivery($request, $actor, now()->toDateString(), [$item->id => 10]);
+    $receipt = app(ProcurementProcessingService::class)->recordReceipt($request, $actor, now()->toDateString(), [$item->id => ['quantity' => 10, 'condition' => 'good']]);
+    app(ProcurementProcessingService::class)->verifyReceipt($receipt, $actor);
+    $invoice = app(ProcurementProcessingService::class)->processInvoice($request, $actor);
+    $payment = app(ProcurementProcessingService::class)->recordPayment(
+        $invoice, $actor, (float) $invoice->total_amount, 'transfer', 'REF1', now()->toDateString()
+    );
+    app(ProcurementProcessingService::class)->confirmPayment($payment, $actor);
+
+    $first = $request->fresh()->documents()->where('document_type', 'receipt')->whereNotNull('issued_at')->sole();
+
+    $second = app(DocumentGenerationService::class)->issue($request, 'receipt', $actor);
+
+    expect($second->id)->toBe($first->id)
+        ->and($request->fresh()->documents()->where('document_type', 'receipt')->count())->toBe(1);
+});
 test('procurement document numbers are unique across the system', function () {
     $firstRequest = ProcurementRequest::factory()->create();
     $secondRequest = ProcurementRequest::factory()->create();

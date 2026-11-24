@@ -101,6 +101,10 @@ test('startProcessing creates processing status and purchase order', function ()
     $request->update(['status' => ProcurementRequest::STATUS_PRICE_AGREED]);
     app(DocumentGenerationService::class)->issue($request, 'purchase_order', $admin);
 
+    $request->signatories()->create(['name' => 'Kepsek', 'role' => 'headmaster']);
+    $request->signatories()->create(['name' => 'Pemeriksa', 'role' => 'inspector']);
+    $request->signatories()->create(['name' => 'Bendahara', 'role' => 'treasurer']);
+
     app(ProcurementProcessingService::class)->startProcessing($request, $admin);
 
     expect($request->fresh()->status)->toBe(ProcurementRequest::STATUS_PROCESSING)
@@ -143,7 +147,11 @@ test('price agreement issues the purchase order and processing does not issue it
 
     expect($request->fresh()->status)->toBe(ProcurementRequest::STATUS_PRICE_AGREED)
         ->and($request->fresh()->hasIssuedDocument('negotiation'))->toBeTrue()
-        ->and($request->fresh()->hasIssuedDocument('purchase_order'))->toBeTrue();
+        ->and($request->fresh()->hasIssuedDocument('purchase_order'))->toBeFalse();
+
+    $request->signatories()->create(['name' => 'Kepsek', 'role' => 'headmaster']);
+    $request->signatories()->create(['name' => 'Pemeriksa', 'role' => 'inspector']);
+    $request->signatories()->create(['name' => 'Bendahara', 'role' => 'treasurer']);
 
     app(ProcurementProcessingService::class)->startProcessing($request, $admin);
 
@@ -356,7 +364,7 @@ test('invoice and payment flow succeeds', function () {
 
     expect($request->fresh()->status)->toBe(ProcurementRequest::STATUS_PAYMENT_PENDING)
         ->and($request->fresh()->payment_confirmed_at)->not->toBeNull()
-        ->and($request->fresh()->hasIssuedDocument('receipt'))->toBeFalse();
+        ->and($request->fresh()->hasIssuedDocument('receipt'))->toBeTrue();
 
     $request->fresh()->complete($admin);
 

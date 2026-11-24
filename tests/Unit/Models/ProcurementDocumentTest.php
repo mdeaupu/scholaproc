@@ -31,7 +31,7 @@ test('isComplete mengecek status kelengkapan dokumen', function () {
     expect($document->isComplete())->toBeTrue();
 });
 
-test('finalizing both price approvals generates negotiation and purchase order documents', function () {
+test('finalizing both price approvals generates negotiation document (purchase order is issued at processing)', function () {
     $subsidiary = Subsidiary::factory()->create();
     $school = User::factory()->school()->create();
     $admin = User::factory()->admin()->create();
@@ -62,10 +62,8 @@ test('finalizing both price approvals generates negotiation and purchase order d
         ->once()
         ->with($request, 'negotiation', $admin)
         ->andReturn(new ProcurementDocument);
-    $documentGeneration->shouldReceive('issue')
-        ->once()
-        ->with($request, 'purchase_order', $admin)
-        ->andReturn(new ProcurementDocument);
+    $documentGeneration->shouldNotReceive('issue')
+        ->with($request, 'purchase_order', $admin);
     $this->app->instance(DocumentGenerationService::class, $documentGeneration);
 
     $request->finalizePriceAgreement($admin);

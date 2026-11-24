@@ -4,6 +4,7 @@ use App\Models\ProcurementRequest;
 use App\Models\ProcurementRequestItem;
 use App\Models\School;
 use App\Models\Subsidiary;
+use App\Models\Supplier;
 use App\Models\TaxRule;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -164,7 +165,7 @@ test('cannot complete before receipt and payment are confirmed', function () {
     ]);
 
     expect(fn () => $procurement->complete($admin))
-        ->toThrow(Exception::class, 'Pengadaan belum dapat diselesaikan: penerimaan penuh, administrasi, pembayaran terkonfirmasi, atau tindak lanjut masih belum terpenuhi.');
+        ->toThrow(Exception::class, 'Pengadaan belum dapat diselesaikan: daftar barang kosong, Anak Perusahaan belum ditetapkan, konfigurasi pajak belum tervalidasi, penerimaan barang belum penuh, penandatangan sekolah (Kepala Sekolah, Pemeriksa, Bendahara) belum lengkap, verifikasi penerimaan atau faktur belum tercatat, pembayaran terkonfirmasi belum sesuai total faktur, Surat Pesanan belum diterbitkan, BAST belum diterbitkan, Faktur belum diterbitkan.');
 });
 
 test('reject records reason in history', function () {
@@ -391,6 +392,9 @@ test('isReadyForDocumentGeneration tervalidasi jika semua syarat terpenuhi', fun
 
     $subsidiary = Subsidiary::factory()->create();
     $procurement->assignSubsidiary($subsidiary, User::factory()->admin()->create());
+    $supplier = Supplier::factory()->create();
+    $procurement->supplier_id = $supplier->id;
+    $procurement->save();
 
     $item->update(['official_price' => 50000]);
 
@@ -398,7 +402,8 @@ test('isReadyForDocumentGeneration tervalidasi jika semua syarat terpenuhi', fun
     $procurement->signatories()->create(['name' => 'Pemeriksa', 'role' => 'inspector']);
     $procurement->signatories()->create(['name' => 'Bendahara', 'role' => 'treasurer']);
 
-    expect($procurement->refresh()->isReadyForDocumentGeneration())->toBeTrue();
+    $fresh = $procurement->refresh();
+    expect($fresh->isReadyForDocumentGeneration())->toBeTrue();
 });
 
 test('invoice eligibility reflects each guard on a fresh request', function () {
@@ -410,6 +415,7 @@ test('invoice eligibility reflects each guard on a fresh request', function () {
         'status_received' => false,
         'all_quantities_received' => false,
         'no_open_follow_ups' => true,
+        'has_signatories' => false,
         'tax_configuration_valid' => false,
         'totals_locked' => false,
         'bast_issued' => false,

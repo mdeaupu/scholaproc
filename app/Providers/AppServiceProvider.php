@@ -11,6 +11,7 @@ use App\Observers\GeneratedDocumentObserver;
 use App\Observers\NotificationObserver;
 use App\Observers\ProcurementNegotiationObserver;
 use App\Observers\ProcurementVerificationFileObserver;
+use App\Policies\UserPolicy;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -37,5 +38,6 @@ class AppServiceProvider extends ServiceProvider
         Notification::observe(NotificationObserver::class);
         ProcurementNegotiation::observe(ProcurementNegotiationObserver::class);
         ProcurementVerificationFile::observe(ProcurementVerificationFileObserver::class);
+        Gate::policy(User::class, UserPolicy::class);
     }
 }

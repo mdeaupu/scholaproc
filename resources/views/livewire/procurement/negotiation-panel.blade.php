@@ -1,60 +1,61 @@
 @php
     $user = auth()->user();
     $isSchool = $user->isSchool();
+    $isProvider = $user->isAdmin() || $user->isSuperAdmin();
     $canDecide = $isSchool && $user->canDecideNegotiation($procurementRequest);
     $progress = $procurementRequest->negotiationProgress();
+    $nextOfferBy = $selectedItem?->nextOfferBy();
+    $canSubmitOffer = ($isSchool && $nextOfferBy === \App\Models\ProcurementNegotiation::OFFERED_BY_SCHOOL)
+        || ($isProvider && $nextOfferBy === \App\Models\ProcurementNegotiation::OFFERED_BY_ADMIN);
 @endphp
 
 <div class="space-y-6">
-    {{-- ─── Header & Progress ─────────────────────────────────────── --}}
-    <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
-        <div class="flex items-center justify-between mb-3">
+    <section class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div class="mb-3 flex items-center justify-between gap-4">
             <div>
-                <h3 class="font-bold text-lg text-black">Negosiasi Harga Per Item</h3>
-                <p class="text-sm text-gray-500">Tawar-menawar harga antara pihak sekolah dan CV/Supplier.</p>
+                <h3 class="text-lg font-bold text-slate-900">Negosiasi Harga Per Item</h3>
+                <p class="text-sm text-slate-500">Riwayat dan persetujuan harga setiap barang.</p>
             </div>
             <x-mary-badge
                 :value="$progress['percentage'] === 100 ? 'Selesai' : $progress['settled'] . '/' . $progress['total'] . ' Item'"
                 class="{{ $progress['percentage'] === 100 ? 'bg-emerald-500 text-white' : 'bg-[#0046FF] text-white' }} badge-lg font-semibold" />
         </div>
 
-        {{-- Progress Bar --}}
-        <div class="w-full bg-gray-200 rounded-full h-2.5 mb-2">
-            <div class="bg-[#0046FF] h-2.5 rounded-full transition-all duration-500"
+        <div class="mb-2 h-2.5 w-full rounded-full bg-gray-200">
+            <div class="h-2.5 rounded-full bg-[#0046FF] transition-all duration-500"
                 style="width: {{ $progress['percentage'] }}%"></div>
         </div>
-        <div class="flex justify-between text-[11px] text-gray-500">
+        <div class="flex justify-between text-[11px] text-slate-500">
             <span>{{ $progress['accepted'] }} diterima</span>
             <span>{{ $progress['rejected'] }} ditolak</span>
             <span>{{ $progress['pending'] }} menunggu</span>
         </div>
-    </div>
+    </section>
 
-    {{-- ─── Item Tabs ─────────────────────────────────────────────── --}}
-    <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div class="p-4 border-b border-gray-100 overflow-x-auto">
-            <div class="flex gap-2 min-w-max">
+    <section class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div class="overflow-x-auto border-b border-gray-100 p-4">
+            <div class="flex min-w-max gap-2">
                 @foreach ($items as $item)
                     @php
                         $isActive = $selectedItemId == $item->id;
-                        $statusBadge = match($item->negotiation_status) {
-                            'accepted' => 'bg-emerald-100 text-emerald-700 border-emerald-200',
-                            'rejected' => 'bg-red-100 text-red-700 border-red-200',
-                            'negotiating' => 'bg-[#0046FF]/10 text-[#0046FF] border-[#0046FF]/20',
-                            default => 'bg-gray-100 text-gray-500 border-gray-200',
+                        $statusBadge = match ($item->negotiation_status) {
+                            'accepted' => 'border-emerald-200 bg-emerald-100 text-emerald-700',
+                            'rejected' => 'border-red-200 bg-red-100 text-red-700',
+                            'negotiating' => 'border-blue-200 bg-blue-50 text-[#0046FF]',
+                            default => 'border-gray-200 bg-gray-100 text-gray-500',
                         };
-                        $statusLabel = match($item->negotiation_status) {
+                        $statusLabel = match ($item->negotiation_status) {
                             'accepted' => 'Diterima',
                             'rejected' => 'Ditolak',
                             'negotiating' => 'Nego',
                             default => 'Mulai',
                         };
                     @endphp
-                    <button wire:click="selectItem({{ $item->id }})
-                        class="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all whitespace-nowrap
-                        {{ $isActive ? 'border-[#0046FF] bg-[#0046FF]/5 text-[#0046FF] shadow-sm' : 'border-gray-200 bg-white text-gray-600 hover:border-[#0046FF]/50' }}">
-                        <span class="truncate max-w-[120px]">{{ $item->item_name }}</span>
-                        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold border {{ $statusBadge }}">
+                    <button type="button" wire:click="selectItem({{ $item->id }})"
+                        class="flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium whitespace-nowrap transition
+                            {{ $isActive ? 'border-[#0046FF] bg-blue-50 text-[#0046FF] shadow-sm' : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300' }}">
+                        <span class="max-w-[160px] truncate">{{ $item->item_name }}</span>
+                        <span class="rounded border px-1.5 py-0.5 text-[10px] font-bold {{ $statusBadge }}">
                             {{ $statusLabel }}
                         </span>
                     </button>
@@ -63,246 +64,403 @@
         </div>
 
         @if ($selectedItem)
-            <div class="p-5">
-                {{-- Item Info --}}
-                <div class="bg-gray-50 rounded-lg border border-gray-200 p-4 mb-5">
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div class="space-y-5 p-4 md:p-5">
+                <div class="rounded-lg border border-gray-200 bg-slate-50 p-4">
+                    <div class="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
                         <div>
-                            <span class="text-xs text-gray-500 block">Nama Barang</span>
-                            <span class="font-semibold text-black">{{ $selectedItem->item_name }}</span>
+                            <span class="block text-xs text-slate-500">Nama Barang</span>
+                            <span class="font-semibold text-slate-900">{{ $selectedItem->item_name }}</span>
                         </div>
                         <div>
-                            <span class="text-xs text-gray-500 block">Spesifikasi</span>
-                            <span class="font-medium text-gray-700 text-xs">{{ $selectedItem->specification ?? '-' }}</span>
+                            <span class="block text-xs text-slate-500">Spesifikasi</span>
+                            <span class="text-xs font-medium text-slate-700">{{ $selectedItem->specification ?? '-' }}</span>
                         </div>
                         <div>
-                            <span class="text-xs text-gray-500 block">Jumlah</span>
-                            <span class="font-medium text-black">{{ $selectedItem->quantity }} {{ $selectedItem->unit?->name ?? '-' }}</span>
+                            <span class="block text-xs text-slate-500">Jumlah</span>
+                            <span class="font-medium text-slate-900">
+                                {{ $selectedItem->quantity }} {{ $selectedItem->unit?->name ?? '-' }}
+                            </span>
                         </div>
                         <div>
-                            <span class="text-xs text-gray-500 block">Harga Estimasi</span>
-                            <span class="font-semibold text-black">Rp {{ number_format($selectedItem->estimated_price, 0, ',', '.') }}</span>
+                            <span class="block text-xs text-slate-500">Harga Estimasi</span>
+                            <span class="font-semibold text-slate-900">
+                                Rp {{ number_format($selectedItem->estimated_price, 0, ',', '.') }}
+                            </span>
                         </div>
                     </div>
                     @if ($selectedItem->official_price)
-                        <div class="mt-3 pt-3 border-t border-gray-200 flex items-center gap-2">
-                            <span class="text-xs text-gray-500">Harga Resmi (Final):</span>
-                            <span class="text-sm font-bold text-emerald-600">Rp {{ number_format($selectedItem->official_price, 0, ',', '.') }}</span>
+                        <div class="mt-3 flex items-center gap-2 border-t border-gray-200 pt-3">
+                            <span class="text-xs text-slate-500">Harga Resmi (Final):</span>
+                            <span class="text-sm font-bold text-emerald-600">
+                                Rp {{ number_format($selectedItem->official_price, 0, ',', '.') }}
+                            </span>
                         </div>
                     @endif
                 </div>
 
-                {{-- Negotiation History --}}
-                <div class="mb-5">
-                    <h4 class="font-bold text-sm text-black mb-3">Riwayat Negosiasi</h4>
-                    @if ($negotiations->isEmpty())
-                        <div class="text-center py-6 text-gray-400">
-                            <svg class="w-10 h-10 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
-                            </svg>
-                            <p class="text-sm font-medium">Belum ada tawaran harga</p>
-                            <p class="text-xs mt-1">Mulai negosiasi dengan mengajukan harga di bawah.</p>
+                <div class="grid grid-cols-1 items-start gap-4 md:grid-cols-3">
+                    <section class="rounded-xl border border-gray-200 bg-white p-4 md:col-span-2 md:p-5">
+                        <div class="mb-4 flex items-center justify-between gap-3">
+                            <h4 class="font-bold text-slate-900">Riwayat Negosiasi</h4>
+                            <span class="text-xs text-slate-500">{{ $negotiations->count() }} putaran</span>
                         </div>
-                    @else
-                        <div class="space-y-3 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-200">
-                            @foreach ($negotiations as $nego)
-                                @php
-                                    $isLatest = $nego->isLatestRound();
-                                    $isPending = $nego->status === \App\Models\ProcurementNegotiation::STATUS_PENDING;
-                                    $isAccepted = $nego->status === \App\Models\ProcurementNegotiation::STATUS_ACCEPTED;
-                                    $isRejected = $nego->status === \App\Models\ProcurementNegotiation::STATUS_REJECTED;
-                                    $isFromAdmin = $nego->isFromSupplierRepresentative();
-                                    $isFromSchoolUser = $nego->isFromSchool();
 
-                                    $dotColor = match(true) {
-                                        $isAccepted => 'bg-emerald-500',
-                                        $isRejected => 'bg-red-500',
-                                        $isFromAdmin => 'bg-[#FF8040]',
-                                        default => 'bg-[#0046FF]',
-                                    };
+                        @if ($negotiations->isEmpty())
+                            <div class="rounded-lg border border-dashed border-gray-300 bg-slate-50 px-4 py-10 text-center">
+                                <svg class="mx-auto mb-2 h-9 w-9 text-slate-400" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                </svg>
+                                <p class="text-sm font-medium text-slate-700">Belum ada tawaran harga</p>
+                                <p class="mt-1 text-xs text-slate-500">Riwayat tawaran akan tampil di sini.</p>
+                            </div>
+                        @else
+                            <div class="relative space-y-5 before:absolute before:bottom-4 before:left-4 before:top-4 before:w-px before:bg-blue-100 md:before:left-5">
+                                @foreach ($negotiations as $nego)
+                                    @php
+                                        $isLatest = $nego->isLatestRound();
+                                        $isPending = $nego->status === \App\Models\ProcurementNegotiation::STATUS_PENDING;
+                                        $isAccepted = $nego->status === \App\Models\ProcurementNegotiation::STATUS_ACCEPTED;
+                                        $isRejected = $nego->status === \App\Models\ProcurementNegotiation::STATUS_REJECTED;
+                                        $isFromAdmin = $nego->isFromSupplierRepresentative();
+                                        $isFromSchoolUser = $nego->isFromSchool();
+                                        $senderLabel = $isFromAdmin ? 'Admin' : 'Sekolah';
+                                        $markerClass = $isFromAdmin
+                                            ? 'bg-indigo-100 text-indigo-700 ring-indigo-50'
+                                            : 'bg-blue-100 text-[#0046FF] ring-blue-50';
+                                        $bubbleClass = $isFromAdmin
+                                            ? 'border-indigo-100 bg-indigo-50'
+                                            : 'border-blue-100 bg-blue-50';
+                                        $badgeClass = match (true) {
+                                            $isAccepted => 'bg-emerald-100 text-emerald-700',
+                                            $isRejected => 'bg-red-100 text-red-700',
+                                            $isPending && $isFromAdmin => 'bg-amber-100 text-amber-800',
+                                            $isPending && $isFromSchoolUser => 'bg-blue-100 text-blue-700',
+                                            default => 'bg-gray-100 text-gray-600',
+                                        };
+                                        $badgeLabel = match (true) {
+                                            $isAccepted => 'Diterima',
+                                            $isRejected => 'Ditolak',
+                                            $isPending && $isFromAdmin => 'Menunggu Sekolah',
+                                            $isPending && $isFromSchoolUser => 'Menunggu Admin',
+                                            default => 'Ditanggapi',
+                                        };
+                                    @endphp
 
-                                    $badgeColor = match(true) {
-                                        $isAccepted => 'bg-emerald-100 text-emerald-700',
-                                        $isRejected => 'bg-red-100 text-red-700',
-                                        $isPending && $isFromAdmin => 'bg-[#FF8040]/10 text-[#FF8040]',
-                                        $isPending && $isFromSchoolUser => 'bg-[#0046FF]/10 text-[#0046FF]',
-                                        default => 'bg-gray-100 text-gray-500',
-                                    };
-
-                                    $badgeLabel = match(true) {
-                                        $isAccepted => 'Diterima',
-                                        $isRejected => 'Ditolak',
-                                        $isPending && $isFromAdmin => 'Menunggu Sekolah',
-                                        $isPending && $isFromSchoolUser => 'Menunggu CV',
-                                        default => 'Selesai',
-                                    };
-                                @endphp
-                                <div class="flex gap-3 relative pb-4 last:pb-0">
-                                    <div class="w-6 h-6 rounded-full flex items-center justify-center z-10 {{ $dotColor }} flex-shrink-0 mt-0.5">
-                                        <span class="text-[10px] font-bold text-white">{{ $nego->round_number }}</span>
-                                    </div>
-                                    <div class="flex-1 min-w-0">
-                                        <div class="flex items-center justify-between gap-2">
-                                            <div class="flex items-center gap-2 flex-wrap">
-                                                <span class="text-xs font-bold text-black">
-                                                    Rp {{ number_format($nego->offered_price, 0, ',', '.') }}
-                                                </span>
-                                                <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold {{ $badgeColor }}">
-                                                    {{ $badgeLabel }}
-                                                </span>
-                                            </div>
-                                            <button wire:click="showDetail({{ $nego->id }})"
-                                                class="text-[10px] text-gray-400 hover:text-[#0046FF] underline">Detail</button>
-                                        </div>
-                                        <div class="flex items-center gap-1 mt-1">
-                                            <span class="text-[11px] text-gray-500">
-                                                Putaran {{ $nego->round_number }} &middot;
-                                                {{ $isFromAdmin ? 'CV/Supplier' : 'Sekolah' }}
-                                            </span>
-                                            @if ($nego->user)
-                                                <span class="text-[11px] text-gray-400">&middot; {{ $nego->user->name }}</span>
+                                    <article class="relative flex gap-3 {{ $isFromSchoolUser ? 'md:flex-row-reverse' : '' }}">
+                                        <div class="z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ring-4 {{ $markerClass }}">
+                                            @if ($isFromAdmin)
+                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                                    aria-hidden="true">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                        d="M12 6v12m6-6H6" />
+                                                </svg>
+                                            @else
+                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                                    aria-hidden="true">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                        d="M3 10h18M5 10V7l7-4 7 4v3M5 10v10m14-10v10M3 20h18M9 14h.01M15 14h.01" />
+                                                </svg>
                                             @endif
                                         </div>
-                                        @if ($nego->notes)
-                                            <p class="text-[11px] text-gray-400 mt-1 italic">&quot;{{ $nego->notes }}&quot;</p>
-                                        @endif
-                                        <p class="text-[10px] text-gray-400 mt-1">
-                                            {{ \Carbon\Carbon::parse($nego->created_at)->format('d M Y H:i') }} WIB
-                                        </p>
 
-                                        {{-- Accept / Reject buttons for school on latest pending round --}}
-                                        @if ($isPending && $isLatest && $isFromAdmin && $canDecide)
-                                            <div class="flex gap-2 mt-2">
-                                                <x-mary-button label="Terima" icon="o-check"
-                                                    wire:click="accept({{ $nego->id }})"
-                                                    wire:loading.attr="disabled" spinner="accept"
-                                                    class="btn-xs bg-emerald-500 text-white border-none hover:bg-emerald-600" />
-                                                <x-mary-button label="Tolak" icon="o-x-mark"
-                                                    wire:click="openRejectModal({{ $nego->id }})"
-                                                    class="btn-xs bg-[#FF8040] text-white border-none hover:bg-[#FF8040]/90" />
+                                        <div class="min-w-0 flex-1 {{ $isFromSchoolUser ? 'md:text-right' : '' }}">
+                                            <div class="mb-1 flex flex-wrap items-center gap-2 {{ $isFromSchoolUser ? 'md:justify-end' : '' }}">
+                                                <span class="text-xs font-bold text-slate-800">{{ $senderLabel }}</span>
+                                                @if ($nego->user)
+                                                    <span class="text-xs text-slate-500">{{ $nego->user->name }}</span>
+                                                @endif
+                                                <time class="text-[11px] text-slate-400">
+                                                    {{ \Carbon\Carbon::parse($nego->created_at)->format('d M Y H:i') }} WIB
+                                                </time>
                                             </div>
-                                        @endif
-                                    </div>
+
+                                            <div class="inline-block max-w-full rounded-xl border p-3 text-left {{ $bubbleClass }}">
+                                                <div class="mb-1 flex flex-wrap items-center gap-2">
+                                                    <span class="text-sm font-bold text-slate-900">
+                                                        Rp {{ number_format($nego->offered_price, 0, ',', '.') }}
+                                                    </span>
+                                                    <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold {{ $badgeClass }}">
+                                                        {{ $badgeLabel }}
+                                                    </span>
+                                                </div>
+                                                @if ($nego->notes)
+                                                    <p class="whitespace-pre-line text-sm text-slate-700">{{ $nego->notes }}</p>
+                                                @else
+                                                    <p class="text-sm italic text-slate-500">Tidak ada catatan penawaran.</p>
+                                                @endif
+                                                @if ($isRejected && $nego->response_note)
+                                                    <div class="mt-2 rounded-md border border-red-100 bg-red-50 p-2">
+                                                        <span class="block text-[11px] font-semibold text-red-700">Alasan penolakan</span>
+                                                        <p class="whitespace-pre-line text-sm text-red-800">{{ $nego->response_note }}</p>
+                                                    </div>
+                                                @endif
+
+                                                <div class="mt-2 flex items-center justify-between gap-3 border-t border-black/5 pt-2">
+                                                    <span class="text-[11px] text-slate-500">Putaran {{ $nego->round_number }}</span>
+                                                    <button type="button" wire:click="showDetail({{ $nego->id }})"
+                                                        class="text-[11px] font-medium text-[#0046FF] hover:underline">
+                                                        Detail
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            @if ($isPending && $isLatest && $isFromAdmin && $canDecide)
+                                                <div class="mt-2 flex gap-2 {{ $isFromSchoolUser ? 'md:justify-end' : '' }}">
+                                                    <x-mary-button label="Terima" icon="o-check"
+                                                        wire:click="accept({{ $nego->id }})"
+                                                        wire:loading.attr="disabled" spinner="accept"
+                                                        class="btn-xs border-none bg-emerald-500 text-white hover:bg-emerald-600" />
+                                                    <x-mary-button label="Tolak" icon="o-x-mark"
+                                                        wire:click="openRejectModal({{ $nego->id }})"
+                                                        class="btn-xs border-none bg-red-500 text-white hover:bg-red-600" />
+                                                </div>
+                                            @elseif ($isPending && $isLatest && $isFromSchoolUser && $isProvider)
+                                                <div class="mt-2 flex gap-2">
+                                                    <x-mary-button label="Terima Penawaran Sekolah" icon="o-check"
+                                                        wire:click="accept({{ $nego->id }})"
+                                                        wire:loading.attr="disabled" spinner="accept"
+                                                        class="btn-xs border-none bg-emerald-500 text-white hover:bg-emerald-600" />
+                                                </div>
+                                            @endif
+                                        </div>
+                                    </article>
+                                @endforeach
+                            </div>
+                        @endif
+                    </section>
+
+                    <section class="rounded-xl border border-gray-200 bg-white p-4 md:p-5">
+                        @if (!$selectedItem->isNegotiationSettled())
+                            @if ($procurementRequest->status !== \App\Models\ProcurementRequest::STATUS_NEGOTIATION
+                                || !$procurementRequest->hasSubsidiary())
+                                <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                                    Penawaran tersedia setelah pengajuan diteruskan dan Anak Perusahaan ditetapkan.
                                 </div>
-                            @endforeach
-                        </div>
-                    @endif
+                            @elseif ($canSubmitOffer)
+                                <h4 class="font-bold text-slate-900">
+                                    {{ $isSchool ? 'Ajukan Penawaran Balik' : 'Ajukan Penawaran' }}
+                                </h4>
+                                <p class="mt-1 text-xs leading-5 text-slate-500">
+                                    {{ $isSchool
+                                        ? 'Admin telah mengajukan harga. Masukkan penawaran balik jika diperlukan.'
+                                        : ($nextOfferBy === \App\Models\ProcurementNegotiation::OFFERED_BY_ADMIN && $negotiations->isEmpty()
+                                            ? 'Ajukan harga penawaran pertama untuk sekolah.'
+                                            : 'Sekolah telah mengajukan tawaran balik. Masukkan penawaran harga berikutnya jika diperlukan.') }}
+                                </p>
+                                <div class="mt-4 space-y-4">
+                                    <label class="block">
+                                        <span class="mb-1 block text-xs font-medium text-slate-700">
+                                            Harga Penawaran <span class="text-red-500">*</span>
+                                        </span>
+                                        <span class="flex overflow-hidden rounded-lg border border-gray-300 focus-within:border-[#0046FF] focus-within:ring-2 focus-within:ring-blue-100">
+                                            <span class="border-r border-gray-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-600">Rp</span>
+                                            <input type="number" min="1" step="1" wire:model="offerPrice"
+                                                placeholder="Masukkan harga" required
+                                                class="min-w-0 flex-1 border-0 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-0">
+                                        </span>
+                                        @error('offerPrice')
+                                            <span class="mt-1 block text-xs text-red-600">{{ $message }}</span>
+                                        @enderror
+                                    </label>
+
+                                    <label class="block">
+                                        <span class="mb-1 block text-xs font-medium text-slate-700">Catatan (Opsional)</span>
+                                        <textarea wire:model="offerNotes" rows="4" maxlength="500"
+                                            placeholder="Tambahkan catatan..."
+                                            class="block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#0046FF] focus:outline-none focus:ring-2 focus:ring-blue-100"></textarea>
+                                        <span class="mt-1 block text-right text-[11px] text-slate-400">Maksimal 500 karakter</span>
+                                    </label>
+
+                                    <button type="button" wire:click="offer" wire:loading.attr="disabled"
+                                        wire:target="offer"
+                                        class="flex w-full items-center justify-center gap-2 rounded-lg bg-[#0046FF] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+                                        <svg wire:loading.remove wire:target="offer" class="h-4 w-4" fill="none"
+                                            stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                        </svg>
+                                        <svg wire:loading wire:target="offer" class="h-4 w-4 animate-spin" fill="none"
+                                            viewBox="0 0 24 24" aria-hidden="true">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                                            <path class="opacity-75" fill="currentColor"
+                                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                        </svg>
+                                        <span wire:loading.remove wire:target="offer">Kirim Penawaran</span>
+                                        <span wire:loading wire:target="offer">Mengirim...</span>
+                                    </button>
+                                </div>
+                            @else
+                                <div class="mt-4 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
+                                    @if ($nextOfferBy === \App\Models\ProcurementNegotiation::OFFERED_BY_ADMIN)
+                                        Menunggu Admin/Superadmin mengajukan penawaran atau penawaran berikutnya.
+                                    @elseif ($nextOfferBy === \App\Models\ProcurementNegotiation::OFFERED_BY_SCHOOL)
+                                        Menunggu pihak sekolah mengajukan penawaran balik.
+                                    @else
+                                        Tidak ada penawaran lanjutan untuk item ini.
+                                    @endif
+                                </div>
+                            @endif
+                        @else
+                            @php
+                                $settledNego = $negotiations->where('status', \App\Models\ProcurementNegotiation::STATUS_ACCEPTED)->last();
+                            @endphp
+                            @if ($settledNego)
+                                <div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-center">
+                                    <p class="text-sm font-semibold text-emerald-700">Harga telah disepakati</p>
+                                    <p class="mt-1 text-lg font-bold text-emerald-600">
+                                        Rp {{ number_format($selectedItem->official_price, 0, ',', '.') }}
+                                    </p>
+                                </div>
+                            @else
+                                <div class="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-center text-sm font-semibold text-red-700">
+                                    Negosiasi untuk item ini telah ditolak.
+                                </div>
+                            @endif
+                        @endif
+                    </section>
                 </div>
 
-                {{-- Offer Form --}}
-                @if (!$selectedItem->isNegotiationSettled())
-                    @if ($selectedItem->negotiation_status === 'not_started' && !$procurementRequest->canStartNegotiation())
-                        <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
-                            <p class="text-sm text-gray-500">Negosiasi dapat dimulai setelah supplier ditentukan.</p>
-                        </div>
-                    @else
-                        <div class="border border-gray-200 rounded-xl p-4 bg-gray-50/50">
-                            <h4 class="font-bold text-sm text-black mb-3">
-                                {{ $isSchool ? 'Ajukan Tawaran Balik' : 'Ajukan Harga Penawaran' }}
-                            </h4>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                <div class="md:col-span-1">
-                                    <x-mary-input label="Harga Penawaran (Rp)" type="number"
-                                        wire:model="offerPrice" placeholder="0" prefix="Rp" required />
-                                </div>
-                                <div class="md:col-span-2">
-                                    <x-mary-input label="Catatan (Opsional)" wire:model="offerNotes"
-                                        placeholder="Alasan tawaran harga..." />
-                                </div>
-                            </div>
-                            <div class="mt-3 flex justify-end">
-                                <x-mary-button label="Kirim Tawaran" icon="o-paper-airplane"
-                                    wire:click="offer" wire:loading.attr="disabled" spinner="offer"
-                                    class="bg-[#0046FF] hover:bg-[#0046FF]/90 text-white border-none btn-sm" />
-                            </div>
-                        </div>
-                    @endif
-                @else
-                    @php
-                        $settledNego = $negotiations->where('status', 'accepted')->last();
-                    @endphp
-                    @if ($settledNego)
-                        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
-                            <svg class="w-8 h-8 mx-auto mb-2 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                            <p class="text-sm font-semibold text-emerald-700">Harga telah disepakati</p>
-                            <p class="text-lg font-bold text-emerald-600 mt-1">Rp {{ number_format($selectedItem->official_price, 0, ',', '.') }}</p>
-                        </div>
-                    @else
-                        <div class="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
-                            <svg class="w-8 h-8 mx-auto mb-2 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l2-2m-2 2l-2-2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                            <p class="text-sm font-semibold text-red-600">Tawaran ditolak oleh sekolah</p>
-                        </div>
-                    @endif
-                @endif
+                <section class="rounded-xl border border-gray-200 bg-white p-4 md:p-5">
+                    <div class="mb-4">
+                        <h4 class="font-bold text-slate-900">Detail Penawaran</h4>
+                        <p class="mt-1 text-xs text-slate-500">Rekap seluruh putaran penawaran untuk barang ini.</p>
+                    </div>
+
+                    <div class="overflow-x-auto rounded-lg border border-gray-200">
+                        <table class="w-full min-w-[760px] divide-y divide-gray-200 text-left text-xs">
+                            <thead class="bg-slate-50 text-slate-600">
+                                <tr>
+                                    <th scope="col" class="px-3 py-3 font-semibold">No</th>
+                                    <th scope="col" class="px-3 py-3 font-semibold">Tanggal</th>
+                                    <th scope="col" class="px-3 py-3 font-semibold">Pengirim</th>
+                                    <th scope="col" class="px-3 py-3 font-semibold">Harga Penawaran</th>
+                                    <th scope="col" class="px-3 py-3 font-semibold">Catatan</th>
+                                    <th scope="col" class="px-3 py-3 font-semibold">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 bg-white text-slate-700">
+                                @forelse ($negotiations as $index => $nego)
+                                    @php
+                                        $tableStatus = match ($nego->status) {
+                                            \App\Models\ProcurementNegotiation::STATUS_ACCEPTED => ['Diterima', 'bg-emerald-100 text-emerald-700'],
+                                            \App\Models\ProcurementNegotiation::STATUS_REJECTED => ['Ditolak', 'bg-red-100 text-red-700'],
+                                            \App\Models\ProcurementNegotiation::STATUS_PENDING => ['Menunggu', 'bg-amber-100 text-amber-800'],
+                                            \App\Models\ProcurementNegotiation::STATUS_COUNTERED => ['Dibalas', 'bg-slate-100 text-slate-600'],
+                                            default => [\Illuminate\Support\Str::headline($nego->status), 'bg-gray-100 text-gray-600'],
+                                        };
+                                    @endphp
+                                    <tr class="align-top hover:bg-slate-50">
+                                        <td class="whitespace-nowrap px-3 py-3">{{ $index + 1 }}</td>
+                                        <td class="whitespace-nowrap px-3 py-3">
+                                            {{ \Carbon\Carbon::parse($nego->created_at)->format('d M Y H:i') }}
+                                        </td>
+                                        <td class="whitespace-nowrap px-3 py-3">
+                                            {{ $nego->isFromSupplierRepresentative() ? 'Admin' : 'Sekolah' }}
+                                            @if ($nego->user)
+                                                <span class="block text-[11px] text-slate-400">{{ $nego->user->name }}</span>
+                                            @endif
+                                        </td>
+                                        <td class="whitespace-nowrap px-3 py-3 font-medium">
+                                            Rp {{ number_format($nego->offered_price, 0, ',', '.') }}
+                                        </td>
+                                        <td class="max-w-xs whitespace-pre-line px-3 py-3">
+                                            {{ $nego->notes ?: '-' }}
+                                            @if ($nego->status === \App\Models\ProcurementNegotiation::STATUS_REJECTED && $nego->response_note)
+                                                <span class="mt-1 block text-[11px] text-red-700">
+                                                    Alasan penolakan: {{ $nego->response_note }}
+                                                </span>
+                                            @endif
+                                        </td>
+                                        <td class="whitespace-nowrap px-3 py-3">
+                                            <span class="rounded-full px-2 py-1 text-[10px] font-semibold {{ $tableStatus[1] }}">
+                                                {{ $tableStatus[0] }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="6" class="px-3 py-8 text-center text-slate-500">
+                                            Belum ada detail penawaran.
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
             </div>
         @endif
-    </div>
+    </section>
 
-    {{-- ─── Reject Modal ──────────────────────────────────────────── --}}
-    <x-mary-modal wire:model="showRejectModal" title="Tolak Tawaran Harga" class="backdrop-blur"
-        title-class="text-[#FF8040]">
-        <x-mary-form wire:submit="confirmReject">
-            <x-mary-textarea label="Alasan Penolakan" wire:model="rejectReason"
-                placeholder="Masukkan alasan penolakan tawaran harga..." required />
-            <x-slot:actions>
-                <x-mary-button label="Batal" @click="$wire.showRejectModal=false" class="btn-ghost text-black" />
-                <x-mary-button label="Tolak Tawaran" type="submit" spinner="confirmReject"
-                    class="bg-[#FF8040] text-white border-none" />
-            </x-slot:actions>
-        </x-mary-form>
-    </x-mary-modal>
+    @if ($canDecide)
+        <x-mary-modal wire:model="showRejectModal" title="Tolak Tawaran Harga" class="backdrop-blur"
+            title-class="text-red-600">
+            <x-mary-form wire:submit="confirmReject">
+                <x-mary-textarea label="Alasan Penolakan" wire:model="rejectReason"
+                    placeholder="Masukkan alasan penolakan tawaran harga..." required />
+                <x-slot:actions>
+                    <x-mary-button label="Batal" @click="$wire.showRejectModal=false" class="btn-ghost text-black" />
+                    <x-mary-button label="Tolak Tawaran" type="submit" spinner="confirmReject"
+                        class="border-none bg-red-500 text-white" />
+                </x-slot:actions>
+            </x-mary-form>
+        </x-mary-modal>
+    @endif
 
-    {{-- ─── Detail Modal ──────────────────────────────────────────── --}}
     <x-mary-modal wire:model="showDetailModal" title="Detail Tawaran" class="backdrop-blur"
         title-class="text-[#0046FF]">
         @if ($detailNegotiation)
             <div class="space-y-3 text-sm">
                 <div class="flex justify-between border-b border-gray-100 pb-2">
-                    <span class="text-gray-500">Putaran</span>
-                    <span class="font-semibold text-black">{{ $detailNegotiation->round_number }}</span>
+                    <span class="text-slate-500">Putaran</span>
+                    <span class="font-semibold text-slate-900">{{ $detailNegotiation->round_number }}</span>
                 </div>
                 <div class="flex justify-between border-b border-gray-100 pb-2">
-                    <span class="text-gray-500">Diajukan Oleh</span>
-                    <span class="font-semibold text-black">
-                        {{ $detailNegotiation->isFromSupplierRepresentative() ? 'CV/Supplier' : 'Sekolah' }}
+                    <span class="text-slate-500">Diajukan Oleh</span>
+                    <span class="font-semibold text-slate-900">
+                        {{ $detailNegotiation->isFromSupplierRepresentative() ? 'Admin' : 'Sekolah' }}
                     </span>
                 </div>
                 <div class="flex justify-between border-b border-gray-100 pb-2">
-                    <span class="text-gray-500">User</span>
-                    <span class="font-medium text-gray-700">{{ $detailNegotiation->user?->name ?? '-' }}</span>
+                    <span class="text-slate-500">User</span>
+                    <span class="font-medium text-slate-700">{{ $detailNegotiation->user?->name ?? '-' }}</span>
                 </div>
                 <div class="flex justify-between border-b border-gray-100 pb-2">
-                    <span class="text-gray-500">Harga Ditawarkan</span>
-                    <span class="font-bold text-[#0046FF] text-lg">
+                    <span class="text-slate-500">Harga Ditawarkan</span>
+                    <span class="text-lg font-bold text-[#0046FF]">
                         Rp {{ number_format($detailNegotiation->offered_price, 0, ',', '.') }}
                     </span>
                 </div>
                 <div class="flex justify-between border-b border-gray-100 pb-2">
-                    <span class="text-gray-500">Status</span>
+                    <span class="text-slate-500">Status</span>
                     @php
-                        $statusBadgeClass = match($detailNegotiation->status) {
+                        $statusBadgeClass = match ($detailNegotiation->status) {
                             'accepted' => 'bg-emerald-100 text-emerald-700',
                             'rejected' => 'bg-red-100 text-red-700',
-                            'pending' => 'bg-[#0046FF]/10 text-[#0046FF]',
+                            'pending' => 'bg-blue-100 text-blue-700',
                             'countered' => 'bg-gray-100 text-gray-600',
                             default => 'bg-gray-100 text-gray-500',
                         };
                     @endphp
-                    <span class="px-2 py-0.5 rounded text-xs font-semibold {{ $statusBadgeClass }}">
-                        {{ Str::headline($detailNegotiation->status) }}
+                    <span class="rounded px-2 py-0.5 text-xs font-semibold {{ $statusBadgeClass }}">
+                        {{ \Illuminate\Support\Str::headline($detailNegotiation->status) }}
                     </span>
                 </div>
                 @if ($detailNegotiation->notes)
-                    <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                        <span class="text-xs text-gray-500 block mb-1">Catatan:</span>
-                        <p class="text-gray-700 italic">&quot;{{ $detailNegotiation->notes }}&quot;</p>
+                    <div class="rounded-lg border border-gray-100 bg-slate-50 p-3">
+                        <span class="mb-1 block text-xs text-slate-500">Catatan penawaran:</span>
+                        <p class="whitespace-pre-line text-slate-700">{{ $detailNegotiation->notes }}</p>
                     </div>
                 @endif
-                <div class="text-[11px] text-gray-400 text-right">
+                @if ($detailNegotiation->response_note)
+                    <div class="rounded-lg border border-red-100 bg-red-50 p-3">
+                        <span class="mb-1 block text-xs text-red-600">Alasan penolakan:</span>
+                        <p class="whitespace-pre-line text-slate-700">{{ $detailNegotiation->response_note }}</p>
+                    </div>
+                @endif
+                <div class="text-right text-[11px] text-slate-400">
                     Diajukan pada {{ \Carbon\Carbon::parse($detailNegotiation->created_at)->format('d M Y H:i') }} WIB
                 </div>
             </div>

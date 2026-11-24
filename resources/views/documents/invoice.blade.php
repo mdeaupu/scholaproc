@@ -1,103 +1,85 @@
-<x-document-layout :title="'Faktur - ' . $document->document_number">
-
-    <p class="doc-title" style="font-size: 16px;">Faktur</p>
-
-    <div class="section-spacer"></div>
-
-    <table class="info-table">
-        <tr>
-            <td style="width: 55%;">
-                <p>Kepada Yth.</p>
-                <p class="bold">{{ $school->name }}</p>
-                <p>{{ $school->address }}</p>
-            </td>
-            <td>
-                <table class="info-table">
-                    <tr>
-                        <td class="label">No. Faktur</td>
-                        <td class="colon">:</td>
-                        <td>{{ $document->document_number }}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">Tanggal</td>
-                        <td class="colon">:</td>
-                        <td>{{ \Carbon\Carbon::parse($document->document_date)->translatedFormat('d F Y') }}</td>
-                    </tr>
-                </table>
-            </td>
-        </tr>
-    </table>
-
-    <table class="items-table">
+<!doctype html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <title>Faktur - {{ data_get($snapshot, 'stage.invoice_number', data_get($snapshot, 'document_number', '-')) }}</title>
+    <style>
+        body { font-family: DejaVu Sans, sans-serif; font-size: 10pt; line-height: 1.5; }
+        h1 { text-align: center; }
+        table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+        th, td { border: 1px solid #444; padding: 6px; text-align: left; }
+        .number { text-align: right; }
+        .total { font-weight: bold; }
+    </style>
+</head>
+<body>
+    @include('documents.partials.letterhead')
+    <h1>FAKTUR / INVOICE</h1>
+    <p>
+        Nomor: {{ data_get($snapshot, 'stage.invoice_number', data_get($snapshot, 'document_number', '-')) }}<br>
+        Tanggal: {{ data_get($snapshot, 'stage.invoice_date', data_get($snapshot, 'document_date_numeric', '-')) }}
+    </p>
+    <p>
+        <strong>Ditagihkan kepada:</strong><br>
+        {{ data_get($snapshot, 'school.name', '-') }}<br>
+        {{ data_get($snapshot, 'school.address', '-') }}
+        @if (data_get($snapshot, 'school.postal_code'))
+            , {{ data_get($snapshot, 'school.postal_code') }}
+        @endif
+        <br>
+        Telepon: {{ data_get($snapshot, 'school.phone', '-') }}<br>
+        Email: {{ data_get($snapshot, 'school.email', '-') }}
+    </p>
+    <p>
+        Uraian pekerjaan: {{ data_get($snapshot, 'transaction.package_category', '-') }}<br>
+        Tahun anggaran: {{ data_get($snapshot, 'transaction.budget_year', '-') }} ·
+        Sumber dana: {{ data_get($snapshot, 'transaction.funding_source', '-') }}
+    </p>
+    <table>
         <thead>
             <tr>
-                <th style="width: 26px;">No</th>
-                <th style="text-align: left;">Nama Produk</th>
-                <th>Satuan</th>
-                <th>Jumlah (Qty)</th>
-                <th>Harga Satuan</th>
-                <th>Total Harga</th>
+                <th>No.</th><th>Barang/Jasa</th><th>Spesifikasi</th><th>Satuan</th><th>Jumlah</th><th>Harga Satuan</th><th>Jumlah Harga</th>
             </tr>
         </thead>
         <tbody>
-            @foreach ($items as $i => $item)
+            @foreach (data_get($snapshot, 'transaction.items', []) as $index => $item)
                 <tr>
-                    <td class="text-center">{{ $i + 1 }}</td>
-                    <td>{{ $item->item_name }}</td>
-                    <td class="text-center">{{ $item->unit->name ?? '-' }}</td>
-                    <td class="text-center">{{ $item->quantity }}</td>
-                    <td class="text-right">
-                        {{ number_format($item->official_price ?? $item->estimated_price, 0, ',', '.') }}</td>
-                    <td class="text-right">
-                        {{ number_format($item->officialAmount() > 0 ? $item->officialAmount() : $item->estimatedAmount(), 0, ',', '.') }}
-                    </td>
+                    <td>{{ $index + 1 }}</td>
+                    <td>{{ data_get($item, 'item_name', '-') }}</td>
+                    <td>{{ data_get($item, 'specification', '-') }}</td>
+                    <td>{{ data_get($item, 'unit', '-') }}</td>
+                    <td>{{ data_get($item, 'quantity', 0) }}</td>
+                    <td class="number">Rp {{ number_format((float) data_get($item, 'negotiated_price', data_get($item, 'official_price', 0)), 0, ',', '.') }}</td>
+                    <td class="number">Rp {{ number_format((float) data_get($item, 'negotiated_amount', data_get($item, 'amount', 0)), 0, ',', '.') }}</td>
                 </tr>
             @endforeach
-            <tr class="totals-row">
-                <td colspan="5" class="text-right">Jumlah Harga Jual</td>
-                <td class="text-right">{{ number_format($subtotal, 0, ',', '.') }}</td>
+        </tbody>
+    </table>
+    <table>
+        <tbody>
+            <tr>
+                <td colspan="6" class="number">Subtotal</td>
+                <td class="number">Rp {{ number_format((float) data_get($snapshot, 'stage.subtotal', data_get($snapshot, 'transaction.subtotal', 0)), 0, ',', '.') }}</td>
             </tr>
-            @if ($procurement->is_taxable)
+            @foreach (['ppn' => 'PPN', 'pph_22' => 'PPh 22', 'pph_23' => 'PPh 23'] as $taxKey => $taxLabel)
                 <tr>
-                    <td colspan="5" class="text-right">PPN
-                        {{ rtrim(rtrim(number_format($procurement->ppn_rate, 2), '0'), '.') }}%</td>
-                    <td class="text-right">{{ number_format($ppn, 0, ',', '.') }}</td>
+                    <td colspan="6" class="number">
+                        {{ $taxLabel }}
+                        @if (data_get($snapshot, "transaction.tax_breakdown.{$taxKey}.rate") !== null)
+                            ({{ data_get($snapshot, "transaction.tax_breakdown.{$taxKey}.rate") }}%)
+                        @endif
+                    </td>
+                    <td class="number">Rp {{ number_format((float) data_get($snapshot, "transaction.tax_breakdown.{$taxKey}.amount", 0), 0, ',', '.') }}</td>
                 </tr>
-                <tr>
-                    <td colspan="5" class="text-right">PPh 22</td>
-                    <td class="text-right">{{ number_format($pph22, 0, ',', '.') }}</td>
-                </tr>
-                <tr>
-                    <td colspan="5" class="text-right">PPh 23</td>
-                    <td class="text-right">{{ number_format($pph23, 0, ',', '.') }}</td>
-                </tr>
-            @endif
-            <tr class="totals-row">
-                <td colspan="5" class="text-right">Jumlah Harga Setelah Pajak</td>
-                <td class="text-right">{{ number_format($totalAfterTax, 0, ',', '.') }}</td>
+            @endforeach
+            <tr class="total">
+                <td colspan="6" class="number">Total Tagihan</td>
+                <td class="number">Rp {{ number_format((float) data_get($snapshot, 'stage.total_amount', data_get($snapshot, 'transaction.grand_total', 0)), 0, ',', '.') }}</td>
             </tr>
         </tbody>
     </table>
-
-    <p class="note italic">Terbilang: {{ \App\Helpers\Terbilang::make($totalAfterTax, true) }}</p>
-
-    <table class="signature-table">
-        <tr>
-            <td>
-                <p>Mengetahui,</p>
-                <p>Kepala Sekolah</p>
-                <div class="signature-space"></div>
-                <p class="signature-name">{{ $headmaster->name }}</p>
-                <p>NIP. {{ $headmaster->nip ?: '-' }}</p>
-            </td>
-            <td>
-                <p>Hormat Kami,</p>
-                <p>{{ $supplier->company_name }}</p>
-                <div class="signature-space"></div>
-                <p class="signature-name">{{ $supplier->director_name }}</p>
-                <p>Direktur</p>
-            </td>
-        </tr>
-    </table>
-
-</x-document-layout>
+    @if (! data_get($snapshot, 'transaction.tax_breakdown.validated', false))
+        <p>Konfigurasi pajak belum tervalidasi; rincian pajak di atas perlu diperiksa sebelum faktur digunakan.</p>
+    @endif
+</body>
+</html>

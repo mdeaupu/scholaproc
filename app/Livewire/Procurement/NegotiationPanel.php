@@ -5,6 +5,7 @@ namespace App\Livewire\Procurement;
 use App\Models\ProcurementNegotiation;
 use App\Models\ProcurementRequest;
 use App\Models\ProcurementRequestItem;
+use App\Models\User;
 use Exception;
 use Livewire\Component;
 use Mary\Traits\Toast;
@@ -65,7 +66,15 @@ class NegotiationPanel extends Component
             return collect();
         }
 
-        return ProcurementNegotiation::where('procurement_request_item_id', $this->selectedItemId)
+        $item = $this->procurementRequest->items()
+            ->whereKey($this->selectedItemId)
+            ->first();
+
+        if (!$item) {
+            return collect();
+        }
+
+        return $item->negotiations()
             ->with('user')
             ->orderBy('round_number')
             ->get();
@@ -74,6 +83,7 @@ class NegotiationPanel extends Component
     public function offer(): void
     {
         $user = auth()->user();
+        abort_unless($user instanceof User, 403);
 
         $this->validate([
             'offerPrice' => 'required|numeric|min:1',
@@ -83,7 +93,9 @@ class NegotiationPanel extends Component
             'offerPrice.min' => 'Harga minimal Rp 1.',
         ]);
 
-        $item = ProcurementRequestItem::findOrFail($this->selectedItemId);
+        $item = ProcurementRequestItem::query()
+            ->where('procurement_request_id', $this->procurementRequest->id)
+            ->findOrFail($this->selectedItemId);
 
         $offeredBy = $user->isSchool()
             ? ProcurementNegotiation::OFFERED_BY_SCHOOL
@@ -109,17 +121,20 @@ class NegotiationPanel extends Component
     public function accept(int $negotiationId): void
     {
         $user = auth()->user();
+        abort_unless($user instanceof User, 403);
 
-        if (!$user->canDecideNegotiation($this->procurementRequest)) {
+        if (! $user->canDecideNegotiation($this->procurementRequest)
+            && ! $user->isAdmin()
+            && ! $user->isSuperAdmin()) {
             $this->error('Anda tidak memiliki hak akses untuk menerima tawaran.');
             return;
         }
 
-        $negotiation = ProcurementNegotiation::findOrFail($negotiationId);
+        $negotiation = $this->findNegotiationForRequest($negotiationId);
 
         try {
             $negotiation->accept($user);
-            $this->success('Tawaran harga diterima. Harga resmi berhasil ditetapkan.');
+            $this->success('Tawaran harga diterima.');
             $this->loadItems();
         } catch (Exception $e) {
             $this->error($e->getMessage());
@@ -143,6 +158,7 @@ class NegotiationPanel extends Component
     public function confirmReject(): void
     {
         $user = auth()->user();
+        abort_unless($user !== null, 403);
 
         $this->validate([
             'rejectReason' => 'required|string|min:3',
@@ -151,7 +167,8 @@ class NegotiationPanel extends Component
             'rejectReason.min' => 'Alasan minimal 3 karakter.',
         ]);
 
-        $negotiation = ProcurementNegotiation::findOrFail($this->rejectingNegotiationId);
+        abort_if($this->rejectingNegotiationId === null, 404);
+        $negotiation = $this->findNegotiationForRequest($this->rejectingNegotiationId);
 
         try {
             $negotiation->reject($user, $this->rejectReason);
@@ -167,7 +184,7 @@ class NegotiationPanel extends Component
 
     public function showDetail(int $negotiationId): void
     {
-        $this->detailNegotiation = ProcurementNegotiation::with('user')->findOrFail($negotiationId);
+        $this->detailNegotiation = $this->findNegotiationForRequest($negotiationId)->load('user');
         $this->showDetailModal = true;
     }
 
@@ -183,5 +200,13 @@ class NegotiationPanel extends Component
     {
         $this->offerPrice = 0;
         $this->offerNotes = '';
+    }
+
+    private function findNegotiationForRequest(int $negotiationId): ProcurementNegotiation
+    {
+        return ProcurementNegotiation::query()
+            ->whereHas('procurementRequestItem', fn ($query) => $query
+                ->where('procurement_request_id', $this->procurementRequest->id))
+            ->findOrFail($negotiationId);
     }
 }

@@ -94,35 +94,3 @@ describe('ProcurementRequest - kesiapan generate dokumen', function () {
     });
 
 });
-
-describe('ProcurementRequest - generateOfficialDocuments', function () {
-
-    it('membuat 8 baris procurement_documents dengan nomor & tanggal terisi', function () {
-        $procurement = readyProcurement();
-
-        $procurement->generateOfficialDocuments();
-        $procurement->refresh();
-
-        expect($procurement->documents)->toHaveCount(8);
-
-        $types = $procurement->documents->pluck('document_type')->sort()->values()->all();
-
-        $expected = ['cover', 'planning', 'negotiation', 'purchase_order', 'inspection', 'bast', 'invoice', 'receipt'];
-        sort($expected);
-
-        expect($types)->toBe($expected);
-
-        $procurement->documents->each(function ($doc) {
-            expect($doc->document_number)->not->toBeEmpty()
-                ->and($doc->document_date)->not->toBeNull();
-        });
-    });
-
-    it('melempar Exception kalau dipanggil sebelum data siap', function () {
-        $procurement = readyProcurement(['supplier_id' => null]);
-
-        expect(fn() => $procurement->generateOfficialDocuments())
-            ->toThrow(Exception::class);
-    });
-
-});

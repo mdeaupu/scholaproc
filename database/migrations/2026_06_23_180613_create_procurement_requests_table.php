@@ -22,10 +22,10 @@ return new class extends Migration {
             $table->date('start_date')->nullable();
             $table->date('end_date')->nullable();
             $table->string('work_duration_text', 50)->nullable();
-            $table->boolean('is_taxable')->default(true);
-            $table->decimal('ppn_rate', 5, 2)->default(11.00);
-            $table->decimal('pph_22_rate', 5, 2)->default(0.00);
-            $table->decimal('pph_23_rate', 5, 2)->default(0.00);
+            $table->boolean('is_taxable')->nullable();
+            $table->decimal('ppn_rate', 5, 2)->nullable();
+            $table->decimal('pph_22_rate', 5, 2)->nullable();
+            $table->decimal('pph_23_rate', 5, 2)->nullable();
             $table->decimal('subtotal', 15, 2)->nullable();
             $table->decimal('tax_amount', 15, 2)->nullable();
             $table->decimal('grand_total', 15, 2)->nullable();

@@ -1,9 +1,15 @@
 @import "tailwindcss";
-@plugin "daisyui";
+@plugin "daisyui" {
+    themes: light --default;
+}
 
 @source "../../vendor/robsontenorio/mary/src/View/Components/**/*.php";
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+[x-cloak] {
+    display: none !important;
+}
 
 .mary-table-pagination span[aria-current="page"] > span {
     @apply bg-primary text-base-100;

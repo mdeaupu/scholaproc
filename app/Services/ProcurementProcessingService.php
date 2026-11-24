@@ -22,7 +22,8 @@ class ProcurementProcessingService
 {
     public function __construct(
         private readonly DocumentGenerationService $documents
-    ) {}
+    ) {
+    }
 
     public function startProcessing(ProcurementRequest $request, User $actor): void
     {
@@ -31,10 +32,16 @@ class ProcurementProcessingService
         DB::transaction(function () use ($request, $actor): void {
             $request = ProcurementRequest::query()->lockForUpdate()->findOrFail($request->id);
 
-            if ($request->status !== ProcurementRequest::STATUS_PRICE_AGREED
-                || ! $request->isTotalsLocked()
-                || ! $request->hasSubsidiary()) {
+            if (
+                $request->status !== ProcurementRequest::STATUS_PRICE_AGREED
+                || !$request->isTotalsLocked()
+                || !$request->hasSubsidiary()
+            ) {
                 throw new LogicException('Pesanan hanya dapat diproses setelah harga final dan snapshot Anak Perusahaan tersedia.');
+            }
+
+            if (!$request->hasSignatories()) {
+                throw new LogicException('Data penandatangan sekolah (Kepala Sekolah, Pemeriksa Barang, dan Bendahara) wajib dilengkapi sebelum memulai pemrosesan pesanan.');
             }
 
             $request->update(['status' => ProcurementRequest::STATUS_PROCESSING]);
@@ -45,7 +52,7 @@ class ProcurementProcessingService
     }
 
     /**
-     * @param array<int, int> $quantities request item ID => shipped quantity
+     * @param  array<int, int>  $quantities  request item ID => shipped quantity
      */
     public function recordDelivery(
         ProcurementRequest $request,
@@ -58,11 +65,13 @@ class ProcurementProcessingService
 
         return DB::transaction(function () use ($request, $actor, $date, $quantities, $notes): ProcurementDelivery {
             $request = ProcurementRequest::query()->lockForUpdate()->findOrFail($request->id);
-            if (! in_array($request->status, [
-                ProcurementRequest::STATUS_PROCESSING,
-                ProcurementRequest::STATUS_PARTIALLY_RECEIVED,
-                ProcurementRequest::STATUS_DISPUTED,
-            ], true)) {
+            if (
+                !in_array($request->status, [
+                    ProcurementRequest::STATUS_PROCESSING,
+                    ProcurementRequest::STATUS_PARTIALLY_RECEIVED,
+                    ProcurementRequest::STATUS_DISPUTED,
+                ], true)
+            ) {
                 throw new LogicException('Pengiriman hanya dapat dicatat untuk pesanan yang sedang diproses.');
             }
 
@@ -78,7 +87,7 @@ class ProcurementProcessingService
 
             foreach ($quantities as $itemId => $quantity) {
                 $item = $request->items()->lockForUpdate()->find($itemId);
-                if (! $item || $quantity < 1) {
+                if (!$item || $quantity < 1) {
                     throw ValidationException::withMessages(['quantities' => 'Barang atau jumlah pengiriman tidak valid.']);
                 }
 
@@ -96,12 +105,12 @@ class ProcurementProcessingService
             $this->documents->issue($request, 'delivery', $actor, [
                 'delivery_id' => $delivery->id,
                 'delivered_at' => $delivery->delivered_at?->toDateString(),
-                'items' => $delivery->items()->with('requestItem')->get()->map(fn ($line): array => [
+                'items' => $delivery->items()->with('requestItem')->get()->map(fn($line): array => [
                     'item' => $line->requestItem?->item_name,
                     'quantity' => $line->quantity,
                 ])->all(),
             ]);
-            $request->recordHistory($actor, $request->status, 'Pengiriman dicatat: '.$date);
+            $request->recordHistory($actor, $request->status, 'Pengiriman dicatat: ' . $date);
             activity()->performedOn($request)->causedBy($actor)->withProperties(['delivery_id' => $delivery->id])->log('Pengiriman barang dicatat');
 
             return $delivery->load('items');
@@ -109,7 +118,7 @@ class ProcurementProcessingService
     }
 
     /**
-     * @param array<int, array{quantity:int,condition:string,issue_notes?:?string}> $items
+     * @param  array<int, array{quantity:int,condition:string,issue_notes?:?string}>  $items
      */
     public function recordReceipt(
         ProcurementRequest $request,
@@ -122,11 +131,13 @@ class ProcurementProcessingService
 
         return DB::transaction(function () use ($request, $actor, $date, $items, $notes): ProcurementReceipt {
             $request = ProcurementRequest::query()->lockForUpdate()->findOrFail($request->id);
-            if (! in_array($request->status, [
-                ProcurementRequest::STATUS_PROCESSING,
-                ProcurementRequest::STATUS_PARTIALLY_RECEIVED,
-                ProcurementRequest::STATUS_DISPUTED,
-            ], true)) {
+            if (
+                !in_array($request->status, [
+                    ProcurementRequest::STATUS_PROCESSING,
+                    ProcurementRequest::STATUS_PARTIALLY_RECEIVED,
+                    ProcurementRequest::STATUS_DISPUTED,
+                ], true)
+            ) {
                 throw new LogicException('Penerimaan hanya dapat dicatat setelah pesanan mulai diproses.');
             }
 
@@ -146,7 +157,7 @@ class ProcurementProcessingService
                 $condition = $values['condition'] ?? '';
                 $issueNotes = trim((string) ($values['issue_notes'] ?? ''));
 
-                if (! $item || $quantity < 1 || ! in_array($condition, ['good', 'incomplete', 'damaged', 'non_conforming'], true)) {
+                if (!$item || $quantity < 1 || !in_array($condition, ['good', 'incomplete', 'damaged', 'non_conforming'], true)) {
                     throw ValidationException::withMessages(['items' => 'Rincian penerimaan barang tidak valid.']);
                 }
 
@@ -180,6 +191,10 @@ class ProcurementProcessingService
             $receipt = ProcurementReceipt::query()->lockForUpdate()->findOrFail($receipt->id);
             $request = ProcurementRequest::query()->lockForUpdate()->findOrFail($receipt->procurement_request_id);
 
+            if (!$request->hasSignatories()) {
+                throw new LogicException('Data penandatangan sekolah (Kepala Sekolah, Pemeriksa Barang, dan Bendahara) wajib dilengkapi sebelum memverifikasi penerimaan dan menerbitkan BAST.');
+            }
+
             if ($receipt->verified_at !== null || $receipt->items()->doesntExist()) {
                 throw new LogicException('Penerimaan kosong atau telah diverifikasi.');
             }
@@ -191,12 +206,14 @@ class ProcurementProcessingService
                     throw new LogicException('Jumlah diterima tidak valid.');
                 }
 
-                if (! in_array($receiptItem->condition, ['good', 'incomplete', 'damaged', 'non_conforming'], true)) {
+                if (!in_array($receiptItem->condition, ['good', 'incomplete', 'damaged', 'non_conforming'], true)) {
                     throw new LogicException('Kondisi barang tidak valid.');
                 }
 
-                if ($receiptItem->condition !== 'good'
-                    && $receiptItem->follow_up_status === ProcurementReceiptItem::FOLLOW_UP_NONE) {
+                if (
+                    $receiptItem->condition !== 'good'
+                    && $receiptItem->follow_up_status === ProcurementReceiptItem::FOLLOW_UP_NONE
+                ) {
                     throw new LogicException('Kondisi tidak baik wajib memiliki tindak lanjut.');
                 }
 
@@ -221,8 +238,8 @@ class ProcurementProcessingService
 
             $request->update([
                 'status' => $newStatus,
-                'verified_at' => $fullyReceived && ! $hasOpenIssue ? now() : null,
-                'verified_by' => $fullyReceived && ! $hasOpenIssue ? $actor->id : null,
+                'verified_at' => $fullyReceived && !$hasOpenIssue ? now() : null,
+                'verified_by' => $fullyReceived && !$hasOpenIssue ? $actor->id : null,
             ]);
             $request->recordHistory($actor, $newStatus, 'Penerimaan diverifikasi.');
             activity()->performedOn($request)->causedBy($actor)->withProperties(['receipt_id' => $receipt->id])->log('Penerimaan barang diverifikasi');
@@ -244,13 +261,17 @@ class ProcurementProcessingService
                 throw new LogicException('Tindak lanjut penerimaan tidak sedang terbuka.');
             }
 
+            $request = $item->receipt->procurementRequest;
+            if (!$request->hasSignatories()) {
+                throw new LogicException('Data penandatangan sekolah (Kepala Sekolah, Pemeriksa Barang, dan Bendahara) wajib dilengkapi sebelum menyelesaikan tindak lanjut penerimaan.');
+            }
+
             $item->update([
                 'follow_up_status' => ProcurementReceiptItem::FOLLOW_UP_RESOLVED,
-                'issue_notes' => trim(($item->issue_notes ?? '')."\nPenyelesaian: ".$resolution),
+                'issue_notes' => trim(($item->issue_notes ?? '') . "\nPenyelesaian: " . $resolution),
             ]);
 
-            $request = $item->receipt->procurementRequest;
-            if (! $request->hasOpenReceiptFollowUps() && $request->allQuantitiesReceived()) {
+            if (!$request->hasOpenReceiptFollowUps() && $request->allQuantitiesReceived()) {
                 $request->update([
                     'status' => ProcurementRequest::STATUS_RECEIVED,
                     'verified_at' => now(),
@@ -258,7 +279,7 @@ class ProcurementProcessingService
                 ]);
                 $this->issueReceiptDocuments($request, $item->receipt, $actor);
             }
-            $request->recordHistory($actor, $request->status, 'Tindak lanjut penerimaan diselesaikan: '.$resolution);
+            $request->recordHistory($actor, $request->status, 'Tindak lanjut penerimaan diselesaikan: ' . $resolution);
             activity()->performedOn($request)->causedBy($actor)->withProperties(['receipt_item_id' => $item->id])->log('Tindak lanjut penerimaan diselesaikan');
         });
     }
@@ -283,12 +304,14 @@ class ProcurementProcessingService
                 throw new LogicException('Penerimaan tidak dapat dibatalkan setelah invoice diproses.');
             }
 
-            if (! in_array($request->status, [
-                ProcurementRequest::STATUS_PROCESSING,
-                ProcurementRequest::STATUS_PARTIALLY_RECEIVED,
-                ProcurementRequest::STATUS_RECEIVED,
-                ProcurementRequest::STATUS_DISPUTED,
-            ], true)) {
+            if (
+                !in_array($request->status, [
+                    ProcurementRequest::STATUS_PROCESSING,
+                    ProcurementRequest::STATUS_PARTIALLY_RECEIVED,
+                    ProcurementRequest::STATUS_RECEIVED,
+                    ProcurementRequest::STATUS_DISPUTED,
+                ], true)
+            ) {
                 throw new LogicException('Penerimaan hanya dapat dibatalkan pada tahap pemrosesan atau penerimaan.');
             }
 
@@ -320,7 +343,7 @@ class ProcurementProcessingService
                 'verified_at' => $newStatus === ProcurementRequest::STATUS_RECEIVED ? now() : null,
                 'verified_by' => $newStatus === ProcurementRequest::STATUS_RECEIVED ? $actor->id : null,
             ]);
-            $request->recordHistory($actor, $newStatus, 'Penerimaan dibatalkan: '.$reason);
+            $request->recordHistory($actor, $newStatus, 'Penerimaan dibatalkan: ' . $reason);
             activity()->performedOn($request)->causedBy($actor)
                 ->withProperties(['receipt_id' => $receipt->id, 'void_reason' => $reason])
                 ->log('Penerimaan barang dibatalkan');
@@ -369,8 +392,8 @@ class ProcurementProcessingService
 
         $stored = 0;
         foreach ($files as $file) {
-            $filename = time().'_'.uniqid().'.'.$file->getClientOriginalExtension();
-            $path = $file->storeAs('verification_files/'.$request->id, $filename, 'public');
+            $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $path = $file->storeAs('verification_files/' . $request->id, $filename, 'public');
 
             ProcurementVerificationFile::create([
                 'procurement_request_id' => $request->id,
@@ -414,7 +437,7 @@ class ProcurementProcessingService
             $eligibility = $request->invoiceEligibility();
             unset($eligibility['not_yet_invoiced']);
             if (in_array(false, $eligibility, true)) {
-                throw new LogicException('Invoice memerlukan penerimaan penuh yang diverifikasi, tindak lanjut selesai, snapshot harga, konfigurasi pajak tervalidasi, dan dokumen penerimaan.');
+                throw new LogicException('Invoice memerlukan penandatangan sekolah lengkap, penerimaan penuh terverifikasi, tindak lanjut selesai, snapshot harga, konfigurasi pajak tervalidasi, dan dokumen penerimaan.');
             }
 
             if ($request->invoice()->exists()) {
@@ -422,7 +445,7 @@ class ProcurementProcessingService
             }
 
             $invoice = $request->invoice()->create([
-                'invoice_number' => 'INV-'.$request->id.'-'.now()->format('YmdHis'),
+                'invoice_number' => 'INV-' . $request->id . '-' . now()->format('YmdHis'),
                 'invoice_date' => now()->toDateString(),
                 'subtotal' => $request->subtotal,
                 'tax_amount' => $request->tax_amount,
@@ -502,9 +525,11 @@ class ProcurementProcessingService
             $invoice = $payment->invoice;
             $request = ProcurementRequest::query()->lockForUpdate()->findOrFail($invoice->procurement_request_id);
 
-            if ($payment->confirmed_at !== null
+            if (
+                $payment->confirmed_at !== null
                 || $request->status !== ProcurementRequest::STATUS_PAYMENT_PENDING
-                || (float) $payment->amount !== (float) $invoice->total_amount) {
+                || (float) $payment->amount !== (float) $invoice->total_amount
+            ) {
                 throw new LogicException('Pembayaran tidak dapat dikonfirmasi atau nilainya tidak cocok dengan invoice.');
             }
 
@@ -513,7 +538,8 @@ class ProcurementProcessingService
                 'payment_confirmed_at' => now(),
                 'payment_confirmed_by' => $actor->id,
             ]);
-            $request->recordHistory($actor, $request->status, 'Pembayaran invoice dikonfirmasi.');
+            $this->documents->issue($request, 'receipt', $actor);
+            $request->recordHistory($actor, $request->status, 'Pembayaran invoice dikonfirmasi dan kuitansi diterbitkan.');
             activity()->performedOn($request)->causedBy($actor)->withProperties(['payment_id' => $payment->id])->log('Pembayaran invoice dikonfirmasi');
         });
     }
@@ -531,7 +557,7 @@ class ProcurementProcessingService
 
     private function authorizeInternal(User $actor): void
     {
-        if (! $actor->isAdmin() && ! $actor->isSuperAdmin()) {
+        if (!$actor->isAdmin() && !$actor->isSuperAdmin()) {
             throw new AuthorizationException('Hanya Admin Pusat yang dapat memproses transaksi.');
         }
     }
@@ -541,14 +567,14 @@ class ProcurementProcessingService
         $isInternal = $actor->isAdmin() || $actor->isSuperAdmin();
         $isSchoolOwner = $actor->isSchool() && $actor->school_id === $request->school_id;
 
-        if (! $isInternal && ! $isSchoolOwner) {
+        if (!$isInternal && !$isSchoolOwner) {
             throw new AuthorizationException('Hanya Admin Pusat atau sekolah pemilik pengajuan yang dapat mencatat penerimaan.');
         }
     }
 
     private function authorizeSchoolOwner(ProcurementRequest $request, User $actor): void
     {
-        if (! $actor->isSchool() || $actor->school_id !== $request->school_id) {
+        if (!$actor->isSchool() || $actor->school_id !== $request->school_id) {
             throw new AuthorizationException('Hanya sekolah pemilik pengajuan yang dapat mengelola bukti penerimaan.');
         }
     }

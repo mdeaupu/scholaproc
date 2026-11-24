@@ -11,6 +11,8 @@
         \App\Models\ProcurementRequest::STATUS_COMPLETED,
     ];
     $canRecordDelivery = in_array($procurementRequest->status, $deliveryStatuses, true);
+    $isCompleted = $procurementRequest->status === \App\Models\ProcurementRequest::STATUS_COMPLETED;
+    $hasSignatories = $procurementRequest->hasSignatories();
 
     $latestDelivery = $procurementRequest->deliveries->sortByDesc('id')->first();
     $deliveryDocument =
@@ -140,10 +142,18 @@
                     class="bg-[#0046FF] text-white" />
             @elseif ($procurementRequest->status === \App\Models\ProcurementRequest::STATUS_PRICE_AGREED)
                 <x-mary-button label="Mulai Pemrosesan & Terbitkan Surat Pesanan" icon="o-document-check"
-                    wire:click="startProcessing" spinner="startProcessing" class="bg-[#0046FF] text-white" />
+                    wire:click="startProcessing" spinner="startProcessing" :disabled="!$hasSignatories"
+                    class="{{ $hasSignatories ? 'bg-[#0046FF] text-white' : 'bg-gray-300 text-gray-600' }}" />
             @endif
         </div>
     </div>
+
+    @if (!$isCompleted && !$hasSignatories)
+        <x-mary-alert icon="o-exclamation-triangle" class="border border-amber-200 bg-amber-50 text-amber-800">
+            <strong>Penandatangan Dokumen Sekolah belum lengkap.</strong> Lengkapi nama Kepala Sekolah, Pemeriksa
+            Barang, dan Bendahara Sekolah pada panel kanan sebelum memulai pemrosesan atau menerbitkan dokumen resmi.
+        </x-mary-alert>
+    @endif
 
     <div class="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <div class="space-y-5 xl:col-span-2">
@@ -263,6 +273,13 @@
             {{-- Verifikasi Draf Sekolah --}}
             @if ($canRecordDelivery || $pendingReceipts->isNotEmpty())
                 <x-mary-card title="Daftar Penerimaan Menunggu Verifikasi" separator :class="$cardClass">
+                    @if ($pendingReceipts->isNotEmpty() && !$hasSignatories)
+                        <p class="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                            Lengkapi <strong>Penandatangan Dokumen Sekolah</strong> di panel kanan terlebih dahulu
+                            sebelum memverifikasi penerimaan dan menerbitkan BAST.
+                        </p>
+                    @endif
+
                     @if ($pendingReceipts->isEmpty())
                         <p class="text-sm text-gray-500">Belum ada draf penerimaan dari sekolah yang menunggu
                             verifikasi.</p>
@@ -298,7 +315,8 @@
                                             <x-mary-badge value="Draf Sekolah" class="bg-blue-100 text-blue-700" />
                                             <x-mary-button label="Verifikasi Penerimaan" icon="o-check-circle"
                                                 wire:click="verifyReceipt({{ $receipt->id }})" spinner="verifyReceipt"
-                                                class="border-none bg-emerald-600 text-white" />
+                                                :disabled="!$hasSignatories"
+                                                class="border-none {{ $hasSignatories ? 'bg-emerald-600 text-white' : 'bg-gray-300 text-gray-600' }}" />
                                         </div>
                                     </div>
                                 </div>
@@ -330,7 +348,8 @@
                                     <div class="mt-2">
                                         <x-mary-button label="Tandai Selesai" icon="o-check"
                                             wire:click="resolveIssue({{ $issue->id }})" spinner="resolveIssue"
-                                            class="bg-[#0046FF] text-white" />
+                                            :disabled="!$hasSignatories"
+                                            class="{{ $hasSignatories ? 'bg-[#0046FF] text-white' : 'bg-gray-300 text-gray-600' }}" />
                                     </div>
                                 </div>
                             </div>
@@ -351,6 +370,7 @@
                                     'status_received' => 'Status penerimaan belum Received',
                                     'all_quantities_received' => 'Penerimaan belum penuh terverifikasi',
                                     'no_open_follow_ups' => 'Masih ada tindak lanjut isu terbuka',
+                                    'has_signatories' => 'Penandatangan sekolah belum lengkap',
                                     'tax_configuration_valid' => 'Konfigurasi pajak belum tervalidasi',
                                     'totals_locked' => 'Snapshot harga belum dikunci',
                                     'bast_issued' => 'BAST belum diterbitkan',
@@ -400,16 +420,57 @@
                                 wire:click="confirmPayment" spinner="confirmPayment"
                                 class="mt-2 bg-[#0046FF] text-white" />
                         @else
-                            <p class="mt-2 text-sm text-green-700">Pembayaran terkonfirmasi.</p>
+                            <div class="mt-2 flex flex-wrap items-center justify-between gap-2">
+                                <p class="text-sm text-green-700">Pembayaran terkonfirmasi.</p>
+                                @if (!$procurementRequest->hasIssuedDocument('receipt'))
+                                    <x-mary-button label="Terbitkan Kuitansi" icon="o-document-check"
+                                        wire:click="issueReceipt" spinner="issueReceipt"
+                                        class="bg-[#0046FF] text-white" />
+                                @endif
+                            </div>
                         @endif
                     @endif
                 </x-mary-card>
             @endif
 
             @if ($procurementRequest->status === \App\Models\ProcurementRequest::STATUS_PAYMENT_PENDING)
-                <x-mary-button label="Tandai Pengadaan Selesai" wire:click="complete"
-                    wire:confirm="Pastikan semua barang, dokumen, tindak lanjut, dan pembayaran telah lengkap."
-                    spinner="complete" class="bg-green-700 text-white" />
+                @php
+                    $completionGuardLabels = [
+                        'status_payment_pending' => 'Status transaksi belum menunggu pembayaran',
+                        'has_items' => 'Daftar barang kosong',
+                        'has_subsidiary' => 'Anak Perusahaan belum ditetapkan',
+                        'tax_configuration_valid' => 'Konfigurasi pajak belum tervalidasi',
+                        'all_quantities_received' => 'Penerimaan barang belum penuh',
+                        'no_open_follow_ups' => 'Tindak lanjut penerimaan masih terbuka',
+                        'has_signatories' =>
+                            'Penandatangan sekolah (Kepala Sekolah, Pemeriksa, Bendahara) belum lengkap',
+                        'has_official_prices' => 'Harga resmi barang belum lengkap',
+                        'all_items_negotiation_settled' => 'Negosiasi barang belum selesai',
+                        'administrative_processing_completed' => 'Verifikasi penerimaan atau faktur belum tercatat',
+                        'payment_confirmed' => 'Pembayaran terkonfirmasi belum sesuai total faktur',
+                        'purchase_order_issued' => 'Surat Pesanan belum diterbitkan',
+                        'bast_issued' => 'BAST belum diterbitkan',
+                        'invoice_issued' => 'Faktur belum diterbitkan',
+                    ];
+                    $completionEligibility = $procurementRequest->completionEligibility();
+                    $failedCompletionGuards = collect($completionEligibility)
+                        ->filter(fn(bool $passed): bool => !$passed)
+                        ->keys()
+                        ->map(fn(string $key): string => $completionGuardLabels[$key] ?? $key)
+                        ->implode(', ');
+                @endphp
+
+                @if ($procurementRequest->canComplete())
+                    <x-mary-button label="Tandai Pengadaan Selesai" wire:click="complete"
+                        wire:confirm="Pastikan semua barang, dokumen, tindak lanjut, dan pembayaran telah lengkap."
+                        spinner="complete" class="bg-green-700 text-white" />
+                @else
+                    <x-mary-button label="Tandai Pengadaan Selesai" disabled class="bg-gray-300 text-gray-600" />
+                    <x-mary-alert icon="o-exclamation-triangle"
+                        class="border border-amber-200 bg-amber-50 text-amber-800">
+                        Syarat penyelesaian belum lengkap: {{ $failedCompletionGuards }}
+                    </x-mary-alert>
+                @endif
             @endif
         </div>
 
@@ -442,6 +503,67 @@
                         </li>
                     @endforeach
                 </ol>
+            </x-mary-card>
+
+            <x-mary-card title="Penandatangan Dokumen Sekolah" separator :class="$cardClass">
+                <x-slot:menu>
+                    @if ($hasSignatories)
+                        <x-mary-badge value="Lengkap" class="bg-emerald-100 text-emerald-700" />
+                    @else
+                        <x-mary-badge value="Belum Lengkap" class="bg-amber-100 text-amber-700" />
+                    @endif
+                </x-slot:menu>
+
+                @if ($isCompleted)
+                    <div class="space-y-3">
+                        @foreach ([
+        'headmaster' => 'Kepala Sekolah',
+        'inspector' => 'Pemeriksa Barang',
+        'treasurer' => 'Bendahara Sekolah',
+    ] as $roleKey => $roleTitle)
+                            @php
+                                $savedSignatory = $procurementRequest->signatories->firstWhere('role', $roleKey);
+                            @endphp
+                            <div class="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                                <p class="text-xs font-semibold text-gray-500">
+                                    {{ $savedSignatory?->title ?? $roleTitle }}</p>
+                                <p class="mt-0.5 text-sm font-semibold text-gray-900">
+                                    {{ $savedSignatory?->name ?? '-' }}</p>
+                                @if ($savedSignatory?->nip)
+                                    <p class="text-xs text-gray-500">NIP. {{ $savedSignatory->nip }}</p>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
+                @else
+                    <p class="mb-3 text-xs text-gray-500">
+                        Wajib diisi di awal agar tercantum pada Surat Pesanan, Surat Hasil Pemeriksaan, BAST, Kuitansi,
+                        dan Cover.
+                    </p>
+
+                    <x-mary-form wire:submit="saveSignatories" class="space-y-3">
+                        @foreach ([
+        'headmaster' => 'Kepala Sekolah',
+        'inspector' => 'Pemeriksa Barang',
+        'treasurer' => 'Bendahara Sekolah',
+    ] as $roleKey => $roleTitle)
+                            <div class="space-y-2 rounded-lg border border-gray-100 bg-gray-50/70 p-3">
+                                <p class="text-xs font-bold text-gray-700">{{ $roleTitle }}</p>
+                                <x-mary-input label="Nama Lengkap"
+                                    wire:model="signatoriesForm.{{ $roleKey }}.name" />
+                                <div class="grid grid-cols-2 gap-2">
+                                    <x-mary-input label="NIP (Opsional)"
+                                        wire:model="signatoriesForm.{{ $roleKey }}.nip" />
+                                    <x-mary-input label="Jabatan"
+                                        wire:model="signatoriesForm.{{ $roleKey }}.title" />
+                                </div>
+                            </div>
+                        @endforeach
+
+                        <x-mary-button label="Simpan Penandatangan" icon="o-check" type="submit"
+                            spinner="saveSignatories" class="w-full bg-[#0046FF] text-white" />
+                    </x-mary-form>
+                @endif
             </x-mary-card>
         </div>
     </div>

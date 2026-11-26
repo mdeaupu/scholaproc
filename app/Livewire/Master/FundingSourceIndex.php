@@ -11,9 +11,10 @@ use Mary\Traits\Toast;
 
 class FundingSourceIndex extends Component
 {
-    use WithPagination, Toast;
+    use Toast, WithPagination;
 
     public bool $modal = false;
+
     public ?FundingSource $fundingSource = null;
 
     public string $search = '';
@@ -122,11 +123,11 @@ class FundingSourceIndex extends Component
         $sources = (clone $baseQuery)
             ->when($this->search, function (Builder $query) {
                 $query->where(function (Builder $query) {
-                    $query->where('name', 'like', '%' . $this->search . '%');
+                    $query->where('name', 'like', '%'.$this->search.'%');
                 });
             })
-            ->when($this->filterStatus === 'active', fn(Builder $query) => $query->where('is_active', true))
-            ->when($this->filterStatus === 'inactive', fn(Builder $query) => $query->where('is_active', false))
+            ->when($this->filterStatus === 'active', fn (Builder $query) => $query->where('is_active', true))
+            ->when($this->filterStatus === 'inactive', fn (Builder $query) => $query->where('is_active', false))
             ->latest()
             ->paginate(10);
 

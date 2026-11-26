@@ -12,9 +12,10 @@ use Mary\Traits\Toast;
 
 class BudgetYearIndex extends Component
 {
-    use WithPagination, Toast;
+    use Toast, WithPagination;
 
     public bool $modal = false;
+
     public ?BudgetYear $budgetYear = null;
 
     public string $search = '';
@@ -127,7 +128,7 @@ class BudgetYearIndex extends Component
     {
         $this->authorizeSuperAdmin();
 
-        if (!$budgetYear->isCurrentlyActive()) {
+        if (! $budgetYear->isCurrentlyActive()) {
             $budgetYear->activate();
             $this->success("Tahun Anggaran {$budgetYear->name} sekarang aktif.");
         }
@@ -161,13 +162,13 @@ class BudgetYearIndex extends Component
         $budgetYears = (clone $baseQuery)
             ->when($this->search, function (Builder $query) {
                 $query->where(function (Builder $query) {
-                    $query->where('name', 'like', '%' . $this->search . '%')
+                    $query->where('name', 'like', '%'.$this->search.'%')
                         ->orWhereDate('start_date', $this->search)
                         ->orWhereDate('end_date', $this->search);
                 });
             })
-            ->when($this->filterStatus === 'active', fn(Builder $query) => $query->where('is_active', true))
-            ->when($this->filterStatus === 'inactive', fn(Builder $query) => $query->where('is_active', false))
+            ->when($this->filterStatus === 'active', fn (Builder $query) => $query->where('is_active', true))
+            ->when($this->filterStatus === 'inactive', fn (Builder $query) => $query->where('is_active', false))
             ->orderByDesc('start_date')
             ->paginate(10);
 

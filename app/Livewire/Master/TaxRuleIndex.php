@@ -435,8 +435,6 @@ class TaxRuleIndex extends Component
      * sehingga aturan umum bersinggungan dengan aturan spesifik dianggap tumpang tindih.
      *
      * @param  array<string, mixed>  $data
-     * @param  \App\Models\TaxRule|null  $exclude
-     * @return bool
      */
     private function hasOverlappingActiveRule(array $data, ?TaxRule $exclude): bool
     {

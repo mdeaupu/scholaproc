@@ -6,6 +6,7 @@ use App\Models\ProcurementRequest;
 use App\Models\TaxRule;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class TaxEvaluationService
@@ -128,7 +129,7 @@ class TaxEvaluationService
             && $current['basis'] === ($evaluation['basis'] ?? null);
     }
 
-    private function resolveMatchingRules(string $taxType, array $context): \Illuminate\Support\Collection
+    private function resolveMatchingRules(string $taxType, array $context): Collection
     {
         return TaxRule::query()
             ->active()

@@ -46,7 +46,7 @@ test('halaman indeks menampilkan daftar admin CV dengan paginasi', function () {
     User::factory()->count(5)->create(['role' => 'admin']);
 
     Livewire::test(AdminIndex::class)
-        ->assertViewHas('admins', fn($admins) => $admins->total() >= 5);
+        ->assertViewHas('admins', fn ($admins) => $admins->total() >= 5);
 });
 
 test('pencarian berdasarkan nama atau username berfungsi', function () {
@@ -61,11 +61,11 @@ test('pencarian berdasarkan nama atau username berfungsi', function () {
 
     Livewire::test(AdminIndex::class)
         ->set('search', 'Joko')
-        ->assertViewHas('admins', fn($admins) => $admins->contains($specific));
+        ->assertViewHas('admins', fn ($admins) => $admins->contains($specific));
 
     Livewire::test(AdminIndex::class)
         ->set('search', 'jokowi')
-        ->assertViewHas('admins', fn($admins) => $admins->contains($specific));
+        ->assertViewHas('admins', fn ($admins) => $admins->contains($specific));
 });
 
 test('show menampilkan detail admin di modal', function () {
@@ -108,9 +108,9 @@ test('tabel hanya menampilkan akun admin', function () {
     $admin = createUser('admin');
 
     Livewire::test(AdminIndex::class)
-        ->assertViewHas('admins', fn($admins) => $admins->contains($admin)
-            && !$admins->contains($owner)
-            && !$admins->contains($otherSuperadmin));
+        ->assertViewHas('admins', fn ($admins) => $admins->contains($admin)
+            && ! $admins->contains($owner)
+            && ! $admins->contains($otherSuperadmin));
 });
 
 test('destroy menghapus admin (soft delete) via modal konfirmasi', function () {
@@ -142,7 +142,7 @@ test('admin dengan activity log sebagai causer dapat dihapus jika tidak memiliki
         ->log('admin-updated');
 
     Livewire::test(AdminIndex::class)
-        ->assertSeeHtml('confirmDestroy(' . $admin->id)
+        ->assertSeeHtml('confirmDestroy('.$admin->id)
         ->call('confirmDestroy', $admin->id)
         ->assertSet('confirmingDestroy', true)
         ->call('destroy')
@@ -162,7 +162,7 @@ test('admin baru dengan activity log sebagai subject dapat dihapus', function ()
         ->log('admin-created');
 
     Livewire::test(AdminIndex::class)
-        ->assertSeeHtml('confirmDestroy(' . $admin->id)
+        ->assertSeeHtml('confirmDestroy('.$admin->id)
         ->call('confirmDestroy', $admin->id)
         ->assertSet('confirmingDestroy', true)
         ->call('destroy')
@@ -185,7 +185,7 @@ test('destroy menolak penghapusan dan menyembunyikan tombol jika admin punya riw
     ]);
 
     Livewire::test(AdminIndex::class)
-        ->assertDontSeeHtml('confirmDestroy(' . $admin->id)
+        ->assertDontSeeHtml('confirmDestroy('.$admin->id)
         ->call('confirmDestroy', $admin->id)
         ->assertStatus(403);
 
@@ -200,7 +200,7 @@ test('riwayat verifikasi pengajuan menghalangi penghapusan admin', function () {
     ProcurementRequest::factory()->create(['verified_by' => $admin->id]);
 
     Livewire::test(AdminIndex::class)
-        ->assertDontSeeHtml('confirmDestroy(' . $admin->id);
+        ->assertDontSeeHtml('confirmDestroy('.$admin->id);
 
     expect($admin->hasTransactionalHistory())->toBeTrue();
 });

@@ -2,6 +2,8 @@
 
 use App\Livewire\Master\ItemUnitIndex;
 use App\Models\ItemUnit;
+use App\Models\ProcurementRequest;
+use App\Models\ProcurementRequestItem;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -54,7 +56,7 @@ test('satuan barang dapat dicari dan difilter berdasarkan status', function () {
     Livewire::test(ItemUnitIndex::class)
         ->set('search', 'Kilo')
         ->set('filterStatus', 'active')
-        ->assertViewHas('units', fn($units) => $units->total() === 1
+        ->assertViewHas('units', fn ($units) => $units->total() === 1
             && $units->contains($active));
 });
 
@@ -77,8 +79,8 @@ test('satuan yang dipakai transaksi tidak dapat dihapus', function () {
     $this->actingAs(User::factory()->superAdmin()->create());
     $unit = ItemUnit::factory()->create();
 
-    $request = \App\Models\ProcurementRequest::factory()->create();
-    \App\Models\ProcurementRequestItem::factory()->create([
+    $request = ProcurementRequest::factory()->create();
+    ProcurementRequestItem::factory()->create([
         'procurement_request_id' => $request->id,
         'unit_id' => $unit->id,
     ]);

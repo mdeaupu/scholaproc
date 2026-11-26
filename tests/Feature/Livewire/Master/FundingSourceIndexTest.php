@@ -54,7 +54,7 @@ test('sumber dana dapat dicari dan difilter berdasarkan status', function () {
     Livewire::test(FundingSourceIndex::class)
         ->set('search', 'Reguler')
         ->set('filterStatus', 'active')
-        ->assertViewHas('sources', fn($sources) => $sources->total() === 1
+        ->assertViewHas('sources', fn ($sources) => $sources->total() === 1
             && $sources->contains($active));
 });
 

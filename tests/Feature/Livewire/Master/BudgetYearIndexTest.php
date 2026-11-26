@@ -72,7 +72,7 @@ test('tahun anggaran dapat dicari dan difilter berdasarkan status', function () 
     Livewire::test(BudgetYearIndex::class)
         ->set('search', '2031')
         ->set('filterStatus', 'active')
-        ->assertViewHas('budgetYears', fn($years) => $years->total() === 1
+        ->assertViewHas('budgetYears', fn ($years) => $years->total() === 1
             && $years->contains($active));
 });
 

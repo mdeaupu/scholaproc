@@ -62,7 +62,7 @@ test('kategori paket dapat dicari dan difilter berdasarkan status', function () 
     Livewire::test(PackageCategoryIndex::class)
         ->set('search', 'Perlengkapan')
         ->set('filterStatus', 'active')
-        ->assertViewHas('categories', fn($categories) => $categories->total() === 1
+        ->assertViewHas('categories', fn ($categories) => $categories->total() === 1
             && $categories->contains($active));
 });
 

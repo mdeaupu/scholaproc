@@ -378,4 +378,3 @@ test('aturan aktif dengan konteks berbeda dapat coexist', function () {
 
     expect(TaxRule::query()->where('name', 'PPN transaksi B')->count())->toBe(1);
 });
-

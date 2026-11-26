@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 class BudgetYear extends Model
 {
     use HasFactory;
+
     protected $fillable = [
         'name',
         'start_date',
@@ -64,7 +65,7 @@ class BudgetYear extends Model
                         ->where('end_date', '>=', $endDate);
                 });
         })
-            ->when($ignoreId, fn($query) => $query->where('id', '!=', $ignoreId))
+            ->when($ignoreId, fn ($query) => $query->where('id', '!=', $ignoreId))
             ->exists();
     }
 }

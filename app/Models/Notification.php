@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Jobs\SendEmailNotification;
+use App\Jobs\SendWhatsAppNotification;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -10,23 +12,36 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Notification extends Model
 {
     use HasFactory;
+
     public const CHANNEL_WHATSAPP = 'whatsapp';
+
     public const CHANNEL_EMAIL = 'email';
 
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_SENT = 'sent';
+
     public const STATUS_FAILED = 'failed';
 
     public const SCHOOL_EVENTS = [
         'verified',
         'rejected',
+        'needs_revision',
         'supplier_assigned',
         'negotiation_offer',
         'negotiation_accepted',
         'negotiation_rejected',
         'items_prepared',
+        'receipt_verified',
+        'record_payment',
+        'confirm_payment',
         'completed',
         'document_generated',
+        'processing_started',
+        'delivery_recorded',
+        'price_agreed',
+        'receipt_issue_resolved',
+        'cancelled',
     ];
 
     protected $fillable = [
@@ -119,12 +134,53 @@ class Notification extends Model
         ]);
     }
 
-    public function markFailed(string $error = null): void
+    public function markFailed(?string $error = null): void
     {
         $this->update([
             'status' => self::STATUS_FAILED,
             'error_message' => $error,
         ]);
+    }
+
+    public function retry(): void
+    {
+        if (! in_array($this->status, [self::STATUS_FAILED, self::STATUS_PENDING], true)) {
+            return;
+        }
+
+        $this->update([
+            'status' => self::STATUS_PENDING,
+            'error_message' => null,
+        ]);
+
+        // Re-dispatch the job
+        if ($this->channel === self::CHANNEL_WHATSAPP) {
+            if (config('waha.sync', true)) {
+                try {
+                    SendWhatsAppNotification::dispatchSync($this);
+                } catch (\Throwable $e) {
+                    $this->markFailed($e->getMessage());
+                }
+            } else {
+                SendWhatsAppNotification::dispatch($this)->onQueue('default');
+            }
+        } elseif ($this->channel === self::CHANNEL_EMAIL) {
+            if (! filter_var($this->recipient, FILTER_VALIDATE_EMAIL)) {
+                $this->markFailed('Email penerima tidak tersedia atau tidak valid');
+
+                return;
+            }
+
+            if (config('mail.sync', true)) {
+                try {
+                    SendEmailNotification::dispatchSync($this);
+                } catch (\Throwable $e) {
+                    $this->markFailed($e->getMessage());
+                }
+            } else {
+                SendEmailNotification::dispatch($this)->onQueue('default');
+            }
+        }
     }
 
     public function markAsRead(): void

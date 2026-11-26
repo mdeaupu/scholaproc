@@ -15,9 +15,25 @@ class NotificationObserver
         }
 
         if ($notification->channel === Notification::CHANNEL_WHATSAPP) {
-            SendWhatsAppNotification::dispatch($notification);
+            if (config('waha.sync', true)) {
+                try {
+                    SendWhatsAppNotification::dispatchSync($notification);
+                } catch (\Throwable $e) {
+                    $notification->markFailed($e->getMessage());
+                }
+            } else {
+                SendWhatsAppNotification::dispatch($notification)->onQueue('default');
+            }
         } elseif ($notification->channel === Notification::CHANNEL_EMAIL) {
-            SendEmailNotification::dispatch($notification);
+            if (config('mail.sync', true)) {
+                try {
+                    SendEmailNotification::dispatchSync($notification);
+                } catch (\Throwable $e) {
+                    $notification->markFailed($e->getMessage());
+                }
+            } else {
+                SendEmailNotification::dispatch($notification)->onQueue('default');
+            }
         }
     }
 }

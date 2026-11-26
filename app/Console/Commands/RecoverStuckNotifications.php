@@ -32,6 +32,7 @@ class RecoverStuckNotifications extends Command
             if ($retryCount >= $maxRetries) {
                 $notification->markFailed('Auto-failed: exceeded max retries after being stuck');
                 $failed++;
+
                 continue;
             }
 

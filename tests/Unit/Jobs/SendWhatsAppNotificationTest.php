@@ -19,7 +19,10 @@ test('send whatsapp notification job handles successful send', function () {
         'status' => Notification::STATUS_PENDING,
     ]);
 
-    $whatsapp = \Mockery::mock(WhatsAppService::class);
+    $whatsapp = Mockery::mock(WhatsAppService::class);
+    $whatsapp->shouldReceive('isAvailable')
+        ->once()
+        ->andReturn(true);
     $whatsapp->shouldReceive('send')
         ->once()
         ->with($notification->recipient, $notification->message_content)
@@ -38,7 +41,10 @@ test('send whatsapp notification job handles failed send', function () {
         'status' => Notification::STATUS_PENDING,
     ]);
 
-    $whatsapp = \Mockery::mock(WhatsAppService::class);
+    $whatsapp = Mockery::mock(WhatsAppService::class);
+    $whatsapp->shouldReceive('isAvailable')
+        ->once()
+        ->andReturn(true);
     $whatsapp->shouldReceive('send')
         ->once()
         ->andReturn(['success' => false, 'error' => 'Phone not found']);
@@ -57,7 +63,7 @@ test('send whatsapp notification job handles exception in failed method', functi
     ]);
 
     $job = new SendWhatsAppNotification($notification);
-    $exception = new \Exception('Something went wrong');
+    $exception = new Exception('Something went wrong');
     $job->failed($exception);
 
     expect($notification->fresh()->status)->toBe(Notification::STATUS_FAILED);

@@ -24,14 +24,33 @@ class SessionManager extends Component
 
     public bool $isWaitingForScan = false;
 
+    public string $testPhone = '';
+
+    public string $testMessage = 'Ini adalah uji coba notifikasi WhatsApp dari Scholaproc.';
+
+    public bool $testSending = false;
+
     public function mount(): void
     {
-        abort_unless(auth()->user()->isSuperAdmin(), 403);
+        $this->authorizeSuperAdmin();
         $this->refreshStatus();
+    }
+
+    private function authorizeSuperAdmin(): void
+    {
+        abort_unless(auth()->user()?->isSuperAdmin(), 403);
     }
 
     public function pollStatus(): void
     {
+        $this->authorizeSuperAdmin();
+
+        // Hanya polling aktif saat memindai QR atau memulai session agar QR otomatis
+        // diperbarui dan status berubah ke terhubung setelah di-scan.
+        if (! in_array($this->status, ['SCAN_QR_CODE', 'STARTING'], true)) {
+            return;
+        }
+
         /** @var WhatsAppService $wa */
         $wa = app(WhatsAppService::class);
 
@@ -85,6 +104,8 @@ class SessionManager extends Component
 
     public function refreshStatus(): void
     {
+        $this->authorizeSuperAdmin();
+
         /** @var WhatsAppService $wa */
         $wa = app(WhatsAppService::class);
 
@@ -107,6 +128,8 @@ class SessionManager extends Component
 
     public function loadQR(): void
     {
+        $this->authorizeSuperAdmin();
+
         /** @var WhatsAppService $wa */
         $wa = app(WhatsAppService::class);
         $this->qrCode = $wa->getQRCode();
@@ -114,6 +137,8 @@ class SessionManager extends Component
 
     public function startSession(): void
     {
+        $this->authorizeSuperAdmin();
+
         /** @var WhatsAppService $wa */
         $wa = app(WhatsAppService::class);
 
@@ -129,6 +154,8 @@ class SessionManager extends Component
 
     public function stopSession(): void
     {
+        $this->authorizeSuperAdmin();
+
         /** @var WhatsAppService $wa */
         $wa = app(WhatsAppService::class);
 
@@ -139,6 +166,23 @@ class SessionManager extends Component
             $this->refreshStatus();
         } else {
             $this->error('Gagal menghentikan session: '.($result['error'] ?? 'Unknown error'));
+        }
+    }
+
+    public function restartSession(): void
+    {
+        $this->authorizeSuperAdmin();
+
+        /** @var WhatsAppService $wa */
+        $wa = app(WhatsAppService::class);
+
+        $result = $wa->startSession();
+
+        if ($result['success']) {
+            $this->success('Session WhatsApp dimulai ulang.');
+            $this->refreshStatus();
+        } else {
+            $this->error('Gagal memulai ulang session: '.($result['error'] ?? 'Unknown error'));
         }
     }
 
@@ -154,6 +198,8 @@ class SessionManager extends Component
 
     public function logoutSession(): void
     {
+        $this->authorizeSuperAdmin();
+
         /** @var WhatsAppService $wa */
         $wa = app(WhatsAppService::class);
 
@@ -164,7 +210,31 @@ class SessionManager extends Component
             $this->showChangeNumberModal = false;
             $this->startSession();
         } else {
-            $this->error('Gagal logout: '.($result['error'] ?? 'Unknown error'), position: 'toast-top toast-end');
+            $this->error('Gagal logout: '.($result['error'] ?? 'Unknown error'));
+        }
+    }
+
+    public function testSend(): void
+    {
+        $this->authorizeSuperAdmin();
+
+        $this->validate([
+            'testPhone' => 'required|string',
+            'testMessage' => 'required|string',
+        ]);
+
+        $this->testSending = true;
+
+        /** @var WhatsAppService $wa */
+        $wa = app(WhatsAppService::class);
+        $result = $wa->send($this->testPhone, $this->testMessage);
+
+        $this->testSending = false;
+
+        if ($result['success']) {
+            $this->success('Pesan uji coba WhatsApp berhasil dikirim.');
+        } else {
+            $this->error('Gagal mengirim pesan uji coba: '.($result['error'] ?? 'Unknown error'));
         }
     }
 
@@ -176,6 +246,7 @@ class SessionManager extends Component
             'STARTING' => 'badge-info',
             'STOPPED' => 'badge-error',
             'TIMEOUT' => 'badge-error',
+            'DISCONNECTED' => 'badge-error',
             default => 'badge-ghost',
         };
     }
@@ -188,6 +259,7 @@ class SessionManager extends Component
             'STARTING' => 'Memulai...',
             'STOPPED' => 'Terhenti',
             'TIMEOUT' => 'Timeout',
+            'DISCONNECTED' => 'Terputus',
             'UNAVAILABLE' => 'Tidak Terjangkau',
             default => $this->status,
         };

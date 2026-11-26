@@ -110,6 +110,17 @@ Route::middleware('auth')->group(function () {
 
     Route::middleware('role:superadmin')->prefix('whatsapp')->name('whatsapp.')->group(function () {
         Route::get('/session', WhatsAppSessionManager::class)->name('session');
+        Route::post('/test-send', function (\Illuminate\Http\Request $request) {
+            $request->validate([
+                'phone' => 'required|string',
+                'message' => 'required|string',
+            ]);
+
+            $wa = app(\App\Services\WhatsAppService::class);
+            $result = $wa->send($request->phone, $request->message);
+
+            return response()->json($result);
+        })->name('test-send');
     });
 
     Route::view('profile', 'profile')->name('profile');

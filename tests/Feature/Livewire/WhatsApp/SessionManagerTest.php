@@ -6,8 +6,8 @@ use App\Services\WhatsAppService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
-use Tests\TestCase;
-use function Pest\Laravel\{actingAs};
+
+use function Pest\Laravel\actingAs;
 
 uses(RefreshDatabase::class);
 
@@ -52,6 +52,22 @@ test('school role cannot access session manager page', function () {
 
     Livewire::test(SessionManager::class)
         ->assertStatus(403);
+});
+
+test('non-superadmin cannot trigger session actions', function () {
+    $superadmin = createSessionUser('superadmin');
+    actingAs($superadmin);
+
+    Http::fake([
+        'http://localhost:3000/api/sessions/default' => Http::response(['status' => 'WORKING'], 200),
+    ]);
+
+    $component = Livewire::test(SessionManager::class);
+
+    // Alihkan ke admin lalu coba picu aksi; guard per-action harus menolak.
+    actingAs(createSessionUser('admin'));
+
+    $component->call('startSession')->assertStatus(403);
 });
 
 test('session manager shows working status', function () {
@@ -280,7 +296,7 @@ test('working status shows change number button', function () {
     ]);
 
     Livewire::test(SessionManager::class)
-        ->assertSee('Ganti Nomor');
+        ->assertSee('Putuskan Koneksi');
 });
 
 test('non-working status does not show change number trigger button', function () {
@@ -295,4 +311,55 @@ test('non-working status does not show change number trigger button', function (
 
     Livewire::test(SessionManager::class)
         ->assertDontSee('wire:click="openChangeNumberModal"');
+});
+
+test('testSend sends test message via WhatsAppService', function () {
+    $superadmin = createSessionUser('superadmin');
+    actingAs($superadmin);
+
+    Http::fake([
+        'http://localhost:3000/api/sessions/default' => Http::response([
+            'status' => 'WORKING',
+        ], 200),
+    ]);
+
+    $whatsapp = Mockery::mock(WhatsAppService::class);
+    $whatsapp->shouldReceive('getSessionInfo')->andReturn(null);
+    $whatsapp->shouldReceive('send')
+        ->once()
+        ->with('081234567890', 'Pesan uji coba')
+        ->andReturn(['success' => true, 'error' => null]);
+
+    $this->instance(WhatsAppService::class, $whatsapp);
+
+    Livewire::test(SessionManager::class)
+        ->set('testPhone', '081234567890')
+        ->set('testMessage', 'Pesan uji coba')
+        ->call('testSend')
+        ->assertHasNoErrors();
+});
+
+test('testSend shows error when WhatsAppService fails', function () {
+    $superadmin = createSessionUser('superadmin');
+    actingAs($superadmin);
+
+    Http::fake([
+        'http://localhost:3000/api/sessions/default' => Http::response([
+            'status' => 'WORKING',
+        ], 200),
+    ]);
+
+    $whatsapp = Mockery::mock(WhatsAppService::class);
+    $whatsapp->shouldReceive('getSessionInfo')->andReturn(null);
+    $whatsapp->shouldReceive('send')
+        ->once()
+        ->andReturn(['success' => false, 'error' => 'Phone not found']);
+
+    $this->instance(WhatsAppService::class, $whatsapp);
+
+    Livewire::test(SessionManager::class)
+        ->set('testPhone', '081234567890')
+        ->set('testMessage', 'Pesan uji coba')
+        ->call('testSend')
+        ->assertHasNoErrors();
 });

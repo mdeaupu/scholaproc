@@ -18,6 +18,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Mail Sync Dispatch
+    |--------------------------------------------------------------------------
+    |
+    | When true, email notifications are dispatched synchronously (dispatchSync)
+    | instead of being pushed to the queue. Mirrors config('waha.sync') so local
+    | development with MAIL_MAILER=log renders emails immediately. Set to false
+    | in production to deliver asynchronously via queue:work --queue=default.
+    |
+    */
+
+    'sync' => env('MAIL_SYNC', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Mailer Configurations
     |--------------------------------------------------------------------------
     |

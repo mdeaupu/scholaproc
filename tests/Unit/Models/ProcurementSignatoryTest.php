@@ -2,8 +2,9 @@
 
 use App\Models\ProcurementSignatory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
 
-uses(\Tests\TestCase::class, RefreshDatabase::class);
+uses(TestCase::class, RefreshDatabase::class);
 
 test('formattedIdentity mengembalikan format identitas yang benar', function () {
     $signatory = ProcurementSignatory::factory()->make([

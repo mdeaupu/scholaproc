@@ -18,12 +18,12 @@ test('downloadUrl returns the stored local file path', function () {
     Storage::fake('local');
     $procurement = ProcurementRequest::factory()->create();
 
-    Storage::disk('local')->put('temp/cover-' . $procurement->uuid . '.pdf', '%PDF-fake');
+    Storage::disk('local')->put('temp/cover-'.$procurement->uuid.'.pdf', '%PDF-fake');
 
     $document = GeneratedDocument::create([
         'procurement_request_id' => $procurement->id,
         'document_type' => 'cover',
-        'file_path' => 'temp/cover-' . $procurement->uuid . '.pdf',
+        'file_path' => 'temp/cover-'.$procurement->uuid.'.pdf',
         'download_token' => Str::random(64),
     ]);
 

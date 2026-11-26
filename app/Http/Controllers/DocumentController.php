@@ -10,7 +10,7 @@ class DocumentController extends Controller
     {
         $filePath = $document->downloadUrl();
 
-        $fileName = $document->document_type . '-' . $document->procurementRequest->uuid . '.pdf';
+        $fileName = $document->document_type.'-'.$document->procurementRequest->uuid.'.pdf';
 
         if (! file_exists($filePath)) {
             abort(404, 'File fisik PDF tidak ditemukan di server.');

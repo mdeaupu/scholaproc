@@ -13,7 +13,7 @@ use Mary\Traits\Toast;
 
 class ProcurementRequestList extends Component
 {
-    use WithPagination, Toast;
+    use Toast, WithPagination;
 
     public string $search = '';
 
@@ -72,8 +72,8 @@ class ProcurementRequestList extends Component
             ->findOrFail($id);
 
         $this->targetDraftId = $request->id;
-        $this->targetDraftNumber = 'PGN-' . $request->created_at->format('Y') . '-'
-            . str_pad((string) $request->id, 4, '0', STR_PAD_LEFT);
+        $this->targetDraftNumber = 'PGN-'.$request->created_at->format('Y').'-'
+            .str_pad((string) $request->id, 4, '0', STR_PAD_LEFT);
         $this->confirmingDeleteDraft = true;
     }
 
@@ -121,8 +121,8 @@ class ProcurementRequestList extends Component
             ->when($this->search !== '', function (Builder $query): void {
                 $search = trim($this->search);
                 $query->where(function (Builder $query) use ($search): void {
-                    $query->where('uuid', 'like', '%' . $search . '%')
-                        ->orWhereHas('packageCategory', fn (Builder $categoryQuery) => $categoryQuery->where('name', 'like', '%' . $search . '%'));
+                    $query->where('uuid', 'like', '%'.$search.'%')
+                        ->orWhereHas('packageCategory', fn (Builder $categoryQuery) => $categoryQuery->where('name', 'like', '%'.$search.'%'));
 
                     if (preg_match('/^PGN-(\d{4})-(\d+)$/i', $search, $matches) === 1) {
                         $query->orWhere(function (Builder $referenceQuery) use ($matches): void {

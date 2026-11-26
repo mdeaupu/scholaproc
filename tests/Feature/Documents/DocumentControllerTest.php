@@ -8,7 +8,7 @@ use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
 
-require_once __DIR__ . '/ProcurementTestHelpers.php';
+require_once __DIR__.'/ProcurementTestHelpers.php';
 
 beforeEach(function () {
     Storage::fake();
@@ -21,12 +21,12 @@ describe('DocumentController - download()', function () {
     it('bisa download PDF lewat download_token', function () {
         $user = makeUser();
         $procurement = ProcurementRequest::factory()->create();
-        Storage::disk('local')->put('temp/cover-' . $procurement->uuid . '.pdf', '%PDF-fake');
+        Storage::disk('local')->put('temp/cover-'.$procurement->uuid.'.pdf', '%PDF-fake');
 
         $document = GeneratedDocument::create([
             'procurement_request_id' => $procurement->id,
             'document_type' => 'cover',
-            'file_path' => 'temp/cover-' . $procurement->uuid . '.pdf',
+            'file_path' => 'temp/cover-'.$procurement->uuid.'.pdf',
             'download_token' => Str::random(64),
         ]);
 

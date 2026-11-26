@@ -7,6 +7,7 @@ use App\Models\ProcurementRequest;
 use App\Models\ProcurementRequestItem;
 use App\Models\User;
 use Exception;
+use Illuminate\Support\Collection;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
@@ -17,16 +18,21 @@ class NegotiationPanel extends Component
     public ProcurementRequest $procurementRequest;
 
     public ?int $selectedItemId = null;
+
     public $items = [];
 
     public float $offerPrice = 0;
+
     public string $offerNotes = '';
 
     public bool $showRejectModal = false;
+
     public ?int $rejectingNegotiationId = null;
+
     public string $rejectReason = '';
 
     public bool $showDetailModal = false;
+
     public ?ProcurementNegotiation $detailNegotiation = null;
 
     public function mount(ProcurementRequest $procurementRequest): void
@@ -34,7 +40,7 @@ class NegotiationPanel extends Component
         $this->procurementRequest = $procurementRequest;
         $this->loadItems();
 
-        if ($this->items->isNotEmpty() && !$this->selectedItemId) {
+        if ($this->items->isNotEmpty() && ! $this->selectedItemId) {
             $this->selectedItemId = $this->items->first()->id;
         }
     }
@@ -53,16 +59,16 @@ class NegotiationPanel extends Component
 
     private function getSelectedItem(): ?ProcurementRequestItem
     {
-        if (!$this->selectedItemId) {
+        if (! $this->selectedItemId) {
             return null;
         }
 
         return $this->items->firstWhere('id', $this->selectedItemId);
     }
 
-    private function getNegotiations(): \Illuminate\Support\Collection
+    private function getNegotiations(): Collection
     {
-        if (!$this->selectedItemId) {
+        if (! $this->selectedItemId) {
             return collect();
         }
 
@@ -70,7 +76,7 @@ class NegotiationPanel extends Component
             ->whereKey($this->selectedItemId)
             ->first();
 
-        if (!$item) {
+        if (! $item) {
             return collect();
         }
 
@@ -127,6 +133,7 @@ class NegotiationPanel extends Component
             && ! $user->isAdmin()
             && ! $user->isSuperAdmin()) {
             $this->error('Anda tidak memiliki hak akses untuk menerima tawaran.');
+
             return;
         }
 
@@ -145,8 +152,9 @@ class NegotiationPanel extends Component
     {
         $user = auth()->user();
 
-        if (!$user->canDecideNegotiation($this->procurementRequest)) {
+        if (! $user->canDecideNegotiation($this->procurementRequest)) {
             $this->error('Anda tidak memiliki hak akses untuk menolak tawaran.');
+
             return;
         }
 

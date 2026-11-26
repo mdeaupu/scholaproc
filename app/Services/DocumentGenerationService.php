@@ -39,7 +39,10 @@ class DocumentGenerationService
             throw new LogicException('Jenis dokumen tidak dikenal.');
         }
 
-        return DB::transaction(function () use ($request, $type, $actor, $stageData): ProcurementDocument {
+        $issuedNew = false;
+        $requestId = $request->id;
+
+        $document = DB::transaction(function () use ($request, $type, $actor, $stageData, &$issuedNew): ProcurementDocument {
             $request = ProcurementRequest::query()
                 ->with([
                     'school.setting',
@@ -149,8 +152,31 @@ class DocumentGenerationService
             ]);
             $document->issue();
 
+            $issuedNew = true;
+
             return $document->refresh();
         }, attempts: 3);
+
+        DB::afterCommit(function () use ($requestId, $type, $issuedNew): void {
+            if (! $issuedNew) {
+                return;
+            }
+
+            try {
+                $request = ProcurementRequest::find($requestId);
+                if ($request) {
+                    $request->notifyDocumentGenerated(['document_type' => $type]);
+                }
+            } catch (\Throwable $e) {
+                \Log::warning('Gagal mengirim notifikasi dokumen diterbitkan', [
+                    'request_id' => $requestId,
+                    'document_type' => $type,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        });
+
+        return $document;
     }
 
     public function viewFor(ProcurementDocument $document): ?string

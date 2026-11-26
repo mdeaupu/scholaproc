@@ -8,7 +8,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ProcurementReceiptItem extends Model
 {
     public const FOLLOW_UP_NONE = 'none';
+
     public const FOLLOW_UP_OPEN = 'open';
+
     public const FOLLOW_UP_RESOLVED = 'resolved';
 
     protected $fillable = [

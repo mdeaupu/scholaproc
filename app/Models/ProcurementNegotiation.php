@@ -166,6 +166,17 @@ class ProcurementNegotiation extends Model
 
             $lockedItem->update(['negotiation_status' => 'negotiating']);
 
+            DB::afterCommit(function () use ($lockedItem, $lockedRequest, $negotiation): void {
+                try {
+                    $lockedRequest->notifyNegotiationOffer($lockedItem, $negotiation);
+                } catch (\Throwable $e) {
+                    \Log::warning('Gagal mengirim notifikasi penawaran negosiasi', [
+                        'request_id' => $lockedRequest->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            });
+
             return $negotiation;
         });
     }
@@ -219,6 +230,8 @@ class ProcurementNegotiation extends Model
                 $request->status,
                 "Negosiasi ditolak: {$item->item_name}".($reason ? " — {$reason}" : '')
             );
+
+            $request->notifyNegotiationDecided($item, $negotiation, 'rejected', ['decided_by' => 'school']);
         });
     }
 
@@ -267,6 +280,9 @@ class ProcurementNegotiation extends Model
                     $request->status,
                     "Negosiasi disepakati: {$item->item_name} Rp ".number_format((float) $negotiation->offered_price, 0, ',', '.')
                 );
+
+                $decidedBy = $actor->isSchool() ? 'school' : 'admin';
+                $request->notifyNegotiationDecided($item, $negotiation, 'accepted', ['decided_by' => $decidedBy]);
             }
 
             if (! $request->items()->where('negotiation_status', '!=', 'accepted')->exists()) {

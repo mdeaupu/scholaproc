@@ -120,6 +120,24 @@ class ProcurementDocument extends Model
         return ! empty($this->document_number) && ! empty($this->document_date);
     }
 
+    public static function documentTypeLabel(string $type): string
+    {
+        return match ($type) {
+            'cover' => 'Cover',
+            'planning' => 'Perencanaan (HPS)',
+            'negotiation' => 'Negosiasi Harga',
+            'purchase_order' => 'Surat Pesanan (SPK)',
+            'delivery' => 'Bukti Pengiriman',
+            'inspection' => 'Pemeriksaan Barang (BA-HP)',
+            'bast' => 'Berita Acara Serah Terima (BAST)',
+            'invoice' => 'Faktur',
+            'receipt' => 'Kuitansi',
+            'summary' => 'Ringkasan Pengadaan',
+            'supplier_declaration' => 'Identitas Penyedia',
+            default => ucfirst(str_replace('_', ' ', $type)),
+        };
+    }
+
     public function subsidiary(): BelongsTo
     {
         return $this->belongsTo(Subsidiary::class);

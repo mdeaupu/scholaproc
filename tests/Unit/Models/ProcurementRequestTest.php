@@ -151,7 +151,7 @@ test('negotiation requires a subsidiary assignment', function () {
     expect($procurement->status)->toBe(ProcurementRequest::STATUS_VERIFIED);
 
     expect(fn () => $procurement->startNegotiation($admin))
-        ->toThrow(\LogicException::class, 'Tetapkan Anak Perusahaan aktif sebelum memulai negosiasi.');
+        ->toThrow(LogicException::class, 'Tetapkan Anak Perusahaan aktif sebelum memulai negosiasi.');
 
     $procurement->assignSubsidiary(Subsidiary::factory()->create(), $admin);
     $procurement->startNegotiation($admin);
@@ -302,7 +302,7 @@ test('does not present a final tax total when no validated rules are available',
 
     expect($result['status'])->toBe('NEEDS_REVIEW')
         ->and($procurement->isTaxConfigurationValidated())->toBeFalse()
-        ->and(fn () => $procurement->totalPpn())->toThrow(\LogicException::class);
+        ->and(fn () => $procurement->totalPpn())->toThrow(LogicException::class);
 });
 
 test('manual tax fields cannot be mass assigned on procurement requests', function () {
@@ -385,7 +385,7 @@ test('isReadyForDocumentGeneration tervalidasi jika semua syarat terpenuhi', fun
 
     $item = ProcurementRequestItem::factory()->create([
         'procurement_request_id' => $procurement->id,
-        'official_price' => null
+        'official_price' => null,
     ]);
 
     expect($procurement->isReadyForDocumentGeneration())->toBeFalse();

@@ -13,18 +13,15 @@ class GeneratedDocumentObserver
 
         if (file_exists($tempPath)) {
             $document->addMedia($tempPath)
-                ->usingName($document->document_type . '-' . $document->procurementRequest->uuid)
+                ->usingName($document->document_type.'-'.$document->procurementRequest->uuid)
                 ->usingFileName(basename($tempPath))
                 ->toMediaCollection('documents');
 
             $document->updateQuietly([
-                'file_path' => $document->getFirstMedia('documents')->getPath()
+                'file_path' => $document->getFirstMedia('documents')->getPath(),
             ]);
         }
     }
 
-    public function deleted(GeneratedDocument $document): void
-    {
-
-    }
+    public function deleted(GeneratedDocument $document): void {}
 }

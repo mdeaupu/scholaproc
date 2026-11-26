@@ -17,24 +17,33 @@ class ProcurementProcessPanel extends Component
     public ProcurementRequest $procurementRequest;
 
     public $rejectReason = '';
+
     public $supplierId = '';
+
     public $items;
 
-
     public bool $rejectModal = false;
+
     public bool $supplierModal = false;
+
     public bool $taxModal = false;
+
     public bool $signatoryModal = false;
 
     public bool $isTaxable = false;
+
     public $ppnRate = 11;
+
     public $pph22Rate = 0;
+
     public $pph23Rate = 0;
 
     public bool $priceModal = false;
+
     public array $inputPrices = [];
 
     public bool $showNegotiation = false;
+
     public bool $showVerification = false;
 
     public array $signatoriesData = [
@@ -77,13 +86,13 @@ class ProcurementProcessPanel extends Component
 
     private function authorizeAdminSchool(): void
     {
-        abort_if(!auth()->user()->isSchool(), 403, 'Akses Ditolak: Hanya Admin Sekolah yang berhak melakukan tindakan ini.');
+        abort_if(! auth()->user()->isSchool(), 403, 'Akses Ditolak: Hanya Admin Sekolah yang berhak melakukan tindakan ini.');
     }
 
     private function authorizeAdminCvOrOwner(): void
     {
         $user = auth()->user();
-        abort_if(!$user->isSuperAdmin() && !$user->isAdmin(), 403, 'Akses Ditolak: Hanya Pihak CV yang berhak memproses administrasi.');
+        abort_if(! $user->isSuperAdmin() && ! $user->isAdmin(), 403, 'Akses Ditolak: Hanya Pihak CV yang berhak memproses administrasi.');
     }
 
     public function submitRequest()
@@ -117,9 +126,9 @@ class ProcurementProcessPanel extends Component
         $this->authorizeAdminCvOrOwner();
 
         $this->validate([
-            'rejectReason' => 'required|string|min:5'
+            'rejectReason' => 'required|string|min:5',
         ], [
-            'rejectReason.required' => 'Alasan penolakan wajib diisi.'
+            'rejectReason.required' => 'Alasan penolakan wajib diisi.',
         ]);
 
         try {
@@ -138,7 +147,7 @@ class ProcurementProcessPanel extends Component
         $this->authorizeAdminCvOrOwner();
 
         $this->validate([
-            'supplierId' => 'required|exists:suppliers,id'
+            'supplierId' => 'required|exists:suppliers,id',
         ]);
 
         $supplier = Supplier::findOrFail($this->supplierId);
@@ -149,7 +158,7 @@ class ProcurementProcessPanel extends Component
                 $this->procurementRequest->documents()->updateOrCreate(
                     ['document_type' => 'purchase_order'],
                     [
-                        'document_number' => 'DRAFT-SPK/' . $this->procurementRequest->id . '/' . date('Y'),
+                        'document_number' => 'DRAFT-SPK/'.$this->procurementRequest->id.'/'.date('Y'),
                         'document_date' => now()->toDateString(),
                     ]
                 );
@@ -224,7 +233,7 @@ class ProcurementProcessPanel extends Component
             'signatoriesData.*.name' => 'required|string|min:3',
             'signatoriesData.*.title' => 'required|string',
         ], [
-            'signatoriesData.*.name.required' => 'Nama wajib diisi.'
+            'signatoriesData.*.name.required' => 'Nama wajib diisi.',
         ]);
 
         try {
@@ -261,7 +270,7 @@ class ProcurementProcessPanel extends Component
 
             $this->success('Penomoran dokumen dinas (SPK, BAST, dll) berhasil digenerate.');
         } catch (Exception $e) {
-            $this->error('Gagal generate nomor: ' . $e->getMessage());
+            $this->error('Gagal generate nomor: '.$e->getMessage());
         }
     }
 
@@ -301,18 +310,18 @@ class ProcurementProcessPanel extends Component
 
             $this->success('Harga resmi kontrak berhasil disimpan dan divalidasi.');
         } catch (Exception $e) {
-            $this->error('Gagal menyimpan harga: ' . $e->getMessage());
+            $this->error('Gagal menyimpan harga: '.$e->getMessage());
         }
     }
 
     public function toggleNegotiation(): void
     {
-        $this->showNegotiation = !$this->showNegotiation;
+        $this->showNegotiation = ! $this->showNegotiation;
     }
 
     public function toggleVerification(): void
     {
-        $this->showVerification = !$this->showVerification;
+        $this->showVerification = ! $this->showVerification;
     }
 
     public function render()

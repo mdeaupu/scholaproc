@@ -6,6 +6,7 @@ use App\Models\ProcurementRequestItem;
 use App\Models\School;
 use App\Models\Subsidiary;
 use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -109,7 +110,7 @@ test('throws exception when offering on settled item', function () {
         $this->admin,
         ProcurementNegotiation::OFFERED_BY_ADMIN,
         80000
-    ))->toThrow(\Exception::class, 'Negosiasi untuk item ini sudah selesai (diterima/ditolak).');
+    ))->toThrow(Exception::class, 'Negosiasi untuk item ini sudah selesai (diterima/ditolak).');
 });
 
 test('throws exception when offering without subsidiary', function () {
@@ -127,7 +128,7 @@ test('throws exception when offering without subsidiary', function () {
         $this->admin,
         ProcurementNegotiation::OFFERED_BY_ADMIN,
         95000
-    ))->toThrow(\Exception::class, 'Penawaran hanya dapat diajukan saat negosiasi dan setelah Anak Perusahaan ditetapkan.');
+    ))->toThrow(Exception::class, 'Penawaran hanya dapat diajukan saat negosiasi dan setelah Anak Perusahaan ditetapkan.');
 });
 
 test('throws exception with invalid offered_by value', function () {
@@ -136,7 +137,7 @@ test('throws exception with invalid offered_by value', function () {
         $this->admin,
         'invalid_role',
         95000
-    ))->toThrow(\Exception::class, 'Pihak penawar tidak valid');
+    ))->toThrow(Exception::class, 'Pihak penawar tidak valid');
 });
 
 test('offer creates record in database', function () {
@@ -193,7 +194,7 @@ test('admin cannot accept an offer made by admin', function () {
     );
 
     expect(fn () => $nego->accept($this->admin))
-        ->toThrow(\Illuminate\Auth\Access\AuthorizationException::class, 'Hanya pihak lawan yang dapat menerima tawaran ini.');
+        ->toThrow(AuthorizationException::class, 'Hanya pihak lawan yang dapat menerima tawaran ini.');
 });
 
 test('throws exception when accepting non-pending offer', function () {
@@ -207,7 +208,7 @@ test('throws exception when accepting non-pending offer', function () {
     $nego->update(['status' => ProcurementNegotiation::STATUS_COUNTERED]);
 
     expect(fn () => $nego->accept($this->school))
-        ->toThrow(\Exception::class, 'Hanya tawaran berstatus pending yang dapat diterima.');
+        ->toThrow(Exception::class, 'Hanya tawaran berstatus pending yang dapat diterima.');
 });
 
 // ─── reject() Tests ────────────────────────────────────────────
@@ -251,7 +252,7 @@ test('admin cannot reject (only school)', function () {
     );
 
     expect(fn () => $nego->reject($this->admin, 'Tolak'))
-        ->toThrow(\Exception::class, 'Hanya pihak sekolah yang dapat menerima/menolak tawaran harga.');
+        ->toThrow(Exception::class, 'Hanya pihak sekolah yang dapat menerima/menolak tawaran harga.');
 });
 
 // ─── isLatestRound() Tests ────────────────────────────────────

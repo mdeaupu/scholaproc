@@ -10,6 +10,7 @@ use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+
 use function Pest\Laravel\actingAs;
 
 uses(RefreshDatabase::class);

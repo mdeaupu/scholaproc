@@ -9,6 +9,7 @@ use App\Models\ProcurementRequest;
 use App\Models\ProcurementRequestItem;
 use App\Models\School;
 use App\Models\User;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 
@@ -29,8 +30,8 @@ test('school sees only its requests and summary values', function () {
 
     Livewire::actingAs($user)
         ->test(ProcurementRequestList::class)
-        ->assertSee('PGN-' . $ownRequest->created_at->format('Y') . '-' . str_pad((string) $ownRequest->id, 4, '0', STR_PAD_LEFT))
-        ->assertDontSee('PGN-' . $otherRequest->created_at->format('Y') . '-' . str_pad((string) $otherRequest->id, 4, '0', STR_PAD_LEFT))
+        ->assertSee('PGN-'.$ownRequest->created_at->format('Y').'-'.str_pad((string) $ownRequest->id, 4, '0', STR_PAD_LEFT))
+        ->assertDontSee('PGN-'.$otherRequest->created_at->format('Y').'-'.str_pad((string) $otherRequest->id, 4, '0', STR_PAD_LEFT))
         ->assertSee('Total Pengajuan')
         ->assertSee('Draft');
 });
@@ -59,8 +60,8 @@ test('filters school requests by status budget year and funding source', functio
         ->set('filterBudgetYear', (string) $year->id)
         ->set('filterFundingSource', (string) $source->id)
         ->set('search', 'Peralatan Laboratorium')
-        ->assertSee('PGN-' . $request->created_at->format('Y') . '-' . str_pad((string) $request->id, 4, '0', STR_PAD_LEFT))
-        ->assertDontSee('PGN-' . $draftRequest->created_at->format('Y') . '-' . str_pad((string) $draftRequest->id, 4, '0', STR_PAD_LEFT));
+        ->assertSee('PGN-'.$request->created_at->format('Y').'-'.str_pad((string) $request->id, 4, '0', STR_PAD_LEFT))
+        ->assertDontSee('PGN-'.$draftRequest->created_at->format('Y').'-'.str_pad((string) $draftRequest->id, 4, '0', STR_PAD_LEFT));
 });
 
 test('shows estimated total as rupiah and master data labels', function () {
@@ -107,8 +108,8 @@ test('shows edit for draft and needs revision and delete only for draft', functi
         ->test(ProcurementRequestList::class)
         ->assertSee('Detail')
         ->assertSee('Edit Pengajuan')
-        ->assertSeeHtml('wire:click="confirmDeleteDraft(' . $draftRequest->id . ')"')
-        ->assertDontSeeHtml('wire:click="confirmDeleteDraft(' . $revisionRequest->id . ')"')
+        ->assertSeeHtml('wire:click="confirmDeleteDraft('.$draftRequest->id.')"')
+        ->assertDontSeeHtml('wire:click="confirmDeleteDraft('.$revisionRequest->id.')"')
         ->assertDontSee('Kirim Pengajuan');
 
     $submittedSchool = School::factory()->create();
@@ -122,7 +123,7 @@ test('shows edit for draft and needs revision and delete only for draft', functi
         ->test(ProcurementRequestList::class)
         ->assertSee('Detail')
         ->assertDontSee('Edit Pengajuan')
-        ->assertDontSeeHtml('wire:click="confirmDeleteDraft(' . $submittedRequest->id . ')"')
+        ->assertDontSeeHtml('wire:click="confirmDeleteDraft('.$submittedRequest->id.')"')
         ->assertDontSee('Kirim Pengajuan');
 });
 
@@ -140,12 +141,12 @@ test('needs revision requests cannot be deleted', function () {
     Livewire::actingAs($user)
         ->test(ProcurementRequestList::class)
         ->assertSee('Edit Pengajuan')
-        ->assertDontSeeHtml('wire:click="confirmDeleteDraft(' . $request->id . ')"');
+        ->assertDontSeeHtml('wire:click="confirmDeleteDraft('.$request->id.')"');
 
     expect(fn () => Livewire::actingAs($user)
         ->test(ProcurementRequestList::class)
         ->call('delete', $request->id))
-        ->toThrow(\Illuminate\Database\Eloquent\ModelNotFoundException::class);
+        ->toThrow(ModelNotFoundException::class);
 
     expect($request->fresh()->status)->toBe(ProcurementRequest::STATUS_NEEDS_REVISION)
         ->and($item->fresh())->not->toBeNull();
@@ -166,7 +167,7 @@ test('deleting a draft soft deletes its items and request', function () {
         ->test(ProcurementRequestList::class)
         ->call('confirmDeleteDraft', $request->id)
         ->assertSet('confirmingDeleteDraft', true)
-        ->assertSee('PGN-' . $request->created_at->format('Y') . '-' . str_pad((string) $request->id, 4, '0', STR_PAD_LEFT))
+        ->assertSee('PGN-'.$request->created_at->format('Y').'-'.str_pad((string) $request->id, 4, '0', STR_PAD_LEFT))
         ->assertSee('Ya, Hapus')
         ->call('deleteConfirmed')
         ->assertSet('confirmingDeleteDraft', false);
@@ -187,7 +188,7 @@ test('school cannot delete or view another school request', function () {
     expect(fn () => Livewire::actingAs($user)
         ->test(ProcurementRequestList::class)
         ->call('delete', $request->id))
-        ->toThrow(\Illuminate\Database\Eloquent\ModelNotFoundException::class);
+        ->toThrow(ModelNotFoundException::class);
 
     $this->actingAs($user)
         ->get(route('procurement.show', $request->id))

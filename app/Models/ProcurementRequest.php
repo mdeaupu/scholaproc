@@ -4,7 +4,8 @@ namespace App\Models;
 
 use App\Services\DocumentGenerationService;
 use App\Services\NotificationService;
-use App\Services\ProcurementNumberGenerator;
+use App\Services\ProcurementProcessingService;
+use App\Services\TaxEvaluationService;
 use Exception;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
@@ -157,7 +158,7 @@ class ProcurementRequest extends Model
             if ($model->subsidiary_id !== null) {
                 $subsidiary = Subsidiary::findOrFail($model->subsidiary_id);
 
-                if (!$subsidiary->isActive()) {
+                if (! $subsidiary->isActive()) {
                     throw new LogicException('Anak Perusahaan nonaktif tidak dapat ditetapkan pada transaksi baru.');
                 }
             }
@@ -165,7 +166,7 @@ class ProcurementRequest extends Model
 
         static::updating(function (self $model): void {
             if (
-                $model->isTotalsLocked() && !$model->allowSnapshotCorrection
+                $model->isTotalsLocked() && ! $model->allowSnapshotCorrection
                 && $model->isDirty([
                     'is_taxable',
                     'ppn_rate',
@@ -185,7 +186,7 @@ class ProcurementRequest extends Model
             if ($model->isDirty('subsidiary_id')) {
                 if (
                     $model->officialDocuments()->whereNotNull('issued_at')->exists()
-                    && !$model->allowSubsidiaryCorrection
+                    && ! $model->allowSubsidiaryCorrection
                 ) {
                     throw new LogicException('Anak Perusahaan tidak dapat diganti setelah dokumen resmi diterbitkan tanpa koreksi berwenang.');
                 }
@@ -196,13 +197,13 @@ class ProcurementRequest extends Model
                 ) {
                     $subsidiary = Subsidiary::findOrFail($model->subsidiary_id);
 
-                    if (!$subsidiary->isActive()) {
+                    if (! $subsidiary->isActive()) {
                         throw new LogicException('Anak Perusahaan nonaktif tidak dapat ditetapkan pada transaksi baru.');
                     }
 
                     if (
                         $model->officialDocuments()->whereNotNull('issued_at')->exists()
-                        && !$model->allowSubsidiaryCorrection
+                        && ! $model->allowSubsidiaryCorrection
                     ) {
                         throw new LogicException('Anak Perusahaan tidak dapat diganti setelah dokumen resmi diterbitkan.');
                     }
@@ -213,11 +214,11 @@ class ProcurementRequest extends Model
 
     public function finalizePriceAgreement(User $actor): void
     {
-        if (!$actor->isAdmin() && !$actor->isSuperAdmin() && !$actor->isSchool()) {
+        if (! $actor->isAdmin() && ! $actor->isSuperAdmin() && ! $actor->isSchool()) {
             throw new AuthorizationException('Pengguna tidak berwenang mengesahkan harga.');
         }
 
-        if ($this->status !== self::STATUS_NEGOTIATION || !$this->hasSubsidiary()) {
+        if ($this->status !== self::STATUS_NEGOTIATION || ! $this->hasSubsidiary()) {
             throw new LogicException('Harga final hanya dapat disahkan dalam negosiasi dengan Anak Perusahaan yang telah ditetapkan.');
         }
 
@@ -230,7 +231,7 @@ class ProcurementRequest extends Model
             ->exists();
 
         if (
-            !$this->hasOfficialPrices()
+            ! $this->hasOfficialPrices()
             || $this->items()->where('negotiation_status', '!=', 'accepted')->exists()
             || $hasUnapprovedFinalOffer
         ) {
@@ -241,6 +242,7 @@ class ProcurementRequest extends Model
             $this->lockTotals();
             $this->update(['status' => self::STATUS_PRICE_AGREED]);
             $this->recordHistory($actor, self::STATUS_PRICE_AGREED, 'Persetujuan harga kedua pihak tercatat; snapshot harga dikunci.');
+            $this->notifyPriceAgreed();
             app(DocumentGenerationService::class)->issue($this, 'negotiation', $actor);
         });
     }
@@ -306,11 +308,11 @@ class ProcurementRequest extends Model
 
     public function assignSubsidiary(Subsidiary $subsidiary, User $actor): void
     {
-        if (!$actor->isAdmin() && !$actor->isSuperAdmin()) {
+        if (! $actor->isAdmin() && ! $actor->isSuperAdmin()) {
             throw new AuthorizationException('Hanya Admin Pusat yang dapat menetapkan Anak Perusahaan.');
         }
 
-        if (!$subsidiary->isActive()) {
+        if (! $subsidiary->isActive()) {
             throw new LogicException('Anak Perusahaan nonaktif tidak dapat ditetapkan pada transaksi baru.');
         }
 
@@ -346,6 +348,14 @@ class ProcurementRequest extends Model
                 $this->issuePlanningDocumentIfReady($actor);
             }
         });
+
+        DB::afterCommit(function () use ($actor): void {
+            try {
+                $this->notifySupplierAssigned($actor);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::report($e);
+            }
+        });
     }
 
     public function correctSubsidiary(Subsidiary $subsidiary, User $actor, string $reason): void
@@ -357,7 +367,7 @@ class ProcurementRequest extends Model
             throw new LogicException('Alasan koreksi Anak Perusahaan wajib diisi minimal 5 karakter.');
         }
 
-        if (!$subsidiary->isActive()) {
+        if (! $subsidiary->isActive()) {
             throw new LogicException('Anak Perusahaan nonaktif tidak dapat ditetapkan.');
         }
 
@@ -403,7 +413,15 @@ class ProcurementRequest extends Model
                     'reason' => $reason,
                 ])
                 ->log('Koreksi Anak Perusahaan transaksi');
-            $this->recordHistory($actor, $this->status, 'Koreksi Anak Perusahaan: ' . $reason);
+            $this->recordHistory($actor, $this->status, 'Koreksi Anak Perusahaan: '.$reason);
+        });
+
+        DB::afterCommit(function () use ($actor): void {
+            try {
+                $this->notifySupplierAssigned($actor);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::report($e);
+            }
         });
     }
 
@@ -593,7 +611,7 @@ class ProcurementRequest extends Model
             'has_subsidiary' => $this->hasSubsidiary(),
             'tax_configuration_valid' => $this->isTaxConfigurationValidated(),
             'all_quantities_received' => $this->allQuantitiesReceived(),
-            'no_open_follow_ups' => !$this->hasOpenReceiptFollowUps(),
+            'no_open_follow_ups' => ! $this->hasOpenReceiptFollowUps(),
             'has_signatories' => $this->hasSignatories(),
             'has_official_prices' => $this->hasOfficialPrices(),
             'all_items_negotiation_settled' => $this->allItemsNegotiationSettled(),
@@ -608,7 +626,7 @@ class ProcurementRequest extends Model
 
     public function canComplete(): bool
     {
-        return !in_array(false, $this->completionEligibility(), true);
+        return ! in_array(false, $this->completionEligibility(), true);
     }
 
     public function invoiceEligibility(): array
@@ -616,18 +634,18 @@ class ProcurementRequest extends Model
         return [
             'status_received' => $this->status === self::STATUS_RECEIVED,
             'all_quantities_received' => $this->allQuantitiesReceived(),
-            'no_open_follow_ups' => !$this->hasOpenReceiptFollowUps(),
+            'no_open_follow_ups' => ! $this->hasOpenReceiptFollowUps(),
             'has_signatories' => $this->hasSignatories(),
             'tax_configuration_valid' => $this->isTaxConfigurationValidated(),
             'totals_locked' => $this->isTotalsLocked(),
             'bast_issued' => $this->hasIssuedDocument('bast'),
-            'not_yet_invoiced' => !$this->invoice()->exists(),
+            'not_yet_invoiced' => ! $this->invoice()->exists(),
         ];
     }
 
     public function canProcessInvoice(): bool
     {
-        return !in_array(false, $this->invoiceEligibility(), true);
+        return ! in_array(false, $this->invoiceEligibility(), true);
     }
 
     private function issuePlanningDocumentIfReady(User $actor): void
@@ -656,7 +674,7 @@ class ProcurementRequest extends Model
         }
 
         if ($user->isAdmin() || $user->isSuperAdmin()) {
-            return !in_array($this->status, [
+            return ! in_array($this->status, [
                 self::STATUS_COMPLETED,
                 self::STATUS_REJECTED,
                 self::STATUS_CANCELLED,
@@ -736,7 +754,7 @@ class ProcurementRequest extends Model
     {
         $this->authorizeSchoolOwner($user);
 
-        if (!$this->canSubmit()) {
+        if (! $this->canSubmit()) {
             throw new Exception('Pengajuan tidak dapat di-submit. Pastikan status draft atau perlu revisi dan memiliki minimal 1 item.');
         }
 
@@ -764,7 +782,7 @@ class ProcurementRequest extends Model
     public function verify(User $user): void
     {
         $this->authorizeInternal($user);
-        if (!$this->canVerify()) {
+        if (! $this->canVerify()) {
             throw new Exception('Hanya pengajuan berstatus submitted yang dapat diverifikasi.');
         }
 
@@ -775,6 +793,7 @@ class ProcurementRequest extends Model
                 'reviewed_by' => $user->id,
             ]);
             $this->recordHistory($user, self::STATUS_VERIFIED);
+            $this->notifyVerified();
             if ($this->hasSubsidiary()) {
                 $this->issuePlanningDocumentIfReady($user);
             }
@@ -785,7 +804,7 @@ class ProcurementRequest extends Model
     {
         $this->authorizeInternal($user);
 
-        if (!$this->canVerify()) {
+        if (! $this->canVerify()) {
             throw new Exception('Revisi hanya dapat diminta untuk pengajuan berstatus submitted.');
         }
 
@@ -796,14 +815,25 @@ class ProcurementRequest extends Model
 
         DB::transaction(function () use ($user, $reason): void {
             $this->update(['status' => self::STATUS_NEEDS_REVISION]);
-            $this->recordHistory($user, self::STATUS_NEEDS_REVISION, 'Revisi diminta: ' . $reason);
+            $this->recordHistory($user, self::STATUS_NEEDS_REVISION, 'Revisi diminta: '.$reason);
+        });
+
+        DB::afterCommit(function () use ($reason): void {
+            try {
+                $this->notifyNeedsRevision($reason);
+            } catch (\Throwable $e) {
+                \Log::warning('Gagal mengirim notifikasi revisi', [
+                    'request_id' => $this->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         });
     }
 
     public function reject(User $user, string $reason): void
     {
         $this->authorizeInternal($user);
-        if (!$this->canVerify()) {
+        if (! $this->canVerify()) {
             throw new Exception('Hanya pengajuan berstatus submitted yang dapat ditolak.');
         }
 
@@ -814,7 +844,18 @@ class ProcurementRequest extends Model
 
         DB::transaction(function () use ($user, $reason): void {
             $this->update(['status' => self::STATUS_REJECTED]);
-            $this->recordHistory($user, self::STATUS_REJECTED, 'Ditolak: ' . $reason);
+            $this->recordHistory($user, self::STATUS_REJECTED, 'Ditolak: '.$reason);
+        });
+
+        DB::afterCommit(function () use ($reason): void {
+            try {
+                $this->notifyRejected($reason);
+            } catch (\Throwable $e) {
+                \Log::warning('Gagal mengirim notifikasi penolakan', [
+                    'request_id' => $this->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         });
     }
 
@@ -822,11 +863,11 @@ class ProcurementRequest extends Model
     {
         $this->authorizeInternal($user);
 
-        if (!$this->hasSubsidiary()) {
+        if (! $this->hasSubsidiary()) {
             throw new LogicException('Tetapkan Anak Perusahaan aktif sebelum memulai negosiasi.');
         }
 
-        if (!$this->canStartNegotiation()) {
+        if (! $this->canStartNegotiation()) {
             throw new Exception('Hanya pengajuan terverifikasi yang dapat diteruskan ke negosiasi.');
         }
 
@@ -840,11 +881,11 @@ class ProcurementRequest extends Model
     {
         $this->authorizeInternal($user);
 
-        if (!$this->canConfirmPayment()) {
+        if (! $this->canConfirmPayment()) {
             throw new Exception('Pembayaran hanya dapat dikonfirmasi satu kali pada status menunggu pembayaran.');
         }
 
-        app(\App\Services\ProcurementProcessingService::class)->confirmPayment(
+        app(ProcurementProcessingService::class)->confirmPayment(
             $this->payment()->firstOrFail(),
             $user
         );
@@ -874,9 +915,9 @@ class ProcurementRequest extends Model
             ];
 
             $missing = collect($eligibility)
-                ->filter(fn(bool $passed): bool => !$passed)
+                ->filter(fn (bool $passed): bool => ! $passed)
                 ->keys()
-                ->map(fn(string $key): string => $labels[$key] ?? $key)
+                ->map(fn (string $key): string => $labels[$key] ?? $key)
                 ->implode(', ');
 
             throw new Exception("Pengadaan belum dapat diselesaikan: {$missing}.");
@@ -902,33 +943,41 @@ class ProcurementRequest extends Model
             throw new Exception('Alasan pembatalan maksimal 1000 karakter.');
         }
 
-        if (!$this->canCancel($user)) {
+        if (! $this->canCancel($user)) {
             throw new Exception('Pengajuan tidak dapat dibatalkan oleh pengguna ini pada status saat ini.');
         }
 
         DB::transaction(function () use ($user, $reason): void {
             $this->update(['status' => self::STATUS_CANCELLED]);
-            $this->recordHistory($user, self::STATUS_CANCELLED, 'Dibatalkan: ' . $reason);
+            $this->recordHistory($user, self::STATUS_CANCELLED, 'Dibatalkan: '.$reason);
+        });
+
+        DB::afterCommit(function () use ($user, $reason): void {
+            try {
+                $this->notifyCancelled($reason, $user);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::report($e);
+            }
         });
     }
 
     private function authorizeSchoolOwner(User $user): void
     {
-        if (!$user->isSchool() || $user->school_id !== $this->school_id) {
+        if (! $user->isSchool() || $user->school_id !== $this->school_id) {
             throw new AuthorizationException('Hanya sekolah pemilik pengajuan yang dapat melakukan tindakan ini.');
         }
     }
 
     private function authorizeInternal(User $user): void
     {
-        if (!$user->isAdmin() && !$user->isSuperAdmin()) {
+        if (! $user->isAdmin() && ! $user->isSuperAdmin()) {
             throw new AuthorizationException('Hanya Admin CV atau Superadmin yang dapat melakukan tindakan ini.');
         }
     }
 
     public function markVerified(User $user): void
     {
-        if (!$this->canMarkVerified()) {
+        if (! $this->canMarkVerified()) {
             throw new Exception('Verifikasi penerimaan tidak dapat dilakukan. Pastikan minimal 1 bukti sudah diunggah dan status pengadaan sedang diproses, diterima sebagian, atau selesai.');
         }
 
@@ -978,10 +1027,10 @@ class ProcurementRequest extends Model
 
     public function totalPpn(): float
     {
-        if (!$this->isTaxConfigurationValidated()) {
+        if (! $this->isTaxConfigurationValidated()) {
             throw new LogicException('Pajak belum tervalidasi; total pajak final tidak tersedia.');
         }
-        if (!$this->is_taxable) {
+        if (! $this->is_taxable) {
             return 0;
         }
 
@@ -990,7 +1039,7 @@ class ProcurementRequest extends Model
 
     public function totalPph22(): float
     {
-        if (!$this->isTaxConfigurationValidated()) {
+        if (! $this->isTaxConfigurationValidated()) {
             throw new LogicException('Pajak belum tervalidasi; total pajak final tidak tersedia.');
         }
 
@@ -1007,7 +1056,7 @@ class ProcurementRequest extends Model
 
     public function totalPph23(): float
     {
-        if (!$this->isTaxConfigurationValidated()) {
+        if (! $this->isTaxConfigurationValidated()) {
             throw new LogicException('Pajak belum tervalidasi; total pajak final tidak tersedia.');
         }
 
@@ -1024,7 +1073,7 @@ class ProcurementRequest extends Model
 
     public function grandTotal(): float
     {
-        if (!$this->isTaxConfigurationValidated()) {
+        if (! $this->isTaxConfigurationValidated()) {
             throw new LogicException('Pajak belum tervalidasi; total transaksi final tidak tersedia.');
         }
 
@@ -1045,7 +1094,7 @@ class ProcurementRequest extends Model
 
     public function lockTotals(): void
     {
-        if (!$this->hasSubsidiary() || !$this->hasOfficialPrices()) {
+        if (! $this->hasSubsidiary() || ! $this->hasOfficialPrices()) {
             throw new LogicException('Snapshot harga memerlukan Anak Perusahaan dan harga final untuk setiap barang.');
         }
 
@@ -1053,7 +1102,7 @@ class ProcurementRequest extends Model
             return;
         }
 
-        $lines = $this->items()->with('unit')->get()->map(fn(ProcurementRequestItem $item): array => [
+        $lines = $this->items()->with('unit')->get()->map(fn (ProcurementRequestItem $item): array => [
             'item_id' => $item->id,
             'item_name' => $item->item_name,
             'specification' => $item->specification,
@@ -1062,7 +1111,7 @@ class ProcurementRequest extends Model
             'official_price' => (string) $item->official_price,
             'amount' => number_format((float) $item->quantity * (float) $item->official_price, 2, '.', ''),
         ])->all();
-        $subtotal = round(array_sum(array_map(fn(array $line): float => (float) $line['amount'], $lines)), 2);
+        $subtotal = round(array_sum(array_map(fn (array $line): float => (float) $line['amount'], $lines)), 2);
         $taxAmount = $this->isTaxConfigurationValidated()
             ? $this->totalPpn()
             : null;
@@ -1091,18 +1140,18 @@ class ProcurementRequest extends Model
             && $this->tax_configuration_validated_by !== null
             && filled($this->tax_configuration_basis)
             && $this->is_taxable !== null
-            && (!$this->is_taxable || $this->ppn_rate !== null)
-            && (!$this->items()->where('is_pph', true)->exists()
+            && (! $this->is_taxable || $this->ppn_rate !== null)
+            && (! $this->items()->where('is_pph', true)->exists()
                 || ($this->pph_22_rate !== null && $this->pph_23_rate !== null));
     }
 
     public function evaluateTaxConfiguration(User $actor, array $context = []): array
     {
-        return app(\App\Services\TaxEvaluationService::class)->evaluateAndApply($this, $actor, $context);
+        return app(TaxEvaluationService::class)->evaluateAndApply($this, $actor, $context);
     }
 
     public function applyTaxEvaluation(
-        \App\Services\TaxEvaluationService $service,
+        TaxEvaluationService $service,
         User $actor,
         array $evaluation
     ): void {
@@ -1111,7 +1160,7 @@ class ProcurementRequest extends Model
         DB::transaction(function () use ($service, $actor, $evaluation): void {
             $locked = static::query()->lockForUpdate()->findOrFail($this->id);
 
-            if (!$service->isCurrentEvaluation($locked, $evaluation)) {
+            if (! $service->isCurrentEvaluation($locked, $evaluation)) {
                 throw new LogicException('Hasil evaluasi pajak tidak valid atau sudah berubah; evaluasi ulang sebelum diterapkan.');
             }
 
@@ -1126,9 +1175,9 @@ class ProcurementRequest extends Model
                 $rates = $evaluation['rates'];
                 $locked->forceFill([
                     'is_taxable' => $resolved ? true : null,
-                    'ppn_rate' => $resolved ? $rates[\App\Models\TaxRule::TAX_PPN] : null,
-                    'pph_22_rate' => $resolved ? $rates[\App\Models\TaxRule::TAX_PPH22] : null,
-                    'pph_23_rate' => $resolved ? $rates[\App\Models\TaxRule::TAX_PPH23] : null,
+                    'ppn_rate' => $resolved ? $rates[TaxRule::TAX_PPN] : null,
+                    'pph_22_rate' => $resolved ? $rates[TaxRule::TAX_PPH22] : null,
+                    'pph_23_rate' => $resolved ? $rates[TaxRule::TAX_PPH23] : null,
                     'tax_configuration_validated' => $resolved,
                     'tax_configuration_basis' => $evaluation['basis'],
                     'tax_configuration_validated_by' => $resolved ? $actor->id : null,
@@ -1151,7 +1200,7 @@ class ProcurementRequest extends Model
                 $locked->status,
                 $resolved
                 ? 'Konfigurasi pajak diterapkan dari aturan tervalidasi.'
-                : 'Konfigurasi pajak belum tervalidasi: ' . $evaluation['basis']
+                : 'Konfigurasi pajak belum tervalidasi: '.$evaluation['basis']
             );
             activity()
                 ->performedOn($locked)
@@ -1235,29 +1284,29 @@ class ProcurementRequest extends Model
 
     public function hasSupplier(): bool
     {
-        return !empty($this->supplier_id);
+        return ! empty($this->supplier_id);
     }
 
     public function hasSubsidiary(): bool
     {
-        return !empty($this->subsidiary_id);
+        return ! empty($this->subsidiary_id);
     }
 
     public function allQuantitiesReceived(): bool
     {
-        if (!$this->items()->exists()) {
+        if (! $this->items()->exists()) {
             return false;
         }
 
         return $this->items->every(
-            fn(ProcurementRequestItem $item): bool => $item->remainingToReceive() <= 0
+            fn (ProcurementRequestItem $item): bool => $item->remainingToReceive() <= 0
         );
     }
 
     public function hasOpenReceiptFollowUps(): bool
     {
         return ProcurementReceiptItem::query()
-            ->whereHas('receipt', fn(Builder $query) => $query->where('procurement_request_id', $this->id))
+            ->whereHas('receipt', fn (Builder $query) => $query->where('procurement_request_id', $this->id))
             ->where('follow_up_status', ProcurementReceiptItem::FOLLOW_UP_OPEN)
             ->exists();
     }
@@ -1279,7 +1328,7 @@ class ProcurementRequest extends Model
         $existingRoles = $this->signatories()->pluck('role')->toArray();
 
         foreach ($requiredRoles as $role) {
-            if (!in_array($role, $existingRoles, true)) {
+            if (! in_array($role, $existingRoles, true)) {
                 return false;
             }
         }
@@ -1351,7 +1400,7 @@ class ProcurementRequest extends Model
     public function getTotalEstimatedAmountAttribute(): float
     {
         if ($this->relationLoaded('items')) {
-            return (float) $this->items->sum(fn($item) => $item->quantity * $item->estimated_price);
+            return (float) $this->items->sum(fn ($item) => $item->quantity * $item->estimated_price);
         }
 
         return (float) $this->items()->sum(DB::raw('quantity * estimated_price'));
@@ -1389,26 +1438,39 @@ class ProcurementRequest extends Model
         $this->getNotificationService()->notify($this, 'rejected', ['reason' => $reason], auth()->user());
     }
 
-    public function notifySupplierAssigned(): void
+    public function notifyNeedsRevision(string $reason): void
     {
-        $this->getNotificationService()->notify($this, 'supplier_assigned', [], auth()->user());
+        $this->getNotificationService()->notify($this, 'needs_revision', ['reason' => $reason], auth()->user());
     }
 
-    public function notifyNegotiationOffer(ProcurementRequestItem $item, ProcurementNegotiation $negotiation): void
+    public function notifySupplierAssigned(?User $actor = null): void
     {
-        $this->getNotificationService()->notify($this, 'negotiation_offer', [
+        $this->getNotificationService()->notify($this, 'supplier_assigned', [], $actor ?? auth()->user());
+    }
+
+    public function notifyCancelled(string $reason, ?User $actor = null): void
+    {
+        $this->getNotificationService()->notify($this, 'cancelled', ['reason' => $reason], $actor ?? auth()->user());
+    }
+
+    public function notifyNegotiationOffer(ProcurementRequestItem $item, ProcurementNegotiation $negotiation, array $extraContext = []): void
+    {
+        $this->getNotificationService()->notify($this, 'negotiation_offer', array_merge([
             'item' => $item,
             'negotiation' => $negotiation,
-        ], auth()->user());
+            'offered_by' => $negotiation->offered_by,
+        ], $extraContext), auth()->user());
     }
 
-    public function notifyNegotiationDecided(ProcurementRequestItem $item, ProcurementNegotiation $negotiation, string $action): void
+    public function notifyNegotiationDecided(ProcurementRequestItem $item, ProcurementNegotiation $negotiation, string $action, array $extraContext = []): void
     {
         $event = $action === 'accepted' ? 'negotiation_accepted' : 'negotiation_rejected';
-        $this->getNotificationService()->notify($this, $event, [
+        $decidedBy = $extraContext['decided_by'] ?? (auth()->user()?->isSchool() ? 'school' : 'admin');
+        $this->getNotificationService()->notify($this, $event, array_merge([
             'item' => $item,
             'negotiation' => $negotiation,
-        ], auth()->user());
+            'decided_by' => $decidedBy,
+        ], $extraContext), auth()->user());
     }
 
     public function notifyItemsPrepared(): void
@@ -1426,8 +1488,23 @@ class ProcurementRequest extends Model
         $this->getNotificationService()->notify($this, 'completed', [], auth()->user());
     }
 
-    public function notifyDocumentGenerated(): void
+    public function notifyDocumentGenerated(array $context = []): void
     {
-        $this->getNotificationService()->notify($this, 'document_generated', [], auth()->user());
+        $this->getNotificationService()->notify($this, 'document_generated', $context, auth()->user());
+    }
+
+    public function notifyPaymentRecorded(array $context): void
+    {
+        $this->getNotificationService()->notify($this, 'record_payment', $context, auth()->user());
+    }
+
+    public function notifyPaymentConfirmed(array $context): void
+    {
+        $this->getNotificationService()->notify($this, 'confirm_payment', $context, auth()->user());
+    }
+
+    public function notifyPriceAgreed(): void
+    {
+        $this->getNotificationService()->notify($this, 'price_agreed', [], auth()->user());
     }
 }

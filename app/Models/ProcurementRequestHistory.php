@@ -9,7 +9,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ProcurementRequestHistory extends Model
 {
     use HasFactory;
+
     public $timestamps = false;
+
     public const UPDATED_AT = null;
 
     protected $casts = [

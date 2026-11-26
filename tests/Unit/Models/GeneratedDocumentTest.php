@@ -21,7 +21,7 @@ describe('GeneratedDocument', function () {
         $token = Str::random(64);
         GeneratedDocument::factory()->create(['download_token' => $token]);
 
-        expect(fn() => GeneratedDocument::factory()->create(['download_token' => $token]))
+        expect(fn () => GeneratedDocument::factory()->create(['download_token' => $token]))
             ->toThrow(QueryException::class);
     });
 

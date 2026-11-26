@@ -162,6 +162,7 @@ class ProcurementReviewPanel extends Component
             $this->error($exception->getMessage());
         }
     }
+
     public function cancelRequest(): void
     {
         $user = auth()->user();

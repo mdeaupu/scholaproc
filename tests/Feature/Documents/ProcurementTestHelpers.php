@@ -3,16 +3,11 @@
 use App\Models\ItemUnit;
 use App\Models\ProcurementRequest;
 use App\Models\ProcurementRequestItem;
-use App\Models\ProcurementSignatory;
 use App\Models\SchoolSetting;
 use App\Models\Subsidiary;
 use App\Models\Supplier;
 use App\Models\User;
 
-/**
- *
- * @param  array  $overrides
- */
 function readyProcurement(array $overrides = []): ProcurementRequest
 {
     $subsidiary = Subsidiary::factory()->create();
@@ -32,7 +27,7 @@ function readyProcurement(array $overrides = []): ProcurementRequest
         'tax_configuration_validated_at' => now(),
     ], $overrides));
 
-    if ($procurement->school && !$procurement->school->setting) {
+    if ($procurement->school && ! $procurement->school->setting) {
         SchoolSetting::factory()->create(['school_id' => $procurement->school_id]);
     }
 
@@ -61,7 +56,7 @@ function readyProcurement(array $overrides = []): ProcurementRequest
     $procurement->signatories()->createMany(collect(['headmaster', 'inspector', 'treasurer'])->map(fn ($role) => [
         'procurement_request_id' => $procurement->id,
         'role' => $role,
-        'name' => ucfirst($role) . ' Test',
+        'name' => ucfirst($role).' Test',
         'nip' => '19800101 200501 1 001',
     ])->all());
 

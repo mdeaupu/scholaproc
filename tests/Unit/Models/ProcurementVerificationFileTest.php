@@ -4,6 +4,7 @@ use App\Models\ProcurementRequest;
 use App\Models\ProcurementVerificationFile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 uses(TestCase::class, RefreshDatabase::class);
@@ -79,7 +80,7 @@ test('belongs to uploader', function () {
 // ─── Fillable & Casts ────────────────────────────────────────
 
 test('has correct fillable attributes', function () {
-    $file = new ProcurementVerificationFile();
+    $file = new ProcurementVerificationFile;
 
     expect($file->getFillable())->toBe([
         'procurement_request_id',
@@ -100,11 +101,11 @@ test('has correct casts for uploaded_at', function () {
         'uploaded_at' => now(),
     ]);
 
-    expect($file->uploaded_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class);
+    expect($file->uploaded_at)->toBeInstanceOf(Carbon::class);
 });
 
 test('timestamps are disabled', function () {
-    $file = new ProcurementVerificationFile();
+    $file = new ProcurementVerificationFile;
 
     expect($file->timestamps)->toBeFalse();
 });

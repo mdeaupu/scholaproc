@@ -14,7 +14,7 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class GeneratedDocument extends Model implements HasMedia
 {
-    use InteractsWithMedia, HasFactory;
+    use HasFactory, InteractsWithMedia;
 
     public $timestamps = false;
 
@@ -41,7 +41,7 @@ class GeneratedDocument extends Model implements HasMedia
         $pdf = Pdf::loadView($viewName, $data);
         $fileName = "{$type}_{$procurement->uuid}.pdf";
 
-        $tempPath = 'temp/' . $fileName;
+        $tempPath = 'temp/'.$fileName;
         Storage::put($tempPath, $pdf->output());
 
         return self::create([
@@ -60,7 +60,8 @@ class GeneratedDocument extends Model implements HasMedia
         $this->clearMediaCollection('documents');
         $this->delete();
 
-        $method = 'generate' . str($type)->camel()->ucfirst();
+        $method = 'generate'.str($type)->camel()->ucfirst();
+
         return $procurement->$method();
     }
 
@@ -96,4 +97,3 @@ class GeneratedDocument extends Model implements HasMedia
         return Storage::disk('local')->path($this->file_path);
     }
 }
-

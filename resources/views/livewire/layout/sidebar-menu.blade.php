@@ -74,6 +74,10 @@ new class extends Component {
                 :active="request()->routeIs('procurement.*')" />
         @endif
         <x-mary-menu-item title="Notifikasi" icon="o-bell" link="{{ auth()->user()?->isSchool() ? route('notifications.inbox') : route('notifications.index') }}" :active="request()->routeIs('notifications.*')" wire:navigate class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+        @if (auth()->user()?->isSuperAdmin())
+            <x-mary-menu-item title="Sesi WhatsApp" icon="o-chat-bubble-left-right" route="whatsapp.session"
+                :active="request()->routeIs('whatsapp.*')" class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+        @endif
         <x-mary-menu-item title="Profil" icon="o-user-circle" route="profile" />
     </x-mary-menu>
 

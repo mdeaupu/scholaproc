@@ -40,6 +40,8 @@
     <x-mary-header title="Notifikasi" subtitle="Log pengiriman notifikasi WhatsApp dan Email">
         <x-slot:actions>
             <div class="flex items-center gap-2">
+                <x-mary-button label="Kirim Semua Menunggu" icon="o-paper-airplane" class="btn-sm btn-primary"
+                    wire:click="sendAllPending" spinner="sendAllPending" />
                 <span class="badge badge-info badge-lg">{{ $stats['total'] }} Total</span>
                 <span class="badge badge-warning badge-lg">{{ $stats['pending'] }} Pending</span>
                 <span class="badge badge-success badge-lg">{{ $stats['sent'] }} Terkirim</span>
@@ -94,10 +96,20 @@
             @endscope
 
             @scope('cell_message_content', $notif)
+                <div class="flex items-center gap-2 mb-1">
+                    @if ($notif->channel === 'whatsapp')
+                        <span class="badge badge-success badge-xs">WhatsApp</span>
+                    @else
+                        <span class="badge badge-info badge-xs">Email</span>
+                    @endif
+                </div>
                 <div class="max-w-xs truncate text-sm cursor-pointer hover:text-blue-600" title="Klik untuk melihat detail"
                     wire:click="showDetail({{ $notif->id }})">
                     {{ Str::limit($notif->message_content, 60) }}
                 </div>
+                @if ($notif->status === 'failed' && $notif->error_message)
+                    <div class="text-xs text-red-500 mt-1">{{ Str::limit($notif->error_message, 40) }}</div>
+                @endif
             @endscope
 
             @scope('cell_status', $notif)

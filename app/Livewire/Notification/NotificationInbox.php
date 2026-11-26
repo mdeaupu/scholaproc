@@ -9,12 +9,14 @@ use Mary\Traits\Toast;
 
 class NotificationInbox extends Component
 {
-    use WithPagination, Toast;
+    use Toast, WithPagination;
 
     public string $channelFilter = 'all';
+
     public string $search = '';
 
     public bool $showDetailModal = false;
+
     public ?Notification $detailNotification = null;
 
     public function mount(): void
@@ -54,7 +56,7 @@ class NotificationInbox extends Component
 
         $this->authorizeNotification($this->detailNotification);
 
-        if (!$this->detailNotification->isRead()) {
+        if (! $this->detailNotification->isRead()) {
             $this->detailNotification->markAsRead();
         }
 

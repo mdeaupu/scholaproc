@@ -6,13 +6,12 @@ use App\Livewire\Notification\NotificationManager;
 use App\Models\Notification;
 use App\Models\ProcurementRequest;
 use App\Models\User;
-use App\Services\WhatsAppService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
-use Tests\TestCase;
-use function Pest\Laravel\{actingAs};
+
+use function Pest\Laravel\actingAs;
 
 uses(RefreshDatabase::class);
 
@@ -130,6 +129,7 @@ test('notification manager can search by recipient', function () {
 });
 
 test('resend resets notification status and dispatches job', function () {
+    config(['waha.sync' => false]);
     Queue::fake();
     $admin = createNotifManagerUser('admin');
     actingAs($admin);
@@ -168,12 +168,14 @@ test('resend does not resend already sent notifications', function () {
 });
 
 test('resend dispatches email job for email channel', function () {
+    config(['mail.sync' => false]);
     Queue::fake();
     $admin = createNotifManagerUser('admin');
     actingAs($admin);
 
     $notification = createManagerFailedNotification([
         'channel' => Notification::CHANNEL_EMAIL,
+        'recipient' => 'sekolah@test.com',
     ]);
 
     Livewire::test(NotificationManager::class)

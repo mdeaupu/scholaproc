@@ -7,8 +7,8 @@ use App\Models\School;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
-use Tests\TestCase;
-use function Pest\Laravel\{actingAs};
+
+use function Pest\Laravel\actingAs;
 
 uses(RefreshDatabase::class);
 
@@ -76,7 +76,7 @@ test('notification inbox only shows school-related notifications', function () {
 
             return in_array($schoolNotification->id, $ids)
                 && in_array($otherSchoolNotification->id, $ids)
-                && !in_array($adminNotification->id, $ids);
+                && ! in_array($adminNotification->id, $ids);
         });
 });
 
@@ -96,7 +96,7 @@ test('notification inbox only shows school-allowed event types', function () {
             return in_array($verified->id, $ids)
                 && in_array($rejected->id, $ids)
                 && in_array($completed->id, $ids)
-                && !in_array($submitted->id, $ids);
+                && ! in_array($submitted->id, $ids);
         });
 });
 
@@ -190,7 +190,7 @@ test('notification inbox can filter by channel', function () {
         ->assertViewHas('notifications', function ($notifications) use ($whatsapp, $email) {
             $ids = $notifications->pluck('id')->toArray();
 
-            return in_array($whatsapp->id, $ids) && !in_array($email->id, $ids);
+            return in_array($whatsapp->id, $ids) && ! in_array($email->id, $ids);
         });
 });
 

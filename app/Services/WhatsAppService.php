@@ -9,9 +9,15 @@ use Illuminate\Support\Facades\RateLimiter;
 class WhatsAppService
 {
     private string $baseUrl;
+
     private string $session;
+
     private string $apiKey;
+
     private int $rateLimit;
+
+    // Sesi WAHA aktif oleh server WAHA tetapi belum diinisialisasi (HTTP 404).
+    public const STATUS_NOT_FOUND = 'NOT_FOUND';
 
     public function __construct()
     {
@@ -41,7 +47,7 @@ class WhatsAppService
         RateLimiter::hit($limiterKey, 60);
 
         try {
-            $response = Http::timeout(30)
+            $response = Http::timeout(10)
                 ->withHeaders([
                     'X-API-KEY' => $this->apiKey,
                 ])
@@ -52,7 +58,10 @@ class WhatsAppService
                 ]);
 
             if ($response->successful()) {
-                return ['success' => true, 'error' => null];
+                $data = $response->json();
+                $messageId = $data['id'] ?? ($data['_data']['id'] ?? null);
+
+                return ['success' => true, 'error' => null, 'message_id' => $messageId];
             }
 
             $error = $response->json('error', $response->body());
@@ -83,7 +92,7 @@ class WhatsAppService
         }
 
         if (str_starts_with($phone, '0')) {
-            return '62' . substr($phone, 1);
+            return '62'.substr($phone, 1);
         }
 
         return $phone;
@@ -100,6 +109,7 @@ class WhatsAppService
 
             if ($response->successful()) {
                 $data = $response->json();
+
                 return ($data['status'] ?? '') === 'WORKING';
             }
 
@@ -122,6 +132,11 @@ class WhatsAppService
                 return $response->json('status');
             }
 
+            // WAHA aktif tapi session belum diinisialisasi (HTTP 404).
+            if ($response->status() === 404) {
+                return self::STATUS_NOT_FOUND;
+            }
+
             return null;
         } catch (\Exception $e) {
             return null;
@@ -136,6 +151,54 @@ class WhatsAppService
                     'X-API-KEY' => $this->apiKey,
                 ])
                 ->post("{$this->baseUrl}/api/sessions/{$this->session}/start");
+
+            if ($response->successful()) {
+                return ['success' => true, 'data' => $response->json()];
+            }
+
+            // WAHA melaporkan session belum terdaftar (HTTP 404).
+            // Coba buat session baru lewat endpoint pembuatan session WAHA.
+            if ($response->status() === 404) {
+                return $this->createSession();
+            }
+
+            return ['success' => false, 'error' => $response->body()];
+        } catch (\Exception $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Buat session WhatsApp baru di WAHA (fallback saat start mengembalikan 404).
+     */
+    private function createSession(): array
+    {
+        try {
+            $payload = [
+                'name' => $this->session,
+                'engine' => config('waha.engine', 'NOWEB'),
+                'start' => true,
+            ];
+
+            $webhookUrl = config('waha.webhook_url');
+            if ($webhookUrl) {
+                $events = array_filter(explode(',', config('waha.webhook_events', 'message,message.ack,session.status')));
+                $payload['webhook'] = [
+                    'url' => $webhookUrl,
+                    'events' => array_values($events),
+                ];
+
+                $webhookToken = config('waha.webhook_token');
+                if ($webhookToken) {
+                    $payload['webhook']['token'] = $webhookToken;
+                }
+            }
+
+            $response = Http::timeout(30)
+                ->withHeaders([
+                    'X-API-KEY' => $this->apiKey,
+                ])
+                ->post("{$this->baseUrl}/api/sessions", $payload);
 
             if ($response->successful()) {
                 return ['success' => true, 'data' => $response->json()];
@@ -161,7 +224,8 @@ class WhatsAppService
                 if (str_starts_with($body, 'data:image')) {
                     return $body;
                 }
-                return 'data:image/png;base64,' . base64_encode($body);
+
+                return 'data:image/png;base64,'.base64_encode($body);
             }
 
             return null;
@@ -169,6 +233,7 @@ class WhatsAppService
             Log::warning('WhatsApp QR code fetch failed', [
                 'message' => $e->getMessage(),
             ]);
+
             return null;
         }
     }

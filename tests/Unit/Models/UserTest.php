@@ -3,9 +3,9 @@
 use App\Models\BudgetYear;
 use App\Models\FundingSource;
 use App\Models\PackageCategory;
-use App\Models\User;
-use App\Models\School;
 use App\Models\ProcurementRequest;
+use App\Models\School;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -54,7 +54,7 @@ test('admin sekolah hanya berhak memutuskan negosiasi dan verifikasi barang mili
 
     $adminSekolahA = User::factory()->create([
         'role' => 'school',
-        'school_id' => $sekolahA->id
+        'school_id' => $sekolahA->id,
     ]);
 
     $requestSekolahA = ProcurementRequest::factory()->create([

@@ -1,183 +1,105 @@
-<x-document-layout :title="'Berita Acara Serah Terima - ' . $procurement->package_category_name">
-
-    @include('documents.partials.kop-surat', ['school' => $school, 'schoolSetting' => $schoolSetting])
-
-    <p class="doc-title">Berita Acara Serah Terima</p>
-    <p class="doc-number">{{ $document->document_number }}</p>
-
-    <div class="section-spacer"></div>
-
-    <table class="info-table">
-        <tr>
-            <td class="label">Nomor Surat Pemesanan</td>
-            <td class="colon">:</td>
-            <td>{{ $purchaseOrderDocument->document_number }}</td>
-        </tr>
-        <tr>
-            <td class="label">Tanggal</td>
-            <td class="colon">:</td>
-            <td>{{ \Carbon\Carbon::parse($purchaseOrderDocument->document_date)->translatedFormat('d F Y') }}</td>
-        </tr>
-        <tr>
-            <td class="label">Nama Pekerjaan</td>
-            <td class="colon">:</td>
-            <td>{{ $procurement->package_category_name }}</td>
-        </tr>
-        <tr>
-            <td class="label">Tahun</td>
-            <td class="colon">:</td>
-            <td>{{ $procurement->budget_year_name }}</td>
-        </tr>
-    </table>
-
-    <p class="note">Yang bertandatangan di bawah ini</p>
-
-    <table class="info-table">
-        <tr>
-            <td style="width:16px; vertical-align:top;">1.</td>
-            <td colspan="2">Nama</td>
-            <td class="colon">:</td>
-            <td>{{ $supplier->director_name }}</td>
-        </tr>
-        <tr>
-            <td></td>
-            <td colspan="2">Jabatan</td>
-            <td class="colon">:</td>
-            <td>Direktur</td>
-        </tr>
-        <tr>
-            <td></td>
-            <td colspan="2">Nama Penyedia</td>
-            <td class="colon">:</td>
-            <td>{{ $supplier->company_name }}</td>
-        </tr>
-        <tr>
-            <td></td>
-            <td colspan="2">Alamat Penyedia</td>
-            <td class="colon">:</td>
-            <td>{{ $supplier->address }}</td>
-        </tr>
-        <tr>
-            <td></td>
-            <td colspan="2">Nomor Telepon</td>
-            <td class="colon">:</td>
-            <td>{{ $supplier->director_phone ?: $supplier->phone }}</td>
-        </tr>
-        <tr>
-            <td colspan="5" class="italic">Sebagai pihak yang menyerahkan, selanjutnya disebut PIHAK PERTAMA</td>
-        </tr>
-    </table>
-
-    <div class="section-spacer"></div>
-
-    <table class="info-table">
-        <tr>
-            <td style="width:16px; vertical-align:top;">2.</td>
-            <td colspan="2">Nama</td>
-            <td class="colon">:</td>
-            <td>{{ $headmaster->name }}</td>
-        </tr>
-        <tr>
-            <td></td>
-            <td colspan="2">Jabatan</td>
-            <td class="colon">:</td>
-            <td>Kepala Sekolah</td>
-        </tr>
-        <tr>
-            <td></td>
-            <td colspan="2">Nama Satuan Pendidikan</td>
-            <td class="colon">:</td>
-            <td>{{ $school->name }}</td>
-        </tr>
-        <tr>
-            <td></td>
-            <td colspan="2">Alamat Satuan Pendidikan</td>
-            <td class="colon">:</td>
-            <td>{{ $school->address }}</td>
-        </tr>
-        <tr>
-            <td></td>
-            <td colspan="2">Nomor Telepon</td>
-            <td class="colon">:</td>
-            <td>{{ $school->phone_number }}</td>
-        </tr>
-        <tr>
-            <td colspan="5" class="italic">Sebagai pihak yang menerima, selanjutnya disebut PIHAK KEDUA</td>
-        </tr>
-    </table>
-
-    <p class="note">
-        PIHAK PERTAMA menyerahkan hasil pekerjaan {{ $procurement->package_category_name }} kepada PIHAK KEDUA,
-        dan PIHAK KEDUA telah menerima hasil pekerjaan tersebut dalam jumlah yang lengkap dan kondisi
-        yang baik sesuai dengan rincian berikut:
+<!doctype html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <title>BAST - {{ data_get($snapshot, 'document_number', '-') }}</title>
+    <style>
+        body { font-family: DejaVu Sans, sans-serif; font-size: 10pt; line-height: 1.5; }
+        h1, .center { text-align: center; }
+        table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+        th, td { border: 1px solid #444; padding: 6px; text-align: left; }
+        .signatures { margin-top: 48px; }
+        .signatures td { border: 0; text-align: center; width: 50%; }
+    </style>
+</head>
+<body>
+    @include('documents.partials.letterhead')
+    @php
+        $schoolHeadmaster = data_get($snapshot, 'school.officials.headmaster')
+            ?? collect(data_get($snapshot, 'stage.signatories', []))->firstWhere('role', 'headmaster')
+            ?? [];
+    @endphp
+    <h1>BERITA ACARA SERAH TERIMA (BAST)</h1>
+    <p class="center">
+        Nomor BAST: {{ data_get($snapshot, 'document_number', '-') }}<br>
+        Tanggal: {{ data_get($snapshot, 'document_date_numeric', '-') }}
     </p>
-
-    <table class="items-table">
+    <p>
+        Berdasarkan Surat Pesanan Nomor
+        <strong>{{ data_get($snapshot, 'stage.purchase_order.number', '-') }}</strong>
+        tanggal {{ data_get($snapshot, 'stage.purchase_order.date', '-') }} untuk pekerjaan
+        <strong>{{ data_get($snapshot, 'transaction.package_category', '-') }}</strong>,
+        Tahun Anggaran {{ data_get($snapshot, 'transaction.budget_year', '-') }}.
+    </p>
+    <p>
+        Pada tanggal {{ data_get($snapshot, 'stage.received_at', '-') }},
+        PIHAK KEDUA menyerahkan dan PIHAK PERTAMA menerima hasil pekerjaan
+        {{ data_get($snapshot, 'transaction.package_category', '-') }}.
+    </p>
+    <table>
+        <tbody>
+            <tr>
+                <th colspan="2">PIHAK PERTAMA — Penerima</th>
+                <th colspan="2">PIHAK KEDUA — Penyerah</th>
+            </tr>
+            <tr>
+                <td>Nama</td><td>{{ data_get($schoolHeadmaster, 'name', '-') }}</td>
+                <td>Nama</td><td>{{ data_get($snapshot, 'subsidiary.director_name', '-') }}</td>
+            </tr>
+            <tr>
+                <td>Jabatan</td><td>{{ data_get($schoolHeadmaster, 'title', 'Kepala Sekolah') }}</td>
+                <td>Jabatan</td><td>Direktur {{ data_get($snapshot, 'subsidiary.name', '-') }}</td>
+            </tr>
+            <tr>
+                <td>NIP</td><td>{{ data_get($schoolHeadmaster, 'nip', '-') }}</td>
+                <td>NPWP</td><td>{{ data_get($snapshot, 'subsidiary.npwp', '-') }}</td>
+            </tr>
+            <tr>
+                <td>Alamat</td><td>{{ data_get($snapshot, 'school.address', '-') }}</td>
+                <td>Alamat</td><td>{{ data_get($snapshot, 'subsidiary.address', '-') }}</td>
+            </tr>
+            <tr>
+                <td>Kontak</td>
+                <td>{{ data_get($snapshot, 'school.phone', '-') }} · {{ data_get($snapshot, 'school.email', '-') }}</td>
+                <td>Kontak</td>
+                <td>{{ data_get($snapshot, 'subsidiary.phone', '-') }} · {{ data_get($snapshot, 'subsidiary.email', '-') }}</td>
+            </tr>
+        </tbody>
+    </table>
+    <table>
         <thead>
-            <tr>
-                <th rowspan="2" style="width: 26px;">No</th>
-                <th rowspan="2" style="text-align: left;">Nama Barang/Jasa</th>
-                <th rowspan="2">Jumlah Diserahkan</th>
-                <th rowspan="2">Jumlah Diterima</th>
-                <th colspan="2">Kondisi</th>
-            </tr>
-            <tr>
-                <th>Baik</th>
-                <th>Rusak</th>
-            </tr>
+            <tr><th>No.</th><th>Nama Barang/Jasa</th><th>Jumlah Diserahkan</th><th>Jumlah Diterima</th><th>Kondisi</th><th>Catatan</th></tr>
         </thead>
         <tbody>
-            @foreach ($items as $i => $item)
+            @foreach (data_get($snapshot, 'stage.items', []) as $index => $item)
                 <tr>
-                    <td class="text-center">{{ $i + 1 }}</td>
-                    <td>{{ $item->item_name }}</td>
-                    <td class="text-center">{{ $item->quantity }}</td>
-                    <td class="text-center">{{ $item->quantity }}</td>
-                    <td class="text-center">{{ $item->quantity }}</td>
-                    <td class="text-center">-</td>
+                    <td>{{ $index + 1 }}</td>
+                    <td>{{ data_get($item, 'item', '-') }}</td>
+                    <td>{{ data_get($item, 'ordered_quantity', '-') }} {{ data_get($item, 'unit', '') }}</td>
+                    <td>{{ data_get($item, 'quantity', '-') }} {{ data_get($item, 'unit', '') }}</td>
+                    <td>{{ data_get($item, 'condition', '-') }}</td>
+                    <td>{{ data_get($item, 'issue_notes', '-') }}</td>
                 </tr>
             @endforeach
         </tbody>
     </table>
-
-    <p class="note">
-        Berita Acara Serah Terima ini berfungsi sebagai bukti serah terima hasil pekerjaan kepada
-        PIHAK KEDUA, untuk selanjutnya dicatat pada buku penerimaan barang satuan pendidikan.
+    <p>
+        Dokumen ini mencatat serah terima pada tahap {{ data_get($snapshot, 'stage.verified_at', '-') }}.
+        Catatan penerimaan: {{ data_get($snapshot, 'stage.receipt_notes', '-') }}
     </p>
-    <p class="note">
-        Demikian Berita Acara Serah Terima ini dibuat dengan sebenarnya untuk dipergunakan sebagaimana seharusnya.
-    </p>
-
-    <table class="signature-table">
+    <table class="signatures">
         <tr>
             <td>
-                <p>PIHAK KEDUA</p>
-                <p>Kepala Sekolah</p>
-                <div class="signature-space"></div>
-                <p class="signature-name">{{ $headmaster->name }}</p>
-                <p>NIP. {{ $headmaster->nip ?: '-' }}</p>
+                PIHAK PERTAMA,<br>Kepala Sekolah<br><br><br><br>
+                <strong>{{ data_get($schoolHeadmaster, 'name', '________________________') }}</strong><br>
+                NIP {{ data_get($schoolHeadmaster, 'nip', '-') }}
             </td>
             <td>
-                <p>PIHAK PERTAMA</p>
-                <p>{{ $supplier->company_name }}</p>
-                <div class="signature-space"></div>
-                <p class="signature-name">{{ $supplier->director_name }}</p>
-                <p>Direktur</p>
+                PIHAK KEDUA,<br>{{ data_get($snapshot, 'subsidiary.name', '-') }}<br><br><br><br>
+                <strong>{{ data_get($snapshot, 'subsidiary.director_name', '________________________') }}</strong><br>
+                Direktur
             </td>
         </tr>
     </table>
-
-    <table style="margin-top: 20px;">
-        <tr>
-            <td style="width: 30%;"></td>
-            <td style="width: 40%; text-align: center;">
-                <p>Pemeriksa Barang</p>
-                <div class="signature-space"></div>
-                <p class="signature-name">{{ $inspector->name }}</p>
-                <p>NIP. {{ $inspector->nip ?: '-' }}</p>
-            </td>
-            <td style="width: 30%;"></td>
-        </tr>
-    </table>
-
-</x-document-layout>
+</body>
+</html>

@@ -2,6 +2,7 @@
 
 use App\Livewire\Procurement\VerificationPanel;
 use App\Models\ProcurementRequest;
+use App\Models\ProcurementRequestItem;
 use App\Models\ProcurementVerificationFile;
 use App\Models\School;
 use App\Models\User;
@@ -9,6 +10,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
+
 use function Pest\Laravel\actingAs;
 
 uses(RefreshDatabase::class);
@@ -29,7 +31,7 @@ beforeEach(function () {
     ]);
 
     $this->procurement = ProcurementRequest::factory()->create([
-        'status' => ProcurementRequest::STATUS_ITEMS_PREPARED,
+        'status' => ProcurementRequest::STATUS_PROCESSING,
         'school_id' => $this->schoolModel->id,
     ]);
 
@@ -175,8 +177,9 @@ test('photo upload fails with invalid file type', function () {
 
     Livewire::test(VerificationPanel::class, ['procurementRequest' => $this->procurement])
         ->set('photoFiles', [$file])
-        ->call('uploadPhoto')
-        ->assertHasErrors(['photoFiles.0']);
+        ->call('uploadPhoto');
+
+    expect(ProcurementVerificationFile::where('procurement_request_id', $this->procurement->id)->count())->toBe(0);
 });
 
 // ─── Upload Document Tests ────────────────────────────────────
@@ -289,7 +292,7 @@ test('school can confirm verification when conditions met', function () {
 
     $this->assertDatabaseHas('procurement_request_histories', [
         'procurement_request_id' => $this->procurement->id,
-        'status' => 'verified_receipt',
+        'status' => ProcurementRequest::STATUS_PROCESSING,
         'user_id' => $this->school->id,
     ]);
 });
@@ -374,4 +377,82 @@ test('cannot upload document after verification confirmed', function () {
     expect(ProcurementVerificationFile::where('procurement_request_id', $this->procurement->id)->count())->toBe(0);
 });
 
+// ─── Record Receipt Tests ──────────────────────────────────────
 
+test('school can record receipt for delivered goods', function () {
+    $item = ProcurementRequestItem::factory()->create([
+        'procurement_request_id' => $this->procurement->id,
+        'item_name' => 'Kertas HVS',
+        'quantity' => 5,
+    ]);
+
+    $delivery = $this->procurement->deliveries()->create([
+        'delivered_at' => now()->toDateString(),
+        'recorded_by' => $this->admin->id,
+    ]);
+    $delivery->items()->create([
+        'procurement_request_item_id' => $item->id,
+        'quantity' => 5,
+    ]);
+
+    actingAs($this->school);
+
+    Livewire::test(VerificationPanel::class, ['procurementRequest' => $this->procurement])
+        ->set('receiptRows.'.$item->id.'.quantity', 3)
+        ->call('recordReceipt')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('procurement_receipts', [
+        'procurement_request_id' => $this->procurement->id,
+        'recorded_by' => $this->school->id,
+    ]);
+
+    $this->assertDatabaseHas('procurement_receipt_items', [
+        'procurement_request_item_id' => $item->id,
+        'quantity' => 3,
+        'condition' => 'good',
+    ]);
+});
+
+test('other school user cannot record receipt - aborts 403', function () {
+    actingAs($this->otherSchool);
+
+    Livewire::test(VerificationPanel::class, ['procurementRequest' => $this->procurement])
+        ->call('recordReceipt')
+        ->assertStatus(403);
+});
+
+test('hides receipt form and shows success alert when all items fully received', function () {
+    $item = ProcurementRequestItem::factory()->create([
+        'procurement_request_id' => $this->procurement->id,
+        'item_name' => 'Kertas HVS',
+        'quantity' => 5,
+    ]);
+
+    $receipt = $this->procurement->receipts()->create([
+        'received_at' => now()->toDateString(),
+        'recorded_by' => $this->admin->id,
+        'verified_at' => now(),
+        'verified_by' => $this->admin->id,
+    ]);
+    $receipt->items()->create([
+        'procurement_request_item_id' => $item->id,
+        'quantity' => 5,
+        'condition' => 'good',
+        'follow_up_status' => 'none',
+    ]);
+
+    actingAs($this->school);
+
+    Livewire::test(VerificationPanel::class, ['procurementRequest' => $this->procurement])
+        ->assertDontSee('Simpan Penerimaan')
+        ->assertSee('Seluruh pesanan telah diterima.');
+});
+
+test('admin cannot record receipt from verification panel - aborts 403', function () {
+    actingAs($this->admin);
+
+    Livewire::test(VerificationPanel::class, ['procurementRequest' => $this->procurement])
+        ->call('recordReceipt')
+        ->assertStatus(403);
+});

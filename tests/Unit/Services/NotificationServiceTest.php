@@ -3,6 +3,7 @@
 use App\Models\Notification;
 use App\Models\ProcurementRequest;
 use App\Models\School;
+use App\Models\User;
 use App\Services\NotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -28,7 +29,7 @@ function createServicePrWithSchool(array $schoolOverrides = [], array $prOverrid
 
 test('notify creates whatsapp and email notifications for submitted event', function () {
     $pr = createServicePrWithSchool();
-    $service = new NotificationService();
+    $service = new NotificationService;
 
     $service->notify($pr, 'submitted');
 
@@ -45,7 +46,7 @@ test('notify creates whatsapp and email notifications for submitted event', func
 
 test('notify sends to school for document_generated event', function () {
     $pr = createServicePrWithSchool();
-    $service = new NotificationService();
+    $service = new NotificationService;
 
     $service->notify($pr, 'document_generated');
 
@@ -62,7 +63,7 @@ test('notify sends to school for document_generated event', function () {
 
 test('notify sends to school for verified event', function () {
     $pr = createServicePrWithSchool();
-    $service = new NotificationService();
+    $service = new NotificationService;
 
     $service->notify($pr, 'verified');
 
@@ -74,7 +75,7 @@ test('notify sends to school for verified event', function () {
 
 test('notify sends to school for rejected event', function () {
     $pr = createServicePrWithSchool();
-    $service = new NotificationService();
+    $service = new NotificationService;
 
     $service->notify($pr, 'rejected', ['reason' => 'Dokumen tidak lengkap']);
 
@@ -87,19 +88,19 @@ test('notify sends to school for rejected event', function () {
 
 test('notify sends to school for supplier_assigned event', function () {
     $pr = createServicePrWithSchool();
-    $service = new NotificationService();
+    $service = new NotificationService;
 
     $service->notify($pr, 'supplier_assigned');
 
     $whatsapp = Notification::withoutEvents(fn () => Notification::byChannel(Notification::CHANNEL_WHATSAPP)->first());
 
     expect($whatsapp->recipient)->toBe('081234567890');
-    expect($whatsapp->message_content)->toContain('Supplier telah ditunjuk');
+    expect($whatsapp->message_content)->toContain('Anak Perusahaan telah ditunjuk');
 });
 
 test('notify sends to school for items_prepared event', function () {
     $pr = createServicePrWithSchool();
-    $service = new NotificationService();
+    $service = new NotificationService;
 
     $service->notify($pr, 'items_prepared');
 
@@ -109,21 +110,50 @@ test('notify sends to school for items_prepared event', function () {
     expect($whatsapp->message_content)->toContain('Barang pengadaan telah disiapkan');
 });
 
-test('notify sends to admin for receipt_verified event', function () {
+test('notify cancelled by school routes to admin pusat', function () {
     $pr = createServicePrWithSchool();
-    $service = new NotificationService();
+    $service = new NotificationService;
+    $schoolUser = User::factory()->school()->create(['school_id' => $pr->school_id]);
+
+    $service->notify($pr, 'cancelled', ['reason' => 'Anggaran dialihkan'], $schoolUser);
+
+    $whatsapp = Notification::withoutEvents(fn () => Notification::byChannel(Notification::CHANNEL_WHATSAPP)->first());
+
+    expect($whatsapp)->not->toBeNull();
+    expect($whatsapp->recipient)->toBe('08111222333');
+    expect($whatsapp->message_content)->toContain('DIBATALKAN');
+    expect($whatsapp->message_content)->toContain('Anggaran dialihkan');
+});
+
+test('notify cancelled by admin routes to school', function () {
+    $pr = createServicePrWithSchool();
+    $service = new NotificationService;
+    $admin = User::factory()->admin()->create();
+
+    $service->notify($pr, 'cancelled', ['reason' => 'Kesalahan data'], $admin);
+
+    $whatsapp = Notification::withoutEvents(fn () => Notification::byChannel(Notification::CHANNEL_WHATSAPP)->first());
+
+    expect($whatsapp)->not->toBeNull();
+    expect($whatsapp->recipient)->toBe('081234567890');
+    expect($whatsapp->message_content)->toContain('DIBATALKAN');
+});
+
+test('notify sends to school for receipt_verified event', function () {
+    $pr = createServicePrWithSchool();
+    $service = new NotificationService;
 
     $service->notify($pr, 'receipt_verified');
 
     $whatsapp = Notification::withoutEvents(fn () => Notification::byChannel(Notification::CHANNEL_WHATSAPP)->first());
 
-    expect($whatsapp->recipient)->toBe('08111222333');
-    expect($whatsapp->message_content)->toContain('Barang pengadaan telah diverifikasi diterima');
+    expect($whatsapp->recipient)->toBe('081234567890');
+    expect($whatsapp->message_content)->toContain('Penerimaan barang telah diverifikasi');
 });
 
 test('notify sends to school for completed event', function () {
     $pr = createServicePrWithSchool();
-    $service = new NotificationService();
+    $service = new NotificationService;
 
     $service->notify($pr, 'completed');
 
@@ -135,7 +165,7 @@ test('notify sends to school for completed event', function () {
 
 test('notify does not create notification for unknown event', function () {
     $pr = createServicePrWithSchool();
-    $service = new NotificationService();
+    $service = new NotificationService;
 
     $service->notify($pr, 'unknown_event');
 
@@ -145,7 +175,7 @@ test('notify does not create notification for unknown event', function () {
 test('notify does not create whatsapp notification when admin phone is empty', function () {
     config(['waha.admin_cv_phone' => '']);
     $pr = createServicePrWithSchool();
-    $service = new NotificationService();
+    $service = new NotificationService;
 
     $service->notify($pr, 'submitted');
 
@@ -156,7 +186,7 @@ test('notify does not create whatsapp notification when admin phone is empty', f
 test('notify does not create email notification when admin email is empty', function () {
     config(['waha.admin_cv_email' => '']);
     $pr = createServicePrWithSchool();
-    $service = new NotificationService();
+    $service = new NotificationService;
 
     $service->notify($pr, 'submitted');
 
@@ -166,7 +196,7 @@ test('notify does not create email notification when admin email is empty', func
 
 test('createNotification creates notification with correct fields', function () {
     $pr = createServicePrWithSchool();
-    $service = new NotificationService();
+    $service = new NotificationService;
 
     $notification = Notification::withoutEvents(fn () => $service->createNotification(
         $pr,
@@ -187,7 +217,7 @@ test('createNotification creates notification with correct fields', function () 
 
 test('notify stores event_type on notification', function () {
     $pr = createServicePrWithSchool();
-    $service = new NotificationService();
+    $service = new NotificationService;
 
     $service->notify($pr, 'verified');
 
@@ -197,9 +227,9 @@ test('notify stores event_type on notification', function () {
 });
 
 test('notify stores triggered_by when user provided', function () {
-    $user = App\Models\User::factory()->create(['role' => 'admin']);
+    $user = User::factory()->create(['role' => 'admin']);
     $pr = createServicePrWithSchool();
-    $service = new NotificationService();
+    $service = new NotificationService;
 
     $service->notify($pr, 'submitted', [], $user);
 
@@ -210,7 +240,7 @@ test('notify stores triggered_by when user provided', function () {
 
 test('notify stores null triggered_by when no user provided', function () {
     $pr = createServicePrWithSchool();
-    $service = new NotificationService();
+    $service = new NotificationService;
 
     $service->notify($pr, 'submitted');
 
@@ -221,7 +251,7 @@ test('notify stores null triggered_by when no user provided', function () {
 
 test('createNotification returns null for duplicate within 5 minutes', function () {
     $pr = createServicePrWithSchool();
-    $service = new NotificationService();
+    $service = new NotificationService;
 
     // Create first notification
     $first = Notification::withoutEvents(fn () => $service->createNotification(
@@ -249,7 +279,7 @@ test('createNotification returns null for duplicate within 5 minutes', function 
 
 test('createNotification allows duplicate after 5 minutes', function () {
     $pr = createServicePrWithSchool();
-    $service = new NotificationService();
+    $service = new NotificationService;
 
     // Create old notification (10 minutes ago)
     Notification::withoutEvents(fn () => Notification::factory()->create([
@@ -273,7 +303,7 @@ test('createNotification allows duplicate after 5 minutes', function () {
 
 test('createNotification allows different channel for same event', function () {
     $pr = createServicePrWithSchool();
-    $service = new NotificationService();
+    $service = new NotificationService;
 
     // Create WhatsApp notification
     Notification::withoutEvents(fn () => $service->createNotification(
@@ -295,4 +325,69 @@ test('createNotification allows different channel for same event', function () {
 
     expect($email)->toBeInstanceOf(Notification::class);
     expect(Notification::count())->toBe(2);
+});
+
+test('notify sends to school for needs_revision event with reason', function () {
+    config(['waha.admin_cv_phone' => '08111222333']);
+    $pr = createServicePrWithSchool();
+    $service = new NotificationService;
+
+    $service->notify($pr, 'needs_revision', ['reason' => 'Dokumen tidak lengkap']);
+
+    $whatsapp = Notification::withoutEvents(fn () => Notification::byChannel(Notification::CHANNEL_WHATSAPP)->first());
+
+    expect($whatsapp)->not->toBeNull();
+    expect($whatsapp->recipient)->toBe('081234567890');
+    expect($whatsapp->message_content)->toContain('REVISI');
+    expect($whatsapp->message_content)->toContain('Dokumen tidak lengkap');
+});
+
+test('notify sends to school for record_payment event', function () {
+    config(['waha.admin_cv_phone' => '08111222333']);
+    $pr = createServicePrWithSchool();
+    $service = new NotificationService;
+
+    $service->notify($pr, 'record_payment', [
+        'amount' => 1500000,
+        'method' => 'Transfer Bank',
+        'reference' => 'INV-2024-001',
+        'paidAt' => '2024-01-15',
+    ]);
+
+    $whatsapp = Notification::withoutEvents(fn () => Notification::byChannel(Notification::CHANNEL_WHATSAPP)->first());
+
+    expect($whatsapp)->not->toBeNull();
+    expect($whatsapp->recipient)->toBe('081234567890');
+    expect($whatsapp->message_content)->toContain('Pembayaran pengadaan telah dicatat');
+    expect($whatsapp->message_content)->toContain('Rp 1.500.000');
+});
+
+test('notify sends to school for confirm_payment event', function () {
+    config(['waha.admin_cv_phone' => '08111222333']);
+    $pr = createServicePrWithSchool();
+    $service = new NotificationService;
+
+    $service->notify($pr, 'confirm_payment', [
+        'amount' => 1500000,
+        'receiptNumber' => 'KW/123/2024',
+    ]);
+
+    $whatsapp = Notification::withoutEvents(fn () => Notification::byChannel(Notification::CHANNEL_WHATSAPP)->first());
+
+    expect($whatsapp)->not->toBeNull();
+    expect($whatsapp->recipient)->toBe('081234567890');
+    expect($whatsapp->message_content)->toContain('Pembayaran pengadaan telah dikonfirmasi');
+    expect($whatsapp->message_content)->toContain('KW/123/2024');
+});
+
+test('notify does not create whatsapp notification when school phone is empty', function () {
+    config(['waha.admin_cv_phone' => '08111222333']);
+    $school = School::factory()->create(['phone_number' => '', 'email' => 'sekolah@test.com']);
+    $pr = ProcurementRequest::factory()->create(['school_id' => $school->id]);
+    $service = new NotificationService;
+
+    $service->notify($pr, 'needs_revision', ['reason' => 'Alasan revisi']);
+
+    $whatsapp = Notification::withoutEvents(fn () => Notification::byChannel(Notification::CHANNEL_WHATSAPP)->first());
+    expect($whatsapp)->toBeNull();
 });

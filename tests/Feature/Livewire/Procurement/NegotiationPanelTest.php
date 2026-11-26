@@ -5,10 +5,12 @@ use App\Models\ProcurementNegotiation;
 use App\Models\ProcurementRequest;
 use App\Models\ProcurementRequestItem;
 use App\Models\School;
+use App\Models\Subsidiary;
 use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+
 use function Pest\Laravel\actingAs;
 
 uses(RefreshDatabase::class);
@@ -26,9 +28,10 @@ beforeEach(function () {
     $this->supplier = Supplier::factory()->create();
 
     $this->procurement = ProcurementRequest::factory()->create([
-        'status' => ProcurementRequest::STATUS_SUPPLIER_ASSIGNED,
+        'status' => ProcurementRequest::STATUS_NEGOTIATION,
         'school_id' => $this->schoolModel->id,
         'supplier_id' => $this->supplier->id,
+        'subsidiary_id' => Subsidiary::factory()->create()->id,
     ]);
 
     $this->item = ProcurementRequestItem::factory()->create([

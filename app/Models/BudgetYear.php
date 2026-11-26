@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 class BudgetYear extends Model
 {
     use HasFactory;
+
     protected $fillable = [
         'name',
         'start_date',
@@ -42,9 +43,9 @@ class BudgetYear extends Model
     public function activate(): void
     {
         DB::transaction(function () {
-            // Nonaktifkan semua tahun anggaran lain[cite: 1]
+            // Nonaktifkan semua tahun anggaran lain.
             self::where('id', '!=', $this->id)->update(['is_active' => false]);
-            // Aktifkan tahun anggaran ini[cite: 1]
+            // Aktifkan tahun anggaran ini.
             $this->update(['is_active' => true]);
         });
     }
@@ -64,7 +65,7 @@ class BudgetYear extends Model
                         ->where('end_date', '>=', $endDate);
                 });
         })
-            ->when($ignoreId, fn($query) => $query->where('id', '!=', $ignoreId))
+            ->when($ignoreId, fn ($query) => $query->where('id', '!=', $ignoreId))
             ->exists();
     }
 }

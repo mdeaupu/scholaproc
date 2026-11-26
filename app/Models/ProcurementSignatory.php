@@ -28,7 +28,7 @@ class ProcurementSignatory extends Model
         if (empty($this->nip)) {
             return $this->name;
         }
+
         return "{$this->name} (NIP. {$this->nip})";
     }
-
 }

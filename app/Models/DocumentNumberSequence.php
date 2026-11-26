@@ -31,6 +31,7 @@ class DocumentNumberSequence extends Model
     public function nextNumber(): int
     {
         $this->increment('last_number');
+
         return $this->last_number;
     }
 }

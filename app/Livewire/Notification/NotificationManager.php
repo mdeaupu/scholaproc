@@ -2,8 +2,6 @@
 
 namespace App\Livewire\Notification;
 
-use App\Jobs\SendEmailNotification;
-use App\Jobs\SendWhatsAppNotification;
 use App\Models\Notification;
 use App\Services\WhatsAppService;
 use Livewire\Component;
@@ -12,19 +10,24 @@ use Mary\Traits\Toast;
 
 class NotificationManager extends Component
 {
-    use WithPagination, Toast;
+    use Toast, WithPagination;
 
     public string $statusFilter = 'all';
+
     public string $channelFilter = 'all';
+
     public string $search = '';
 
     public bool $showDeleteModal = false;
+
     public ?int $deletingNotificationId = null;
 
     public bool $showDetailModal = false;
+
     public ?Notification $detailNotification = null;
 
     public string $waStatus = 'UNKNOWN';
+
     public ?string $waPhoneName = null;
 
     public function mount(): void
@@ -72,6 +75,19 @@ class NotificationManager extends Component
         $this->dispatch('$refresh');
     }
 
+    public function sendAllPending(): void
+    {
+        $pending = Notification::where('status', Notification::STATUS_PENDING)
+            ->whereIn('channel', [Notification::CHANNEL_WHATSAPP, Notification::CHANNEL_EMAIL])
+            ->get();
+
+        foreach ($pending as $notification) {
+            $notification->retry();
+        }
+
+        $this->success('Proses kirim ulang semua notifikasi menunggu selesai.');
+    }
+
     public function resend(int $notificationId): void
     {
         $notification = Notification::findOrFail($notificationId);
@@ -82,17 +98,7 @@ class NotificationManager extends Component
             return;
         }
 
-        $notification->update([
-            'status' => Notification::STATUS_PENDING,
-            'error_message' => null,
-            'sent_at' => null,
-        ]);
-
-        if ($notification->channel === Notification::CHANNEL_WHATSAPP) {
-            SendWhatsAppNotification::dispatch($notification);
-        } else {
-            SendEmailNotification::dispatch($notification);
-        }
+        $notification->retry();
 
         $this->success('Notifikasi berhasil dikirim ulang.');
     }
@@ -138,7 +144,7 @@ class NotificationManager extends Component
         $this->detailNotification = Notification::with('procurementRequest.school', 'triggeredBy')
             ->findOrFail($notificationId);
 
-        if (!$this->detailNotification->isRead()) {
+        if (! $this->detailNotification->isRead()) {
             $this->detailNotification->markAsRead();
         }
 

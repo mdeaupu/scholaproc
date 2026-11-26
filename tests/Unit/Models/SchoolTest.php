@@ -1,9 +1,9 @@
 <?php
 
+use App\Models\ProcurementRequest;
 use App\Models\School;
 use App\Models\SchoolSetting;
 use App\Models\User;
-use App\Models\ProcurementRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -22,7 +22,7 @@ test('sekolah memiliki relasi satu ke akun pengguna (User)', function () {
 
     $user = User::factory()->create([
         'school_id' => $school->id,
-        'role' => 'school'
+        'role' => 'school',
     ]);
 
     expect($school->account)->toBeInstanceOf(User::class)
@@ -63,13 +63,13 @@ test('menghitung akumulasi nilai nominal pengadaan resmi (completed) dengan bena
     ProcurementRequest::factory()->create([
         'school_id' => $school->id,
         'status' => 'completed',
-        'grand_total' => 5000000.00
+        'grand_total' => 5000000.00,
     ]);
 
     ProcurementRequest::factory()->create([
         'school_id' => $school->id,
         'status' => 'rejected',
-        'grand_total' => 4000000.00
+        'grand_total' => 4000000.00,
     ]);
 
     expect($school->totalProcurementValue())->toBe(5000000.00);

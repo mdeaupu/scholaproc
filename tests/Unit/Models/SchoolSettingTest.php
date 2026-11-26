@@ -2,9 +2,10 @@
 
 use App\Models\School;
 use App\Models\SchoolSetting;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-uses(TestCase::class, \Illuminate\Foundation\Testing\RefreshDatabase::class);
+uses(TestCase::class, RefreshDatabase::class);
 
 test('pengaturan sekolah terhubung balik ke model School', function () {
     $school = School::factory()->create();
@@ -20,14 +21,14 @@ test('metode getLetterHead menghasilkan struktur array kop surat berhuruf kapita
         'address' => 'Jl. Siliwangi No. 1',
         'postal_code' => '43211',
         'phone_number' => '026312345',
-        'email' => 'info@sman1cj.sch.id'
+        'email' => 'info@sman1cj.sch.id',
     ]);
 
     $setting = SchoolSetting::factory()->create([
         'school_id' => $school->id,
         'kop_pusat' => 'Pemerintah Provinsi Jawa Barat',
         'kop_provinsi' => 'Dinas Pendidikan Wilayah VI',
-        'kop_sub_wilayah' => 'Kabupaten Cianjur'
+        'kop_sub_wilayah' => 'Kabupaten Cianjur',
     ]);
 
     $letterHead = $setting->getLetterHead();

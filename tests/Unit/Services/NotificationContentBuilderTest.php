@@ -4,7 +4,8 @@ use App\Models\ProcurementNegotiation;
 use App\Models\ProcurementRequest;
 use App\Models\ProcurementRequestItem;
 use App\Models\School;
-use App\Models\Supplier;
+use App\Models\Subsidiary;
+use App\Models\User;
 use App\Services\NotificationContentBuilder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -14,11 +15,11 @@ uses(TestCase::class, RefreshDatabase::class);
 function createBuilderProcurementWithRelations(array $overrides = []): ProcurementRequest
 {
     $school = School::factory()->create(['name' => 'SMP Negeri 1 Jakarta']);
-    $supplier = Supplier::factory()->create(['company_name' => 'PT Supplier Jaya']);
+    $subsidiary = Subsidiary::factory()->create(['name' => 'PT Anak Perusahaan Maju']);
 
     $pr = ProcurementRequest::factory()->create(array_merge([
         'school_id' => $school->id,
-        'supplier_id' => $supplier->id,
+        'subsidiary_id' => $subsidiary->id,
     ], $overrides));
 
     return $pr;
@@ -45,7 +46,7 @@ test('buildVerified contains verification info', function () {
 
     expect($message)->toContain('SMP Negeri 1 Jakarta');
     expect($message)->toContain('telah diverifikasi oleh Admin');
-    expect($message)->toContain('Silakan tentukan supplier');
+    expect($message)->toContain('Admin Pusat akan menetapkan Anak Perusahaan');
 });
 
 test('buildRejected contains rejection reason', function () {
@@ -58,14 +59,14 @@ test('buildRejected contains rejection reason', function () {
     expect($message)->toContain('Silakan perbaiki pengajuan');
 });
 
-test('buildSupplierAssigned contains supplier info', function () {
+test('buildSupplierAssigned contains anak perusahaan info', function () {
     $pr = createBuilderProcurementWithRelations();
 
     $message = NotificationContentBuilder::buildSupplierAssigned($pr);
 
     expect($message)->toContain('SMP Negeri 1 Jakarta');
-    expect($message)->toContain('PT Supplier Jaya');
-    expect($message)->toContain('Supplier telah ditunjuk');
+    expect($message)->toContain('PT Anak Perusahaan Maju');
+    expect($message)->toContain('Anak Perusahaan telah ditunjuk');
     expect($message)->toContain('Negosiasi harga dapat dimulai');
 });
 
@@ -140,21 +141,22 @@ test('buildItemsPrepared contains item count', function () {
     $message = NotificationContentBuilder::buildItemsPrepared($pr);
 
     expect($message)->toContain('SMP Negeri 1 Jakarta');
-    expect($message)->toContain('PT Supplier Jaya');
+    expect($message)->toContain('PT Anak Perusahaan Maju');
     expect($message)->toContain('Total item: 5');
     expect($message)->toContain('Barang siap untuk dikirim');
 });
 
 test('buildReceiptVerified contains verification details', function () {
     $pr = createBuilderProcurementWithRelations([
+        'status' => ProcurementRequest::STATUS_RECEIVED,
         'verified_at' => now(),
     ]);
 
     $message = NotificationContentBuilder::buildReceiptVerified($pr);
 
     expect($message)->toContain('SMP Negeri 1 Jakarta');
-    expect($message)->toContain('Barang pengadaan telah diverifikasi diterima');
-    expect($message)->toContain('WIB');
+    expect($message)->toContain('Penerimaan barang telah diverifikasi');
+    expect($message)->toContain('DITERIMA LENGKAP');
 });
 
 test('buildCompleted contains grand total', function () {
@@ -165,10 +167,23 @@ test('buildCompleted contains grand total', function () {
     $message = NotificationContentBuilder::buildCompleted($pr);
 
     expect($message)->toContain('SMP Negeri 1 Jakarta');
-    expect($message)->toContain('PT Supplier Jaya');
+    expect($message)->toContain('PT Anak Perusahaan Maju');
     expect($message)->toContain('5.000.000');
     expect($message)->toContain('Pengadaan telah SELESAI');
     expect($message)->toContain('Dokumen pengadaan sudah tersedia untuk diunduh');
+});
+
+test('buildCancelled contains reference, school, reason, and actor', function () {
+    $pr = createBuilderProcurementWithRelations();
+    $actor = User::factory()->create(['name' => 'Admin Pusat']);
+
+    $message = NotificationContentBuilder::buildCancelled($pr, 'Anggaran dialihkan', $actor);
+
+    expect($message)->toContain('DIBATALKAN');
+    expect($message)->toContain('#'.$pr->id);
+    expect($message)->toContain('SMP Negeri 1 Jakarta');
+    expect($message)->toContain('Dibatalkan oleh: Admin Pusat');
+    expect($message)->toContain('Alasan: Anggaran dialihkan');
 });
 
 test('buildDocumentGenerated contains school name and document count', function () {

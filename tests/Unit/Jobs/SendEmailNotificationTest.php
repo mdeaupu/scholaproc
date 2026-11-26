@@ -13,14 +13,14 @@ function createEmailNotification(array $overrides = []): Notification
     return Notification::withoutEvents(fn () => Notification::factory()->create($overrides));
 }
 
-test('send email notification job is queued on notifications queue', function () {
+test('send email notification job is queued on default queue', function () {
     $notification = createEmailNotification([
         'channel' => Notification::CHANNEL_EMAIL,
     ]);
 
     $job = new SendEmailNotification($notification);
 
-    expect($job->queue)->toBe('notifications');
+    expect($job->queue)->toBe('default');
 });
 
 test('send email notification job has correct retry settings', function () {
@@ -40,7 +40,7 @@ test('send email notification job handles successful send', function () {
         'status' => Notification::STATUS_PENDING,
     ]);
 
-    $email = \Mockery::mock(EmailService::class);
+    $email = Mockery::mock(EmailService::class);
     $email->shouldReceive('send')
         ->once()
         ->andReturn(['success' => true, 'error' => null]);
@@ -58,7 +58,7 @@ test('send email notification job handles failed send', function () {
         'status' => Notification::STATUS_PENDING,
     ]);
 
-    $email = \Mockery::mock(EmailService::class);
+    $email = Mockery::mock(EmailService::class);
     $email->shouldReceive('send')
         ->once()
         ->andReturn(['success' => false, 'error' => 'SMTP connection failed']);
@@ -77,7 +77,7 @@ test('send email notification job failed method marks notification as failed', f
     ]);
 
     $job = new SendEmailNotification($notification);
-    $exception = new \Exception('Mail error');
+    $exception = new Exception('Mail error');
     $job->failed($exception);
 
     expect($notification->fresh()->status)->toBe(Notification::STATUS_FAILED);

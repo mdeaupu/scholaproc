@@ -21,18 +21,12 @@ class SendEmailNotification implements ShouldQueue
     public function __construct(
         public Notification $notification
     ) {
-        $this->onQueue('notifications');
+        $this->onQueue('default');
     }
 
     public function handle(EmailService $email): void
     {
-        $subject = 'Notifikasi Pengadaan — ' . ($this->notification->procurementRequest?->school?->name ?? 'Sistem');
-
-        $result = $email->send(
-            $this->notification->recipient,
-            $subject,
-            $this->buildHtmlBody()
-        );
+        $result = $email->send($this->notification);
 
         if ($result['success']) {
             $this->notification->markSent();
@@ -44,20 +38,5 @@ class SendEmailNotification implements ShouldQueue
     public function failed(\Throwable $exception): void
     {
         $this->notification->markFailed($exception->getMessage());
-    }
-
-    private function buildHtmlBody(): string
-    {
-        $message = $this->notification->message_content;
-        $procurementRequest = $this->notification->procurementRequest;
-        $documents = $procurementRequest?->generatedDocuments ?? collect();
-
-        return view('emails.notification', [
-            'message' => $message,
-            'recipient' => $this->notification->recipient,
-            'channel' => $this->notification->channel,
-            'procurementRequest' => $procurementRequest,
-            'documents' => $documents,
-        ])->render();
     }
 }

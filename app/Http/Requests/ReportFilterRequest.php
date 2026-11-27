@@ -15,7 +15,16 @@ class ReportFilterRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return (bool) ($this->user()?->isSuperAdmin() || $this->user()?->isAdmin());
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->status === '' || $this->status === []) {
+            $this->merge(['status' => null]);
+        } elseif (is_string($this->status)) {
+            $this->merge(['status' => [$this->status]]);
+        }
     }
 
     /**
@@ -28,7 +37,9 @@ class ReportFilterRequest extends FormRequest
             'date_from' => ['nullable', 'date_format:Y-m-d'],
             'date_to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:date_from'],
             'school_id' => ['nullable', 'integer', Rule::exists('schools', 'id')->whereNull('deleted_at')],
-            'supplier_id' => ['nullable', 'integer', Rule::exists('suppliers', 'id')->whereNull('deleted_at')],
+            'subsidiary_id' => ['nullable', 'integer', Rule::exists('subsidiaries', 'id')],
+            'funding_source_id' => ['nullable', 'integer', Rule::exists('funding_sources', 'id')],
+            'budget_year_id' => ['nullable', 'integer', Rule::exists('budget_years', 'id')],
             'status' => ['nullable', 'array'],
             'status.*' => ['string', Rule::in(ProcurementRequest::reportStatuses())],
         ];
@@ -45,7 +56,9 @@ class ReportFilterRequest extends FormRequest
             'date_to.date_format' => 'Tanggal akhir harus berformat YYYY-MM-DD.',
             'date_to.after_or_equal' => 'Tanggal akhir tidak boleh lebih awal dari tanggal awal.',
             'school_id.exists' => 'Sekolah yang dipilih tidak tersedia.',
-            'supplier_id.exists' => 'Supplier yang dipilih tidak tersedia.',
+            'subsidiary_id.exists' => 'Anak Perusahaan yang dipilih tidak tersedia.',
+            'funding_source_id.exists' => 'Sumber Dana yang dipilih tidak tersedia.',
+            'budget_year_id.exists' => 'Tahun Anggaran yang dipilih tidak tersedia.',
             'status.*.in' => 'Status yang dipilih tidak dikenal.',
         ];
     }

@@ -3,7 +3,7 @@
 use App\Models\ProcurementRequest;
 use App\Models\ProcurementRequestItem;
 use App\Models\School;
-use App\Models\Supplier;
+use App\Models\Subsidiary;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -38,8 +38,7 @@ test('statusLabels covers every workflow status', function () {
     $labels = ProcurementRequest::statusLabels();
 
     expect($labels)->toHaveKeys(ProcurementRequest::reportStatuses())
-        ->and($labels)->toHaveCount(7)
-        ->and(ProcurementRequest::statusLabel('supplier_assigned'))->toBe('Supplier Ditentukan')
+        ->and($labels)->toHaveCount(15)
         ->and(ProcurementRequest::statusLabel('tidak_dikenal'))->toBe('Tidak dikenal');
 });
 
@@ -60,16 +59,16 @@ test('scopeStatus with empty values does not filter anything', function () {
         ->and(ProcurementRequest::status([null, ''])->count())->toBe(2);
 });
 
-test('scopeBySchool and scopeBySupplier filter the report query', function () {
+test('scopeBySchool and scopeBySubsidiary filter the report query', function () {
     $schoolA = School::factory()->create();
     $schoolB = School::factory()->create();
-    $supplier = Supplier::factory()->create();
+    $subsidiary = Subsidiary::factory()->create();
 
-    $inA = makeReportRequest(['school_id' => $schoolA->id, 'supplier_id' => $supplier->id]);
+    $inA = makeReportRequest(['school_id' => $schoolA->id, 'subsidiary_id' => $subsidiary->id]);
     makeReportRequest(['school_id' => $schoolB->id]);
 
     expect(ProcurementRequest::bySchool($schoolA->id)->pluck('id')->all())->toBe([$inA->id])
-        ->and(ProcurementRequest::bySupplier($supplier->id)->pluck('id')->all())->toBe([$inA->id]);
+        ->and(ProcurementRequest::bySubsidiary($subsidiary->id)->pluck('id')->all())->toBe([$inA->id]);
 });
 
 test('scopePeriod filters on requested_at inclusive', function () {
@@ -117,27 +116,62 @@ test('scopePeriod supports an open ended range', function () {
 
 test('scopeForReport applies every filter at once', function () {
     $school = School::factory()->create();
-    $supplier = Supplier::factory()->create();
+    $subsidiary = Subsidiary::factory()->create();
+    $fundingSource = \App\Models\FundingSource::factory()->create();
+    $budgetYear = \App\Models\BudgetYear::factory()->create();
 
     $match = makeReportRequest([
         'school_id' => $school->id,
-        'supplier_id' => $supplier->id,
+        'subsidiary_id' => $subsidiary->id,
+        'funding_source_id' => $fundingSource->id,
+        'budget_year_id' => $budgetYear->id,
         'status' => ProcurementRequest::STATUS_COMPLETED,
         'requested_at' => now(),
     ]);
 
     makeReportRequest(['school_id' => $school->id, 'status' => ProcurementRequest::STATUS_DRAFT, 'requested_at' => now()]);
-    makeReportRequest(['school_id' => $school->id, 'supplier_id' => $supplier->id, 'status' => ProcurementRequest::STATUS_COMPLETED, 'requested_at' => now()->subYear()]);
+    makeReportRequest(['school_id' => $school->id, 'subsidiary_id' => $subsidiary->id, 'status' => ProcurementRequest::STATUS_COMPLETED, 'requested_at' => now()->subYear()]);
+    makeReportRequest(['school_id' => $school->id, 'subsidiary_id' => $subsidiary->id, 'funding_source_id' => $fundingSource->id, 'budget_year_id' => $budgetYear->id, 'status' => ProcurementRequest::STATUS_DRAFT, 'requested_at' => now()]);
 
     $result = ProcurementRequest::forReport([
         'date_from' => now()->startOfYear()->toDateString(),
         'date_to' => now()->endOfYear()->toDateString(),
         'school_id' => $school->id,
-        'supplier_id' => $supplier->id,
+        'subsidiary_id' => $subsidiary->id,
+        'funding_source_id' => $fundingSource->id,
+        'budget_year_id' => $budgetYear->id,
         'status' => [ProcurementRequest::STATUS_COMPLETED],
     ])->pluck('id')->all();
 
     expect($result)->toBe([$match->id]);
+});
+
+test('scopeForReport filters by funding_source_id', function () {
+    $fsA = \App\Models\FundingSource::factory()->create(['name' => 'BOS Reguler']);
+    $fsB = \App\Models\FundingSource::factory()->create(['name' => 'BOS Kinerja']);
+
+    $inA = makeReportRequest(['funding_source_id' => $fsA->id, 'status' => ProcurementRequest::STATUS_COMPLETED]);
+    makeReportRequest(['funding_source_id' => $fsB->id, 'status' => ProcurementRequest::STATUS_COMPLETED]);
+
+    expect(ProcurementRequest::forReport(['funding_source_id' => $fsA->id])->pluck('id')->all())->toBe([$inA->id]);
+});
+
+test('scopeForReport filters by budget_year_id', function () {
+    $byA = \App\Models\BudgetYear::factory()->create([
+        'name' => '2025/2026',
+        'start_date' => '2025-01-01',
+        'end_date' => '2025-12-31',
+    ]);
+    $byB = \App\Models\BudgetYear::factory()->create([
+        'name' => '2026/2027',
+        'start_date' => '2026-01-01',
+        'end_date' => '2026-12-31',
+    ]);
+
+    $inA = makeReportRequest(['budget_year_id' => $byA->id, 'status' => ProcurementRequest::STATUS_COMPLETED]);
+    makeReportRequest(['budget_year_id' => $byB->id, 'status' => ProcurementRequest::STATUS_COMPLETED]);
+
+    expect(ProcurementRequest::forReport(['budget_year_id' => $byA->id])->pluck('id')->all())->toBe([$inA->id]);
 });
 
 test('scopeWithReportTotals exposes per request aggregates', function () {
@@ -221,7 +255,7 @@ test('reportSummary aggregates totals, counts and averages', function () {
         ->and($summary['completed_count'])->toBe(1)
         ->and($summary['rejected_count'])->toBe(1)
         ->and($summary['locked_count'])->toBe(1)
-        ->and($summary['unsuppliered_count'])->toBe(2);
+        ->and($summary['unsubsidiaried_count'])->toBe(2);
 });
 
 test('reportSummary returns zeroed values when nothing matches the filter', function () {
@@ -263,21 +297,25 @@ test('reportBySchool groups per school and orders by the biggest value', functio
         ->and($rows[1]['school_npsn'])->toBeString();
 });
 
-test('reportBySupplier excludes requests that have no supplier yet', function () {
-    $supplier = Supplier::factory()->create(['company_name' => 'CV Maju Jaya']);
-    $other = Supplier::factory()->create(['company_name' => 'CV Sejahtera']);
+test('reportBySubsidiary includes requests with no subsidiary as Belum Ditetapkan', function () {
+    $subsidiary = Subsidiary::factory()->create(['name' => 'CV Maju Jaya']);
+    $other = Subsidiary::factory()->create(['name' => 'CV Sejahtera']);
 
-    makeReportRequest(['supplier_id' => $supplier->id, 'status' => ProcurementRequest::STATUS_COMPLETED], [['quantity' => 1, 'estimated' => 20000, 'official' => 20000]]);
-    makeReportRequest(['supplier_id' => $other->id], [['quantity' => 1, 'estimated' => 5000, 'official' => 5000]]);
-    makeReportRequest(['supplier_id' => null], [['quantity' => 1, 'estimated' => 1000, 'official' => 1000]]);
+    makeReportRequest(['subsidiary_id' => $subsidiary->id, 'status' => ProcurementRequest::STATUS_COMPLETED], [['quantity' => 1, 'estimated' => 20000, 'official' => 20000]]);
+    makeReportRequest(['subsidiary_id' => $other->id], [['quantity' => 1, 'estimated' => 5000, 'official' => 5000]]);
+    makeReportRequest(['subsidiary_id' => null], [['quantity' => 1, 'estimated' => 1000, 'official' => 1000]]);
 
-    $rows = ProcurementRequest::reportBySupplier(ProcurementRequest::query());
+    $rows = ProcurementRequest::reportBySubsidiary(ProcurementRequest::query());
 
-    expect($rows)->toHaveCount(2)
-        ->and($rows[0]['company_name'])->toBe('CV Maju Jaya')
+    expect($rows)->toHaveCount(3)
+        ->and($rows[0]['subsidiary_name'])->toBe('CV Maju Jaya')
         ->and($rows[0]['completed_count'])->toBe(1)
         ->and((float) $rows[0]['total_official'])->toEqual(20000.0)
-        ->and($rows[1]['completed_count'])->toBe(0);
+        ->and($rows[1]['subsidiary_name'])->toBe('CV Sejahtera')
+        ->and($rows[1]['completed_count'])->toBe(0)
+        ->and($rows[2]['subsidiary_name'])->toBe('Belum Ditetapkan Anak Perusahaan')
+        ->and($rows[2]['completed_count'])->toBe(0)
+        ->and((float) $rows[2]['total_official'])->toEqual(1000.0);
 });
 
 test('reportByStatus zero fills every workflow status', function () {
@@ -285,7 +323,7 @@ test('reportByStatus zero fills every workflow status', function () {
 
     $rows = ProcurementRequest::reportByStatus(ProcurementRequest::query());
 
-    expect($rows)->toHaveCount(7)
+    expect($rows)->toHaveCount(15)
         ->and($rows->pluck('status')->all())->toBe(ProcurementRequest::reportStatuses());
 
     $completed = $rows->firstWhere('status', ProcurementRequest::STATUS_COMPLETED);
@@ -299,9 +337,9 @@ test('reportByStatus zero fills every workflow status', function () {
 });
 
 test('reportTransactions returns mapped rows with relation labels', function () {
-    $supplier = Supplier::factory()->create(['company_name' => 'CV Sumber Rejek']);
+    $subsidiary = Subsidiary::factory()->create(['name' => 'CV Sumber Rejek']);
     $request = makeReportRequest(
-        ['status' => ProcurementRequest::STATUS_COMPLETED, 'supplier_id' => $supplier->id],
+        ['status' => ProcurementRequest::STATUS_COMPLETED, 'subsidiary_id' => $subsidiary->id],
         [['quantity' => 4, 'estimated' => 25000, 'official' => 20000]]
     );
     $request->forceFill(['grand_total' => 88000, 'totals_locked_at' => now()])->save();
@@ -314,7 +352,7 @@ test('reportTransactions returns mapped rows with relation labels', function () 
 
     expect($row['id'])->toBe($request->id)
         ->and($row['uuid'])->toBe($request->uuid)
-        ->and($row['supplier_name'])->toBe('CV Sumber Rejek')
+        ->and($row['subsidiary_name'])->toBe('CV Sumber Rejek')
         ->and($row['status_label'])->toBe('Selesai')
         ->and($row['total_quantity'])->toBe(4)
         ->and($row['total_item_types'])->toBe(1)
@@ -325,10 +363,10 @@ test('reportTransactions returns mapped rows with relation labels', function () 
         ->and($row['budget_year_name'])->toBeString();
 });
 
-test('reportTransactions leaves supplier blank when none is assigned', function () {
-    makeReportRequest(['supplier_id' => null]);
+test('reportTransactions leaves subsidiary blank when none is assigned', function () {
+    makeReportRequest(['subsidiary_id' => null]);
 
-    expect(ProcurementRequest::reportTransactions(ProcurementRequest::query())->first()['supplier_name'])->toBeNull();
+    expect(ProcurementRequest::reportTransactions(ProcurementRequest::query())->first()['subsidiary_name'])->toBe('Belum Ditetapkan');
 });
 
 test('reportTransactions honours the limit and the report filters', function () {
@@ -348,7 +386,7 @@ test('soft deleted requests are excluded from every report', function () {
     expect(ProcurementRequest::reportSummary(ProcurementRequest::query())['total_transactions'])->toBe(0)
         ->and(ProcurementRequest::reportTransactions(ProcurementRequest::query()))->toHaveCount(0)
         ->and(ProcurementRequest::reportBySchool(ProcurementRequest::query()))->toHaveCount(0)
-        ->and(ProcurementRequest::reportBySupplier(ProcurementRequest::query()))->toHaveCount(0);
+        ->and(ProcurementRequest::reportBySubsidiary(ProcurementRequest::query()))->toHaveCount(0);
 });
 
 test('report base subtotal stays on estimates when the only official price is zero', function () {
@@ -390,23 +428,22 @@ test('report_effective_total ignores grand_total when totals are not locked', fu
     expect((float) $row->report_effective_total)->toEqual(99000.0);
 });
 
-test('reportTransactions keeps showing a soft deleted school and supplier', function () {
+test('reportTransactions keeps showing a soft deleted school and subsidiary', function () {
     $school = School::factory()->create(['name' => 'Sekolah Lama']);
-    $supplier = Supplier::factory()->create(['company_name' => 'CV Lama']);
+    $subsidiary = Subsidiary::factory()->create(['name' => 'CV Lama']);
 
     makeReportRequest([
         'school_id' => $school->id,
-        'supplier_id' => $supplier->id,
+        'subsidiary_id' => $subsidiary->id,
     ], [['quantity' => 1, 'estimated' => 10000, 'official' => 10000]]);
 
     $school->delete();
-    $supplier->delete();
 
     $rows = ProcurementRequest::reportTransactions(ProcurementRequest::query());
 
     expect($rows)->toHaveCount(1)
         ->and($rows->first()['school_name'])->toBe('Sekolah Lama')
-        ->and($rows->first()['supplier_name'])->toBe('CV Lama');
+        ->and($rows->first()['subsidiary_name'])->toBe('CV Lama');
 });
 
 test('scopePeriod interprets the bounds in the report timezone', function () {

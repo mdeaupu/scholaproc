@@ -1,7 +1,7 @@
 <?php
 
 use App\Models\ProcurementRequest;
-use App\Models\Supplier;
+use App\Models\Subsidiary;
 use App\Services\ReportExportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -25,7 +25,7 @@ function summaryPayload(): array
         'completed_count' => 1,
         'rejected_count' => 1,
         'locked_count' => 1,
-        'unsuppliered_count' => 2,
+        'unsubsidiaried_count' => 2,
     ];
 }
 
@@ -71,17 +71,17 @@ describe('ReportExportService - collectData()', function () {
             ->and($data['filter_description'])->toContain('Status: Selesai');
     });
 
-    it('menyertakan nama sekolah dan supplier terpilih untuk deskripsi filter', function () {
-        $supplier = Supplier::factory()->create();
-        $request = ProcurementRequest::factory()->create(['supplier_id' => $supplier->id]);
+    it('menyertakan nama sekolah dan anak perusahaan terpilih untuk deskripsi filter', function () {
+        $subsidiary = Subsidiary::factory()->create();
+        $request = ProcurementRequest::factory()->create(['subsidiary_id' => $subsidiary->id]);
 
         $data = reportService()->collectData([
             'school_id' => $request->school_id,
-            'supplier_id' => $supplier->id,
+            'subsidiary_id' => $subsidiary->id,
         ]);
 
         expect($data['filter_description'])->toContain('Sekolah: '.$request->school->name)
-            ->and($data['filter_description'])->toContain('Supplier: '.$supplier->company_name);
+            ->and($data['filter_description'])->toContain('Anak Perusahaan: '.$subsidiary->name);
     });
 
     it('menghormati batas jumlah baris detail', function () {
@@ -115,7 +115,7 @@ describe('ReportExportService - sheets()', function () {
             'Ringkasan',
             'Transaksi',
             'Per Sekolah',
-            'Per Supplier',
+            'Per Anak Perusahaan',
             'Per Status',
         ]);
     });
@@ -126,7 +126,7 @@ describe('ReportExportService - sheets()', function () {
         expect($sheets->get('Ringkasan')->first())->toBe(['Keterangan', 'Nilai'])
             ->and($sheets->get('Transaksi')->first()[1])->toBe('No. Pengajuan')
             ->and($sheets->get('Per Sekolah')->first()[1])->toBe('Sekolah')
-            ->and($sheets->get('Per Supplier')->first()[1])->toBe('Supplier')
+            ->and($sheets->get('Per Anak Perusahaan')->first()[1])->toBe('Anak Perusahaan')
             ->and($sheets->get('Per Status')->first()[1])->toBe('Status');
     });
 

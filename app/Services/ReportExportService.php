@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\Exports\Reports\ProcurementBySchoolExport;
 use App\Exports\Reports\ProcurementByStatusExport;
-use App\Exports\Reports\ProcurementBySupplierExport;
+use App\Exports\Reports\ProcurementBySubsidiaryExport;
 use App\Exports\Reports\ProcurementReportExport;
 use App\Exports\Reports\ProcurementSummaryExport;
 use App\Exports\Reports\ProcurementTransactionExport;
@@ -42,7 +42,9 @@ class ReportExportService
 
         $filters['status_labels'] = ProcurementRequest::statusLabels();
         $filters['school_name'] = $this->relationName('schools', $filters['school_id'] ?? null, 'name');
-        $filters['supplier_name'] = $this->relationName('suppliers', $filters['supplier_id'] ?? null, 'company_name');
+        $filters['subsidiary_name'] = $this->relationName('subsidiaries', $filters['subsidiary_id'] ?? null, 'name');
+        $filters['funding_source_name'] = $this->relationName('funding_sources', $filters['funding_source_id'] ?? null, 'name');
+        $filters['budget_year_name'] = $this->relationName('budget_years', $filters['budget_year_id'] ?? null, 'name');
         $filters['filter_description'] = ReportFilter::describe($filters);
 
         $summary = ProcurementRequest::reportSummary(ProcurementRequest::forReport($filters));
@@ -61,7 +63,8 @@ class ReportExportService
             'filter_description' => $filters['filter_description'],
             'summary' => $summary,
             'by_school' => ProcurementRequest::reportBySchool(ProcurementRequest::forReport($filters)),
-            'by_supplier' => ProcurementRequest::reportBySupplier(ProcurementRequest::forReport($filters)),
+            'by_subsidiary' => ProcurementRequest::reportBySubsidiary(ProcurementRequest::forReport($filters)),
+            'by_supplier' => ProcurementRequest::reportBySubsidiary(ProcurementRequest::forReport($filters)),
             'by_status' => ProcurementRequest::reportByStatus(ProcurementRequest::forReport($filters)),
             'transactions' => $transactions,
             'transactions_displayed' => $displayed,
@@ -83,7 +86,7 @@ class ReportExportService
             new ProcurementSummaryExport($data['summary']),
             new ProcurementTransactionExport($data['transactions'], (int) $data['summary']['total_transactions']),
             new ProcurementBySchoolExport($data['by_school']),
-            new ProcurementBySupplierExport($data['by_supplier']),
+            new ProcurementBySubsidiaryExport($data['by_subsidiary']),
             new ProcurementByStatusExport($data['by_status']),
         ];
 

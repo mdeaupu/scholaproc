@@ -114,7 +114,9 @@ class ReportFilter
             'date_from' => $range['date_from'],
             'date_to' => $range['date_to'],
             'school_id' => self::normalizeId(Arr::get($input, 'school_id')),
-            'supplier_id' => self::normalizeId(Arr::get($input, 'supplier_id')),
+            'subsidiary_id' => self::normalizeId(Arr::get($input, 'subsidiary_id')),
+            'funding_source_id' => self::normalizeId(Arr::get($input, 'funding_source_id')),
+            'budget_year_id' => self::normalizeId(Arr::get($input, 'budget_year_id')),
             'status' => $status,
         ], fn ($value) => $value !== null && $value !== []);
     }
@@ -133,8 +135,16 @@ class ReportFilter
             $parts[] = 'Sekolah: '.$filters['school_name'];
         }
 
-        if (! empty($filters['supplier_name'])) {
-            $parts[] = 'Supplier: '.$filters['supplier_name'];
+        if (! empty($filters['subsidiary_name'])) {
+            $parts[] = 'Anak Perusahaan: '.$filters['subsidiary_name'];
+        }
+
+        if (! empty($filters['funding_source_name'])) {
+            $parts[] = 'Sumber Dana: '.$filters['funding_source_name'];
+        }
+
+        if (! empty($filters['budget_year_name'])) {
+            $parts[] = 'Tahun Anggaran: '.$filters['budget_year_name'];
         }
 
         if (! empty($filters['status']) && is_array($filters['status'])) {

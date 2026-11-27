@@ -83,7 +83,7 @@ it('normalize membuang nilai kosong agar scope tidak ikut menyaring', function (
         'date_from' => '',
         'date_to' => null,
         'school_id' => '',
-        'supplier_id' => null,
+        'subsidiary_id' => null,
         'status' => [],
     ]);
 
@@ -96,7 +96,7 @@ it('normalize merapikan id, status tunggal, dan rentang custom', function () {
         'date_from' => '2026-02-01',
         'date_to' => '2026-02-28',
         'school_id' => '7',
-        'supplier_id' => '3',
+        'subsidiary_id' => '3',
         'status' => 'completed',
     ]);
 
@@ -105,7 +105,7 @@ it('normalize merapikan id, status tunggal, dan rentang custom', function () {
         'date_from' => '2026-02-01',
         'date_to' => '2026-02-28',
         'school_id' => 7,
-        'supplier_id' => 3,
+        'subsidiary_id' => 3,
         'status' => ['completed'],
     ]);
 });
@@ -149,13 +149,13 @@ it('describe merangkai periode, sekolah, supplier, dan status', function () {
     $description = ReportFilter::describe([
         'period' => 'this_month',
         'school_name' => 'SMA Negeri 1',
-        'supplier_name' => 'CV Sumber Rejeki',
+        'subsidiary_name' => 'CV Sumber Rejeki',
         'status' => ['completed'],
         'status_labels' => ['completed' => 'Selesai'],
     ]);
 
     expect($description)->toContain('Periode: Bulan Ini')
         ->toContain('Sekolah: SMA Negeri 1')
-        ->toContain('Supplier: CV Sumber Rejeki')
+        ->toContain('Anak Perusahaan: CV Sumber Rejeki')
         ->toContain('Status: Selesai');
 });

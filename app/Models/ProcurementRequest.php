@@ -150,6 +150,7 @@ class ProcurementRequest extends Model
     ];
 
     public const EXCLUDED_FINANCIAL_STATUSES = [
+        self::STATUS_DRAFT,
         self::STATUS_REJECTED,
         self::STATUS_CANCELLED,
     ];
@@ -195,8 +196,10 @@ class ProcurementRequest extends Model
         });
 
         static::updating(function (self $model): void {
+            $wasAlreadyLocked = $model->getOriginal('totals_locked_at') !== null;
+
             if (
-                $model->isTotalsLocked() && ! $model->allowSnapshotCorrection
+                $wasAlreadyLocked && ! $model->allowSnapshotCorrection
                 && $model->isDirty([
                     'is_taxable',
                     'ppn_rate',
@@ -675,7 +678,9 @@ class ProcurementRequest extends Model
         return $query
             ->period($filters['date_from'] ?? null, $filters['date_to'] ?? null)
             ->when(! empty($filters['school_id']), fn ($q) => $q->bySchool($filters['school_id']))
-            ->when(! empty($filters['supplier_id']), fn ($q) => $q->bySupplier($filters['supplier_id']))
+            ->when(! empty($filters['subsidiary_id']), fn ($q) => $q->bySubsidiary($filters['subsidiary_id']))
+            ->when(! empty($filters['funding_source_id']), fn ($q) => $q->where('funding_source_id', $filters['funding_source_id']))
+            ->when(! empty($filters['budget_year_id']), fn ($q) => $q->where('budget_year_id', $filters['budget_year_id']))
             ->when(! empty($filters['status']), fn ($q) => $q->status($filters['status']));
     }
 
@@ -1390,15 +1395,7 @@ class ProcurementRequest extends Model
 
     public static function statusLabels(): array
     {
-        return [
-            self::STATUS_DRAFT => 'Draft',
-            self::STATUS_SUBMITTED => 'Diajukan',
-            self::STATUS_VERIFIED => 'Diverifikasi',
-            self::STATUS_SUPPLIER_ASSIGNED => 'Supplier Ditentukan',
-            self::STATUS_ITEMS_PREPARED => 'Barang Siap',
-            self::STATUS_COMPLETED => 'Selesai',
-            self::STATUS_REJECTED => 'Ditolak',
-        ];
+        return self::STATUS_LABELS;
     }
 
     public static function statusLabel(string $status): string
@@ -1428,7 +1425,7 @@ class ProcurementRequest extends Model
             ->selectRaw('COALESCE(SUM(CASE WHEN procurement_requests.status = '.self::sqlStatus(self::STATUS_COMPLETED).' THEN 1 ELSE 0 END), 0) AS completed_count')
             ->selectRaw('COALESCE(SUM(CASE WHEN procurement_requests.status = '.self::sqlStatus(self::STATUS_REJECTED).' THEN 1 ELSE 0 END), 0) AS rejected_count')
             ->selectRaw('COALESCE(SUM(CASE WHEN procurement_requests.totals_locked_at IS NOT NULL THEN 1 ELSE 0 END), 0) AS locked_count')
-            ->selectRaw('COALESCE(SUM(CASE WHEN procurement_requests.supplier_id IS NULL THEN 1 ELSE 0 END), 0) AS unsuppliered_count')
+            ->selectRaw('COALESCE(SUM(CASE WHEN procurement_requests.subsidiary_id IS NULL THEN 1 ELSE 0 END), 0) AS unsubsidiaried_count')
             ->first();
 
         $totalTransactions = (int) ($aggregate->total_transactions ?? 0);
@@ -1445,7 +1442,7 @@ class ProcurementRequest extends Model
             'completed_count' => (int) ($aggregate->completed_count ?? 0),
             'rejected_count' => (int) ($aggregate->rejected_count ?? 0),
             'locked_count' => (int) ($aggregate->locked_count ?? 0),
-            'unsuppliered_count' => (int) ($aggregate->unsuppliered_count ?? 0),
+            'unsubsidiaried_count' => (int) ($aggregate->unsubsidiaried_count ?? 0),
         ];
     }
 
@@ -1484,20 +1481,19 @@ class ProcurementRequest extends Model
     }
 
     /**
-     * Rekap nilai pengadaan per supplier. Transaksi yang supplier-nya belum
-     * ditentukan sengaja tidak dimasukkan — kolom supplier tidak akan pernah
-     * terisi pada rekap ini.
+     * Rekap nilai pengadaan per Anak Perusahaan. Transaksi yang Anak
+     * Perusahaan-nya belum ditentukan dikelompokkan ke baris
+     * "Belum Ditetapkan Anak Perusahaan" sehingga tidak hilang dari total grup.
      */
-    public static function reportBySupplier(Builder $query): Collection
+    public static function reportBySubsidiary(Builder $query): Collection
     {
         return $query
             ->withGroupedReportTotals()
-            ->whereNotNull('procurement_requests.supplier_id')
-            ->join('suppliers', 'suppliers.id', '=', 'procurement_requests.supplier_id')
-            ->groupBy('suppliers.id', 'suppliers.company_name')
+            ->leftJoin('subsidiaries', 'subsidiaries.id', '=', 'procurement_requests.subsidiary_id')
+            ->groupBy('subsidiaries.id', 'subsidiaries.name')
             ->orderByDesc('total_official')
-            ->orderBy('suppliers.company_name')
-            ->selectRaw('suppliers.id AS supplier_id, suppliers.company_name AS company_name')
+            ->orderBy('subsidiaries.name')
+            ->selectRaw('subsidiaries.id AS subsidiary_id, COALESCE(subsidiaries.name, \'Belum Ditetapkan Anak Perusahaan\') AS subsidiary_name')
             ->selectRaw('COUNT(procurement_requests.id) AS total_transactions')
             ->selectRaw('COALESCE(SUM('.self::REPORT_ESTIMATED_SQL.'), 0) AS total_estimated')
             ->selectRaw('COALESCE(SUM('.self::REPORT_EFFECTIVE_TOTAL_SQL.'), 0) AS total_official')
@@ -1505,8 +1501,8 @@ class ProcurementRequest extends Model
             ->selectRaw('COALESCE(SUM(CASE WHEN procurement_requests.status = '.self::sqlStatus(self::STATUS_COMPLETED).' THEN 1 ELSE 0 END), 0) AS completed_count')
             ->get()
             ->map(fn ($row) => [
-                'supplier_id' => (int) $row->supplier_id,
-                'company_name' => $row->company_name,
+                'subsidiary_id' => $row->subsidiary_id === null ? null : (int) $row->subsidiary_id,
+                'subsidiary_name' => $row->subsidiary_name,
                 'total_transactions' => (int) $row->total_transactions,
                 'total_quantity' => (int) $row->total_quantity,
                 'total_estimated' => round((float) $row->total_estimated, 2),
@@ -1561,9 +1557,10 @@ class ProcurementRequest extends Model
             ->withReportTotals()
             ->with([
                 'school' => fn ($q) => $q->withTrashed()->select('id', 'name', 'npsn'),
-                'supplier' => fn ($q) => $q->withTrashed()->select('id', 'company_name'),
-                'packageCategory:id,name',
+                'subsidiary' => fn ($q) => $q->select('id', 'name', 'status'),
+                'fundingSource:id,name',
                 'budgetYear:id,name',
+                'packageCategory:id,name',
             ])
             ->orderByDesc('procurement_requests.created_at')
             ->orderByDesc('procurement_requests.id')
@@ -1580,9 +1577,10 @@ class ProcurementRequest extends Model
             'uuid' => $request->uuid,
             'school_name' => $request->school?->name ?? '-',
             'school_npsn' => $request->school?->npsn ?? '-',
-            'supplier_name' => $request->supplier?->company_name ?? null,
-            'category_name' => $request->packageCategory?->name ?? '-',
+            'subsidiary_name' => $request->subsidiary?->name ?? 'Belum Ditetapkan',
+            'funding_source_name' => $request->fundingSource?->name ?? '-',
             'budget_year_name' => $request->budgetYear?->name ?? '-',
+            'category_name' => $request->packageCategory?->name ?? '-',
             'status' => $request->status,
             'status_label' => self::statusLabel($request->status),
             'requested_at' => $request->requested_at,

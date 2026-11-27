@@ -110,7 +110,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/inbox', NotificationInbox::class)->name('inbox');
     });
 
-    Route::middleware('role:superadmin|admin')->prefix('reports')->name('reports.')->group(function () {
+    Route::prefix('reports')->name('reports.')->group(function () {
         Route::get('/', ReportViewer::class)->name('index');
         Route::get('/summary', [ReportController::class, 'summary'])->name('summary');
         Route::get('/export/excel', [ReportController::class, 'exportExcel'])->name('export.excel');

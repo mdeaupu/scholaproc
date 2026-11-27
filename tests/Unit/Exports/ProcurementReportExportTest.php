@@ -2,7 +2,7 @@
 
 use App\Exports\Reports\ProcurementBySchoolExport;
 use App\Exports\Reports\ProcurementByStatusExport;
-use App\Exports\Reports\ProcurementBySupplierExport;
+use App\Exports\Reports\ProcurementBySubsidiaryExport;
 use App\Exports\Reports\ProcurementSummaryExport;
 use App\Exports\Reports\ProcurementTransactionExport;
 
@@ -21,7 +21,7 @@ function summaryFixture(): array
         'completed_count' => 4,
         'rejected_count' => 1,
         'locked_count' => 6,
-        'unsuppliered_count' => 3,
+        'unsubsidiaried_count' => 3,
     ];
 }
 
@@ -32,7 +32,8 @@ function transactionFixture(array $overrides = []): array
         'uuid' => 'uuid-1',
         'school_name' => 'SDN 1 Cianjur',
         'school_npsn' => '20201234',
-        'supplier_name' => null,
+        'subsidiary_name' => null,
+        'funding_source_name' => null,
         'category_name' => 'ATK',
         'budget_year_name' => '2026',
         'status' => 'draft',
@@ -80,7 +81,7 @@ it('sheet transaksi memberi nomor urut, mengurutkan tanggal, dan menghitung seli
         transactionFixture([
             'uuid' => 'uuid-2',
             'requested_at' => '2026-04-10',
-            'supplier_name' => 'PT Sinar Jaya',
+            'subsidiary_name' => 'PT Sinar Jaya',
         ]),
     ])))->rows();
 
@@ -93,9 +94,9 @@ it('sheet transaksi memberi nomor urut, mengurutkan tanggal, dan menghitung seli
         ->and($body->last()[2])->toBe('10/04/2026')
         ->and($body->first()[5])->toBe('-')
         ->and($body->last()[5])->toBe('PT Sinar Jaya')
-        ->and($body->first()[11])->toBe('Rp 1.000.000')
-        ->and($body->first()[12])->toBe('Rp 900.000')
-        ->and($body->first()[13])->toBe('Rp 100.000');
+        ->and($body->first()[12])->toBe('Rp 1.000.000')
+        ->and($body->first()[13])->toBe('Rp 900.000')
+        ->and($body->first()[14])->toBe('Rp 100.000');
 });
 
 it('sheet transaksi memakai tanggal dibuat saat tanggal pengajuan kosong', function () {
@@ -153,11 +154,11 @@ it('sheet per sekolah menambahkan penghematan dan urut dari data model', functio
         ->and($rows->get(1)[7])->toBe('Rp 300.000');
 });
 
-it('sheet per supplier memakai nama perusahaan dan jumlah selesai', function () {
-    $rows = (new ProcurementBySupplierExport(collect([
+it('sheet per subsidiary memakai nama perusahaan dan jumlah selesai', function () {
+    $rows = (new ProcurementBySubsidiaryExport(collect([
         [
-            'supplier_id' => 5,
-            'company_name' => 'PT Sinar Jaya',
+            'subsidiary_id' => 5,
+            'subsidiary_name' => 'PT Sinar Jaya',
             'total_transactions' => 2,
             'total_quantity' => 40,
             'total_estimated' => 1_000_000,
@@ -166,7 +167,7 @@ it('sheet per supplier memakai nama perusahaan dan jumlah selesai', function () 
         ],
     ])))->rows();
 
-    expect($rows->first()[1])->toBe('Supplier')
+    expect($rows->first()[1])->toBe('Anak Perusahaan')
         ->and($rows->get(1)[1])->toBe('PT Sinar Jaya')
         ->and($rows->get(1)[6])->toBe('Rp 50.000')
         ->and($rows->get(1)[7])->toBe(1);
@@ -200,11 +201,11 @@ it('setiap export memberi judul tab yang singkat dan unik', function () {
         (new ProcurementSummaryExport(summaryFixture()))->sheetTitle(),
         (new ProcurementTransactionExport(collect()))->sheetTitle(),
         (new ProcurementBySchoolExport(collect()))->sheetTitle(),
-        (new ProcurementBySupplierExport(collect()))->sheetTitle(),
+        (new ProcurementBySubsidiaryExport(collect()))->sheetTitle(),
         (new ProcurementByStatusExport(collect()))->sheetTitle(),
     ];
 
-    expect($titles)->toBe(['Ringkasan', 'Transaksi', 'Per Sekolah', 'Per Supplier', 'Per Status'])
+    expect($titles)->toBe(['Ringkasan', 'Transaksi', 'Per Sekolah', 'Per Anak Perusahaan', 'Per Status'])
         ->and(array_unique($titles))->toHaveCount(5);
 
     foreach ($titles as $title) {

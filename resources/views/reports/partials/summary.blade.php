@@ -33,8 +33,8 @@
             <td class="num">{{ number_format($summary['locked_count'], 0, ',', '.') }}</td>
         </tr>
         <tr>
-            <td>Belum Ada Supplier</td>
-            <td class="num">{{ number_format($summary['unsuppliered_count'], 0, ',', '.') }}</td>
+            <td>Belum Ditetapkan Anak Perusahaan</td>
+            <td class="num">{{ number_format($summary['unsubsidiaried_count'], 0, ',', '.') }}</td>
             <td class="muted">&nbsp;</td>
             <td class="num muted">&nbsp;</td>
         </tr>

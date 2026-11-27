@@ -39,7 +39,7 @@ class ProcurementSummaryExport extends ProcurementReportExport
             ['Transaksi Selesai (%)', round($s['completed_count'] / $total * 100, 1)],
             ['Transaksi Ditolak (%)', round($s['rejected_count'] / $total * 100, 1)],
             ['Total Snapshot Terkunci', $this->integer($s['locked_count'])],
-            ['Belum Ditentukan Supplier', $this->integer($s['unsuppliered_count'])],
+            ['Belum Ditetapkan Anak Perusahaan', $this->integer($s['unsubsidiaried_count'])],
         ]);
     }
 }

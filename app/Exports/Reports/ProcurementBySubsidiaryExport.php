@@ -5,10 +5,11 @@ namespace App\Exports\Reports;
 use Illuminate\Support\Collection;
 
 /**
- * Sheet "Per Supplier": rekap nilai pengadaan per supplier. Transaksi yang
- * supplier-nya belum ditentukan tidak termasuk, mengikuti reportBySupplier().
+ * Sheet "Per Anak Perusahaan": rekap nilai pengadaan per Anak Perusahaan.
+ * Transaksi yang Anak Perusahaan-nya belum ditentukan dikelompokkan ke baris
+ * "Belum Ditetapkan Anak Perusahaan".
  */
-class ProcurementBySupplierExport extends ProcurementReportExport
+class ProcurementBySubsidiaryExport extends ProcurementReportExport
 {
     /**
      * @param  Collection<int, array<string, mixed>>  $rows
@@ -17,13 +18,13 @@ class ProcurementBySupplierExport extends ProcurementReportExport
 
     public function sheetTitle(): string
     {
-        return 'Per Supplier';
+        return 'Per Anak Perusahaan';
     }
 
     public function rows(): Collection
     {
         $rows = collect([
-            ['No', 'Supplier', 'Jumlah Transaksi', 'Total Kuantitas', 'Estimasi', 'Resmi', 'Penghematan', 'Selesai'],
+            ['No', 'Anak Perusahaan', 'Jumlah Transaksi', 'Total Kuantitas', 'Estimasi', 'Resmi', 'Penghematan', 'Selesai'],
         ]);
 
         return $rows->concat($this->rows->values()->map(function (array $r, int $index) {
@@ -32,7 +33,7 @@ class ProcurementBySupplierExport extends ProcurementReportExport
 
             return [
                 $index + 1,
-                (string) $r['company_name'],
+                (string) $r['subsidiary_name'],
                 $this->integer($r['total_transactions']),
                 $this->integer($r['total_quantity']),
                 $this->money($estimated),

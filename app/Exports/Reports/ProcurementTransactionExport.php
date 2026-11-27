@@ -29,8 +29,8 @@ class ProcurementTransactionExport extends ProcurementReportExport
     {
         $rows = collect([
             [
-                'No', 'No. Pengajuan', 'Tanggal Pengajuan', 'Sekolah', 'NPSN', 'Supplier',
-                'Kategori', 'Tahun Anggaran', 'Status', 'Jumlah Item', 'Total Kuantitas',
+                'No', 'No. Pengajuan', 'Tanggal Pengajuan', 'Sekolah', 'NPSN', 'Anak Perusahaan',
+                'Sumber Dana', 'Kategori', 'Tahun Anggaran', 'Status', 'Jumlah Item', 'Total Kuantitas',
                 'Estimasi', 'Resmi', 'Selisih',
             ],
         ]);
@@ -45,7 +45,8 @@ class ProcurementTransactionExport extends ProcurementReportExport
                 $this->date($t['requested_at'] ?? $t['created_at']),
                 (string) $t['school_name'],
                 (string) $t['school_npsn'],
-                $this->dash($t['supplier_name']),
+                $this->dash($t['subsidiary_name']),
+                $this->dash($t['funding_source_name']),
                 (string) $t['category_name'],
                 (string) $t['budget_year_name'],
                 (string) $t['status_label'],

@@ -114,7 +114,7 @@
 
     @include('reports.partials.summary')
     @include('reports.partials.by-school')
-    @include('reports.partials.by-supplier')
+    @include('reports.partials.by-subsidiary')
     @include('reports.partials.by-status')
     @include('reports.partials.transactions')
 </body>

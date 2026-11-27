@@ -2,7 +2,8 @@
 
 use App\Livewire\Report\ReportViewer;
 use App\Models\ProcurementRequest;
-use App\Models\Supplier;
+use App\Models\School;
+use App\Models\Subsidiary;
 use App\Models\User;
 use App\Support\ReportFilter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -15,7 +16,14 @@ function viewerUser(string $role): User
 {
     Role::firstOrCreate(['name' => $role]);
 
-    return User::factory()->create(['role' => $role])->assignRole($role);
+    $user = User::factory()->create(['role' => $role])->assignRole($role);
+
+    if ($role === 'school') {
+        $user->school_id = School::factory()->create()->id;
+        $user->save();
+    }
+
+    return $user;
 }
 
 describe('ReportViewer - akses', function () {
@@ -50,13 +58,13 @@ describe('ReportViewer - ringkasan', function () {
         Livewire::test(ReportViewer::class)
             ->assertViewHas('summary')
             ->assertViewHas('bySchool')
-            ->assertViewHas('bySupplier')
+            ->assertViewHas('bySubsidiary')
             ->assertViewHas('byStatus')
             ->assertViewHas('transactions')
             ->assertSee('Laporan Pengadaan')
             ->assertSee('Total Transaksi')
             ->assertSee('Per Sekolah')
-            ->assertSee('Per Supplier');
+            ->assertSee('Per Anak Perusahaan');
     });
 
     it('jumlah transaksi pada ringkasan mengikuti data', function () {
@@ -93,10 +101,63 @@ describe('ReportViewer - filter', function () {
         $this->actingAs(viewerUser('admin'));
 
         Livewire::test(ReportViewer::class)
-            ->set('status', [ProcurementRequest::STATUS_COMPLETED])
+            ->set('status', ProcurementRequest::STATUS_COMPLETED)
             ->assertViewHas('summary', fn (array $summary) => $summary['total_transactions'] === 1)
             ->assertSee($completed->uuid)
             ->assertDontSee($draft->uuid);
+    });
+
+    it('menyaring berdasarkan anak perusahaan terpilih', function () {
+        $subsidiaryA = Subsidiary::factory()->create(['name' => 'CV A']);
+        $subsidiaryB = Subsidiary::factory()->create(['name' => 'CV B']);
+
+        $inA = ProcurementRequest::factory()->create(['subsidiary_id' => $subsidiaryA->id, 'status' => ProcurementRequest::STATUS_COMPLETED]);
+        ProcurementRequest::factory()->create(['subsidiary_id' => $subsidiaryB->id, 'status' => ProcurementRequest::STATUS_COMPLETED]);
+
+        $this->actingAs(viewerUser('admin'));
+
+        Livewire::test(ReportViewer::class)
+            ->set('subsidiary_id', (string) $subsidiaryA->id)
+            ->assertViewHas('summary', fn (array $summary) => $summary['total_transactions'] === 1)
+            ->assertSee($inA->uuid);
+    });
+
+    it('menyaring berdasarkan sumber dana terpilih', function () {
+        $fsA = \App\Models\FundingSource::factory()->create(['name' => 'BOS Reguler']);
+        $fsB = \App\Models\FundingSource::factory()->create(['name' => 'BOS Kinerja']);
+
+        $inA = ProcurementRequest::factory()->create(['funding_source_id' => $fsA->id, 'status' => ProcurementRequest::STATUS_COMPLETED]);
+        ProcurementRequest::factory()->create(['funding_source_id' => $fsB->id, 'status' => ProcurementRequest::STATUS_COMPLETED]);
+
+        $this->actingAs(viewerUser('admin'));
+
+        Livewire::test(ReportViewer::class)
+            ->set('funding_source_id', (string) $fsA->id)
+            ->assertViewHas('summary', fn (array $summary) => $summary['total_transactions'] === 1)
+            ->assertSee($inA->uuid);
+    });
+
+    it('menyaring berdasarkan tahun anggaran terpilih', function () {
+        $byA = \App\Models\BudgetYear::factory()->create([
+            'name' => '2025/2026',
+            'start_date' => '2025-01-01',
+            'end_date' => '2025-12-31',
+        ]);
+        $byB = \App\Models\BudgetYear::factory()->create([
+            'name' => '2026/2027',
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-12-31',
+        ]);
+
+        $inA = ProcurementRequest::factory()->create(['budget_year_id' => $byA->id, 'status' => ProcurementRequest::STATUS_COMPLETED]);
+        ProcurementRequest::factory()->create(['budget_year_id' => $byB->id, 'status' => ProcurementRequest::STATUS_COMPLETED]);
+
+        $this->actingAs(viewerUser('admin'));
+
+        Livewire::test(ReportViewer::class)
+            ->set('budget_year_id', (string) $byA->id)
+            ->assertViewHas('summary', fn (array $summary) => $summary['total_transactions'] === 1)
+            ->assertSee($inA->uuid);
     });
 
     it('preset periode bulan ini menyaring transaksi lama', function () {
@@ -137,7 +198,7 @@ describe('ReportViewer - filter', function () {
             ->call('resetFilters')
             ->assertSet('period', ReportFilter::ALL)
             ->assertSet('school_id', '')
-            ->assertSet('status', [])
+            ->assertSet('status', '')
             ->assertViewHas('summary', fn (array $summary) => $summary['total_transactions'] === 1);
     });
 
@@ -146,7 +207,7 @@ describe('ReportViewer - filter', function () {
 describe('ReportViewer - url export', function () {
 
     it('membawa seluruh filter aktif ke url excel', function () {
-        $supplier = Supplier::factory()->create();
+        $subsidiary = Subsidiary::factory()->create();
         $school = ProcurementRequest::factory()->create()->school_id;
 
         $this->actingAs(viewerUser('admin'));
@@ -154,8 +215,8 @@ describe('ReportViewer - url export', function () {
         $url = Livewire::test(ReportViewer::class)
             ->set('period', ReportFilter::THIS_YEAR)
             ->set('school_id', (string) $school)
-            ->set('supplier_id', (string) $supplier->id)
-            ->set('status', [ProcurementRequest::STATUS_COMPLETED])
+            ->set('subsidiary_id', (string) $subsidiary->id)
+            ->set('status', ProcurementRequest::STATUS_COMPLETED)
             ->call('filters')
             ->instance()
             ->exportUrl('excel');
@@ -163,7 +224,7 @@ describe('ReportViewer - url export', function () {
         expect($url)->toContain('reports/export/excel')
             ->toContain('period=this_year')
             ->toContain('school_id='.$school)
-            ->toContain('supplier_id='.$supplier->id)
+            ->toContain('subsidiary_id='.$subsidiary->id)
             ->toContain('status%5B0%5D=completed');
     });
 

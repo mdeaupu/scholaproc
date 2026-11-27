@@ -1,7 +1,8 @@
 <?php
 
 use App\Models\ProcurementRequest;
-use App\Models\Supplier;
+use App\Models\School;
+use App\Models\Subsidiary;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -12,7 +13,14 @@ function reportUser(string $role): User
 {
     Role::firstOrCreate(['name' => $role]);
 
-    return User::factory()->create(['role' => $role])->assignRole($role);
+    $user = User::factory()->create(['role' => $role])->assignRole($role);
+
+    if ($role === 'school') {
+        $user->school_id = School::factory()->create()->id;
+        $user->save();
+    }
+
+    return $user;
 }
 
 describe('ReportController - auth guard', function () {
@@ -129,16 +137,16 @@ describe('ReportController - exportExcel()', function () {
     });
 
     it('filter status dan sekolah yang valid diteruskan ke laporan', function () {
-        $supplier = Supplier::factory()->create();
+        $subsidiary = Subsidiary::factory()->create();
         $target = ProcurementRequest::factory()->create([
-            'supplier_id' => $supplier->id,
+            'subsidiary_id' => $subsidiary->id,
             'status' => ProcurementRequest::STATUS_COMPLETED,
         ]);
 
         $response = $this->actingAs(reportUser('admin'))->get(route('reports.export.excel', [
             'period' => 'all',
             'school_id' => $target->school_id,
-            'supplier_id' => $supplier->id,
+            'subsidiary_id' => $subsidiary->id,
             'status' => [ProcurementRequest::STATUS_COMPLETED],
         ]));
 

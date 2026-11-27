@@ -2,9 +2,11 @@
 
 namespace App\Livewire\Report;
 
+use App\Models\BudgetYear;
+use App\Models\FundingSource;
 use App\Models\ProcurementRequest;
 use App\Models\School;
-use App\Models\Supplier;
+use App\Models\Subsidiary;
 use App\Support\ReportFilter;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
@@ -28,7 +30,7 @@ class ReportViewer extends Component
         'summary' => 'Ringkasan',
         'transactions' => 'Transaksi',
         'schools' => 'Per Sekolah',
-        'suppliers' => 'Per Supplier',
+        'subsidiaries' => 'Per Anak Perusahaan',
         'statuses' => 'Per Status',
     ];
 
@@ -40,10 +42,14 @@ class ReportViewer extends Component
 
     public string $school_id = '';
 
-    public string $supplier_id = '';
+    public string $subsidiary_id = '';
 
-    /** @var list<string> */
-    public array $status = [];
+    public string $funding_source_id = '';
+
+    public string $budget_year_id = '';
+
+    /** @var string */
+    public string $status = '';
 
     public string $tab = 'summary';
 
@@ -66,11 +72,13 @@ class ReportViewer extends Component
         }
 
         $this->school_id = (string) request()->query('school_id', '');
-        $this->supplier_id = (string) request()->query('supplier_id', '');
+        $this->subsidiary_id = (string) request()->query('subsidiary_id', '');
+        $this->funding_source_id = (string) request()->query('funding_source_id', '');
+        $this->budget_year_id = (string) request()->query('budget_year_id', '');
 
-        $status = request()->query('status', []);
-        $status = is_string($status) ? [$status] : (array) $status;
-        $this->status = array_values(array_intersect($status, ProcurementRequest::reportStatuses()));
+        $status = request()->query('status', '');
+        $status = is_array($status) ? ($status[0] ?? '') : (string) $status;
+        $this->status = in_array($status, ProcurementRequest::reportStatuses(), true) ? $status : '';
 
         $tab = (string) request()->query('tab', 'summary');
         $this->tab = array_key_exists($tab, self::TABS) ? $tab : 'summary';
@@ -91,7 +99,7 @@ class ReportViewer extends Component
 
     public function resetFilters(): void
     {
-        $this->reset(['period', 'date_from', 'date_to', 'school_id', 'supplier_id', 'status']);
+        $this->reset(['period', 'date_from', 'date_to', 'school_id', 'subsidiary_id', 'funding_source_id', 'budget_year_id', 'status']);
         $this->period = ReportFilter::defaultPeriod();
         $this->resetPage();
         $this->info('Filter laporan dikosongkan.');
@@ -107,8 +115,10 @@ class ReportViewer extends Component
             'date_from' => $this->date_from,
             'date_to' => $this->date_to,
             'school_id' => $this->school_id,
-            'supplier_id' => $this->supplier_id,
-            'status' => $this->status,
+            'subsidiary_id' => $this->subsidiary_id,
+            'funding_source_id' => $this->funding_source_id,
+            'budget_year_id' => $this->budget_year_id,
+            'status' => $this->status ? [$this->status] : [],
         ]);
     }
 
@@ -122,8 +132,10 @@ class ReportViewer extends Component
             'date_from' => $this->date_from,
             'date_to' => $this->date_to,
             'school_id' => $this->school_id,
-            'supplier_id' => $this->supplier_id,
-            'status' => $this->status,
+            'subsidiary_id' => $this->subsidiary_id,
+            'funding_source_id' => $this->funding_source_id,
+            'budget_year_id' => $this->budget_year_id,
+            'status' => $this->status ? [$this->status] : [],
         ], fn ($value) => $value !== '' && $value !== [] && $value !== null);
 
         return route('reports.export.'.$format, $query);
@@ -139,15 +151,35 @@ class ReportViewer extends Component
         $filters = $this->filters();
         $summary = ProcurementRequest::reportSummary(ProcurementRequest::forReport($filters));
 
+        $subsidiaryOptions = Subsidiary::orderBy('name')->get()->map(fn (Subsidiary $subsidiary): array => [
+            'id' => (string) $subsidiary->id,
+            'name' => $subsidiary->name.(! $subsidiary->isActive() ? ' (Nonaktif)' : ''),
+        ])->values()->all();
+
         return view('livewire.report.report-viewer', [
-            'periodPresets' => ReportFilter::periodPresets(),
-            'statusLabels' => ProcurementRequest::statusLabels(),
+            'periodPresets' => collect(ReportFilter::periodPresets())
+                ->map(fn ($label, $id) => ['id' => $id, 'name' => $label])
+                ->values()->all(),
+            'statusLabels' => collect(ProcurementRequest::statusLabels())
+                ->map(fn ($label, $id) => ['id' => $id, 'name' => $label])
+                ->values()->all(),
             'tabs' => self::TABS,
-            'schools' => School::orderBy('name')->pluck('name', 'id'),
-            'suppliers' => Supplier::orderBy('company_name')->pluck('company_name', 'id'),
+            'schools' => School::orderBy('name')->get()->map(fn ($s) => [
+                'id' => (string) $s->id,
+                'name' => $s->name,
+            ])->values()->all(),
+            'subsidiaries' => $subsidiaryOptions,
+            'fundingSources' => FundingSource::orderBy('name')->get()->map(fn ($f) => [
+                'id' => (string) $f->id,
+                'name' => $f->name,
+            ])->values()->all(),
+            'budgetYears' => BudgetYear::orderByDesc('name')->get()->map(fn ($b) => [
+                'id' => (string) $b->id,
+                'name' => $b->name,
+            ])->values()->all(),
             'summary' => $summary,
             'bySchool' => ProcurementRequest::reportBySchool(ProcurementRequest::forReport($filters)),
-            'bySupplier' => ProcurementRequest::reportBySupplier(ProcurementRequest::forReport($filters)),
+            'bySubsidiary' => ProcurementRequest::reportBySubsidiary(ProcurementRequest::forReport($filters)),
             'byStatus' => ProcurementRequest::reportByStatus(ProcurementRequest::forReport($filters)),
             'transactions' => $this->paginateTransactions($filters, $summary),
         ])->layout('layouts.app');

@@ -73,6 +73,11 @@ new class extends Component {
             <x-mary-menu-item title="Pengajuan Pengadaan" icon="o-shopping-cart" route="procurement.index"
                 :active="request()->routeIs('procurement.*')" />
         @endif
+        @if ($user->isSuperAdmin() || $user->isAdmin())
+            <x-mary-menu-item title="Laporan" icon="o-document-chart-bar" link="{{ route('reports.index') }}"
+                :active="request()->routeIs('reports.*')" wire:navigate
+                class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
+        @endif
         <x-mary-menu-item title="Notifikasi" icon="o-bell" link="{{ auth()->user()?->isSchool() ? route('notifications.inbox') : route('notifications.index') }}" :active="request()->routeIs('notifications.*')" wire:navigate class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
         @if (auth()->user()?->isSuperAdmin())
             <x-mary-menu-item title="Sesi WhatsApp" icon="o-chat-bubble-left-right" route="whatsapp.session"

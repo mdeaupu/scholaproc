@@ -2,23 +2,27 @@
 
 use App\Livewire\Actions\Logout;
 use App\Models\Notification;
+use Livewire\Attributes\On;
 use Livewire\Volt\Component;
 
 new class extends Component {
     public $notifications = [];
 
+    public bool $logoutModal = false;
+
     public function getUnreadCountProperty(): int
     {
         $user = auth()->user();
+
+        if (!$user) {
+            return 0;
+        }
 
         if ($user->isSuperAdmin() || $user->isAdmin()) {
             return Notification::unread()->count();
         }
 
-        return Notification::unread()
-            ->whereIn('event_type', Notification::SCHOOL_EVENTS)
-            ->whereHas('procurementRequest', fn ($q) => $q->where('school_id', $user->school_id))
-            ->count();
+        return Notification::unread()->whereIn('event_type', Notification::SCHOOL_EVENTS)->whereHas('procurementRequest', fn($q) => $q->where('school_id', $user->school_id))->count();
     }
 
     #[On('profile-updated')]
@@ -110,97 +114,16 @@ new class extends Component {
                         </li>
                     @endforelse
                     <li class="border-t border-base-content/10 mt-1">
-                        <a href="#notifikasi-terbaru" class="text-[#0046FF] font-semibold justify-center text-sm">
+                        <a href="{{ route('notifications.inbox') }}" wire:navigate
+                            class="text-[#0046FF] font-semibold justify-center text-sm">
                             Lihat Semua
                         </a>
                     </li>
-
-                    @if ($user->isSuperAdmin() || $user->isAdmin())
-                        <x-mary-menu-sub title="Master Data" icon="o-circle-stack" class="text-sm font-medium text-black"
-                            :open="request()->routeIs('admins.*', 'schools.*', '*suppliers.index', 'master.*')">
-                            @if ($user->isSuperAdmin())
-                                <x-mary-menu-item title="Manajemen Admin" icon="o-users" link="{{ route('admins.index') }}"
-                                    :active="request()->routeIs('admins.*')" wire:navigate
-                                    class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-
-                                <x-mary-menu-item title="Manajemen Sekolah" icon="o-academic-cap" link="{{ route('schools.index') }}"
-                                    :active="request()->routeIs('schools.*')" wire:navigate
-                                    class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-
-                                <x-mary-menu-item title="Manajemen Supplier" icon="o-building-office-2"
-                                    link="{{ route('suppliers.index') }}" :active="request()->routeIs('suppliers.*')" wire:navigate
-                                    class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-                            @endif
-
-                            <x-mary-menu-item title="Kategori Paket" icon="o-tag" link="{{ route('master.package-categories') }}"
-                                :active="request()->routeIs('master.package-categories')" wire:navigate
-                                class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-                            <x-mary-menu-item title="Sumber Dana" icon="o-banknotes" link="{{ route('master.funding-sources') }}"
-                                :active="request()->routeIs('master.funding-sources')" wire:navigate
-                                class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-                            <x-mary-menu-item title="Tahun Anggaran" icon="o-calendar-days" link="{{ route('master.budget-years') }}"
-                                :active="request()->routeIs('master.budget-years')" wire:navigate
-                                class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-                            <x-mary-menu-item title="Satuan Barang" icon="o-scale" link="{{ route('master.item-units') }}"
-                                :active="request()->routeIs('master.item-units')" wire:navigate
-                                class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-                        </x-mary-menu-sub>
-                    @endif
-                    <x-mary-menu-item title="Data Pengadaan" icon="o-shopping-cart" link="{{ route('procurement.index') }}"
-                        :active="request()->routeIs('procurement.*')" wire:navigate class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-                    @if ($user->isSuperAdmin() || $user->isAdmin())
-                        <x-mary-menu-item title="Notifikasi" icon="o-bell" link="{{ route('notifications.index') }}"
-                            :active="request()->routeIs('notifications.index')" wire:navigate
-                            class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]"
-                            badge="{{ $this->unreadCount > 0 ? $this->unreadCount : '' }}" />
-                    @else
-                        <x-mary-menu-item title="Notifikasi" icon="o-bell" link="{{ route('notifications.inbox') }}"
-                            :active="request()->routeIs('notifications.inbox')" wire:navigate
-                            class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]"
-                            badge="{{ $this->unreadCount > 0 ? $this->unreadCount : '' }}" />
-                    @endif
-                    @if ($user->isSuperAdmin())
-                        <x-mary-menu-item title="WhatsApp" icon="o-chat-bubble-left-right" link="{{ route('whatsapp.session') }}"
-                            :active="request()->routeIs('whatsapp.*')" wire:navigate
-                            class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-                    @endif
-                    <div class="my-2 border-t border-gray-200"></div>
-                    <x-mary-menu-sub title="Pengaturan" icon="o-cog-6-tooth" class="text-sm font-medium text-black"
-                        :open="request()->routeIs('profile*')">
-                        <x-mary-menu-item title="Profil Saya" icon="o-user" link="{{ route('profile') }}" :active="request()->routeIs('profile*')"
-                            wire:navigate class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-                    </x-mary-menu-sub>
                 </div>
             </x-mary-dropdown>
         @endif
-        <x-mary-menu-item title="Data Pengadaan" icon="o-shopping-cart" link="{{ route('procurement.index') }}"
-            :active="request()->routeIs('procurement.*')" wire:navigate class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-        @if ($user->isSuperAdmin() || $user->isAdmin())
-            <x-mary-menu-item title="Laporan" icon="o-document-chart-bar" link="{{ route('reports.index') }}"
-                :active="request()->routeIs('reports.*')" wire:navigate
-                class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-            <x-mary-menu-item title="Notifikasi" icon="o-bell" link="{{ route('notifications.index') }}"
-                :active="request()->routeIs('notifications.index')" wire:navigate
-                class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]"
-                badge="{{ $this->unreadCount > 0 ? $this->unreadCount : '' }}" />
-        @else
-            <x-mary-menu-item title="Notifikasi" icon="o-bell" link="{{ route('notifications.inbox') }}"
-                :active="request()->routeIs('notifications.inbox')" wire:navigate
-                class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]"
-                badge="{{ $this->unreadCount > 0 ? $this->unreadCount : '' }}" />
-        @endif
-        @if ($user->isSuperAdmin())
-            <x-mary-menu-item title="WhatsApp" icon="o-chat-bubble-left-right" link="{{ route('whatsapp.session') }}"
-                :active="request()->routeIs('whatsapp.*')" wire:navigate
-                class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-        @endif
-        <div class="my-2 border-t border-gray-200"></div>
-        <x-mary-menu-sub title="Pengaturan" icon="o-cog-6-tooth" class="text-sm font-medium text-black"
-            :open="request()->routeIs('profile*')">
-            <x-mary-menu-item title="Profil Saya" icon="o-user" link="{{ route('profile') }}" :active="request()->routeIs('profile*')"
-                wire:navigate class="rounded-lg text-sm font-medium text-black hover:text-[#0046FF]" />
-        </x-mary-menu-sub>
-    </x-mary-menu>
+    </x-slot:actions>
+
     <template x-teleport="body">
         <x-mary-modal wire:model="logoutModal" title="Konfirmasi Keluar" class="backdrop-blur"
             title-class="text-[#FF8040]">
